@@ -10,7 +10,7 @@
     <!-- Top Bar -->
     <div class="top-bar">
       <div class="logo logo-clickable">
-        <img src="/logo.png" alt="Dr.Vision" class="logo-icon" @click="handleRefresh" />
+        <img src="/assets/logo.png" alt="Dr.Vision" class="logo-icon" @click="handleRefresh" />
         <span class="logo-text" @click="handleRefresh">Dr.Vision</span>
       </div>
       <div class="top-bar-actions">
