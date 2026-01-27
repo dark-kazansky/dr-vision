@@ -1,10 +1,17 @@
 <template>
   <div class="app-container">
+    <!-- Feedback Dialog -->
+    <FeedbackDialog 
+      :is-open="showFeedbackDialog" 
+      @close="showFeedbackDialog = false"
+      @submit="handleFeedbackSubmit"
+    />
+    
     <!-- Top Bar -->
     <div class="top-bar">
-      <div class="logo">
-        <img src="/logo.png" alt="Dr.Vision" class="logo-icon" />
-        <span class="logo-text">Dr.Vision</span>
+      <div class="logo logo-clickable">
+        <img src="/logo.png" alt="Dr.Vision" class="logo-icon" @click="handleRefresh" />
+        <span class="logo-text" @click="handleRefresh">Dr.Vision</span>
       </div>
       <div class="top-bar-actions">
         <button class="top-bar-btn" @click="handleFeedback">
@@ -12,12 +19,6 @@
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
           </svg>
           Feedback
-        </button>
-        <button class="top-bar-btn" @click="handleRefresh">
-          <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-          </svg>
-          Refresh
         </button>
       </div>
     </div>
@@ -805,15 +806,54 @@ const handleProcess = async () => {
 }
 
 const handleRefresh = async () => {
+  console.log('Refresh clicked!')
+  
+  // Clear all uploaded files
+  clearFiles()
+  
+  // Reset local state
+  selectedFile.value = null
+  setPreviewFile(null)
+  activeTab.value = 'build'
+  selectedTier.value = 'Normal'
+  processAllPages.value = true
+  processAllFiles.value = false
+  currentResultPage.value = 1
+  
+  // Revoke all object URLs to free memory
+  uploadedFiles.value.forEach((file, id) => {
+    if (previewFileUrl.value) {
+      try {
+        URL.revokeObjectURL(previewFileUrl.value)
+      } catch (error) {
+        console.error('Error revoking URL:', error)
+      }
+    }
+  })
+  
+  // Clear uploaded files map
+  uploadedFiles.value.clear()
+  previewFileUrl.value = ''
+  
+  // Clear parsed HTML cache
+  parsedHtmlCache.value.clear()
+  
+  // Check backend health
   await checkHealth()
+  
+  console.log('App reset completed')
 }
 
+const showFeedbackDialog = ref(false)
+
 const handleFeedback = () => {
-  const feedback = prompt('Please enter your feedback:')
-  if (feedback && feedback.trim()) {
-    console.log('Feedback submitted:', feedback)
-    alert('Thank you for your feedback!')
-  }
+  showFeedbackDialog.value = true
+}
+
+const handleFeedbackSubmit = (feedback: { type: string; message: string }) => {
+  console.log('Feedback submitted:', feedback)
+  // Here you can add API call to send feedback to backend
+  // For now, just log it
 }
 
 const nextResultPage = () => {

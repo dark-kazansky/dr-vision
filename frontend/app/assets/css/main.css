@@ -60,10 +60,25 @@ body {
   gap: 10px;
 }
 
+.logo-clickable {
+  cursor: pointer;
+  transition: opacity 0.2s;
+  user-select: none;
+}
+
+.logo-clickable:hover {
+  opacity: 0.7;
+}
+
+.logo-clickable:active {
+  opacity: 0.5;
+}
+
 .logo-icon {
   width: 50px;
   height: 32px;
   object-fit: contain;
+  cursor: pointer;
 }
 
 .logo-text {
@@ -71,6 +86,7 @@ body {
   font-size: 30px;
   color: var(--text-primary);
   line-height: 1.2;
+  cursor: pointer;
 }
 
 .top-bar-actions {
