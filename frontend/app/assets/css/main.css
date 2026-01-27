@@ -1000,3 +1000,53 @@ body {
   cursor: not-allowed;
   opacity: 0.6;
 }
+
+.cancel-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border: 1px solid #dc2626;
+  border-radius: 8px;
+  background-color: white;
+  color: #dc2626;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  margin-right: 12px;
+}
+
+.cancel-btn:hover {
+  background-color: #dc2626;
+  color: white;
+}
+
+.cancel-btn:active {
+  background-color: #b91c1c;
+}
+
+.edit-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border: 1px solid var(--accent-orange);
+  border-radius: 8px;
+  background-color: white;
+  color: var(--accent-orange);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  margin-right: 12px;
+}
+
+.edit-btn:hover {
+  background-color: var(--accent-orange);
+  color: white;
+}
+
+.edit-btn:active {
+  background-color: #E55A2B;
+}

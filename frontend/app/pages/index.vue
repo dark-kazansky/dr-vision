@@ -7,6 +7,20 @@
       @submit="handleFeedbackSubmit"
     />
     
+    <!-- Full Screen Editor -->
+    <FullScreenEditor
+      :is-open="showFullScreenEditor"
+      :preview-file="previewFile"
+      :pdf-url="previewFileUrl"
+      :image-url="previewFileUrl"
+      :initial-text="currentPageResult"
+      :total-pages="totalResultPages"
+      :initial-page="currentResultPage"
+      @close="showFullScreenEditor = false"
+      @update="handleEditorUpdate"
+      @page-change="handleEditorPageChange"
+    />
+    
     <!-- Top Bar -->
     <div class="top-bar">
       <div class="logo logo-clickable">
@@ -252,8 +266,24 @@
           <!-- Panel Footer -->
           <div class="panel-footer">
             <div class="panel-footer-left">
+              <!-- Edit Button -->
+              <button
+                v-if="results && results.success && activeTab !== 'build'"
+                class="edit-btn"
+                @click="openFullScreenEditor"
+              >
+                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+                Edit
+              </button>
+            </div>
+            <div class="panel-footer-center">
+              <!-- Spinner when processing -->
+              <div v-if="isProcessing" class="spinner"></div>
+              
               <!-- Pagination for results -->
-              <div v-if="results && results.success && totalResultPages > 1 && activeTab !== 'build'" class="results-pagination">
+              <div v-else-if="results && results.success && totalResultPages > 1 && activeTab !== 'build'" class="results-pagination">
                 <button class="pagination-btn" @click="prevResultPage" :disabled="!canGoPrevResult">
                   <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
@@ -267,10 +297,17 @@
                 </button>
               </div>
             </div>
-            <div class="panel-footer-center">
-              <div v-if="isProcessing" class="spinner"></div>
-            </div>
             <div class="panel-footer-right">
+              <button
+                v-if="isProcessing"
+                class="cancel-btn"
+                @click="handleCancel"
+              >
+                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+                Cancel
+              </button>
               <button
                 class="run-parse-btn"
                 :disabled="!canProcess || isProcessing"
@@ -337,6 +374,10 @@ const processAllFiles = ref(false)
 const currentResultPage = ref(1)
 const resultsPerPage = 1000 // characters per page
 const isCancelling = ref(false)
+const isEditMode = ref(false)
+const editableRawResult = ref('')
+const editableParsedResult = ref('')
+const showFullScreenEditor = ref(false)
 
 const tabs = [
   { id: 'build', label: 'Build' },
@@ -805,6 +846,29 @@ const handleProcess = async () => {
   activeTab.value = 'raw'
 }
 
+const handleCancel = () => {
+  console.log('Cancel clicked - stopping OCR process')
+  // Set cancelling flag
+  isCancelling.value = true
+  
+  // Force stop processing by resetting the processing state
+  isProcessing.value = false
+  
+  // Update file statuses to cancelled
+  files.value.forEach(file => {
+    if (file.status === 'processing') {
+      file.status = 'error'
+    }
+  })
+  
+  // Reset cancelling flag
+  setTimeout(() => {
+    isCancelling.value = false
+  }, 100)
+  
+  console.log('OCR process cancelled')
+}
+
 const handleRefresh = async () => {
   console.log('Refresh clicked!')
   
@@ -866,6 +930,32 @@ const prevResultPage = () => {
   if (canGoPrevResult.value) {
     currentResultPage.value--
   }
+}
+
+const openFullScreenEditor = () => {
+  showFullScreenEditor.value = true
+}
+
+const handleEditorUpdate = (text: string) => {
+  // Update the result text
+  if (results.value && results.value.text) {
+    const pageIndex = currentResultPage.value - 1
+    if (resultPages.value.length > 0) {
+      resultPages.value[pageIndex] = text
+      // Reconstruct the full text with page markers
+      const updatedPages = resultPages.value.map((page, idx) => {
+        if (idx === 0) return page
+        return `--- Page ${idx + 1} ---\n${page}`
+      })
+      results.value.text = updatedPages.join('\n')
+    } else {
+      results.value.text = text
+    }
+  }
+}
+
+const handleEditorPageChange = (page: number) => {
+  currentResultPage.value = page
 }
 </script>
 
