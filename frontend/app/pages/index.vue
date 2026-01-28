@@ -951,6 +951,14 @@ const handleEditorUpdate = (text: string) => {
     } else {
       results.value.text = text
     }
+    
+    // Update the selected file's result to persist changes
+    if (selectedFile.value && selectedFile.value.result) {
+      selectedFile.value.result.text = results.value.text
+    }
+    
+    // Clear parsed HTML cache to force re-render
+    parsedHtmlCache.value.clear()
   }
 }
 

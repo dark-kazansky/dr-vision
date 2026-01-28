@@ -310,6 +310,15 @@ const parsedHtml = computed(() => {
 
 // Handlers
 const close = () => {
+  // Clear any pending updates
+  if (updateTimeout.value) {
+    clearTimeout(updateTimeout.value)
+  }
+  
+  // Emit final update before closing
+  emit('update', rawText.value)
+  
+  // Close the editor
   emit('close')
 }
 
