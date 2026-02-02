@@ -40,7 +40,7 @@
     <!-- Sidebar -->
     <div class="sidebar">
       <div class="sidebar-nav">
-        <a href="#" class="nav-item active" @click.prevent>
+        <a href="#" class="nav-item" :class="{ active: activeView === 'parse' }" @click.prevent="activeView = 'parse'">
           <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
           </svg>
@@ -48,15 +48,15 @@
         </a>
         <a href="#" class="nav-item disabled" @click.prevent>
           <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-          </svg>
-          Extraction
-        </a>
-        <a href="#" class="nav-item disabled" @click.prevent>
-          <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
           </svg>
           Classify
+        </a>
+        <a href="#" class="nav-item" :class="{ active: activeView === 'extraction' }" @click.prevent="activeView = 'extraction'">
+          <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+          </svg>
+          Extract
         </a>
         <a href="#" class="nav-item disabled" @click.prevent>
           <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -109,7 +109,8 @@
 
     <!-- Main Content -->
     <div class="main-content">
-      <div class="content-wrapper">
+      <!-- Parse View -->
+      <div v-if="activeView === 'parse'" class="content-wrapper">
         <!-- Upload/Preview Section -->
         <div class="upload-section">
           <!-- Upload Dropzone or Preview -->
@@ -178,7 +179,20 @@
               :class="{ active: activeTab === tab.id }"
               @click="activeTab = tab.id"
             >
-              <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <!-- Sliders icon for Build tab -->
+              <svg v-if="tab.icon === 'sliders'" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="21" x2="14" y1="4" y2="4"></line>
+                <line x1="10" x2="3" y1="4" y2="4"></line>
+                <line x1="21" x2="12" y1="12" y2="12"></line>
+                <line x1="8" x2="3" y1="12" y2="12"></line>
+                <line x1="21" x2="16" y1="20" y2="20"></line>
+                <line x1="12" x2="3" y1="20" y2="20"></line>
+                <line x1="14" x2="14" y1="2" y2="6"></line>
+                <line x1="8" x2="8" y1="10" y2="14"></line>
+                <line x1="16" x2="16" y1="18" y2="22"></line>
+              </svg>
+              <!-- Document icon for Result tabs -->
+              <svg v-else-if="tab.icon === 'document'" width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
               {{ tab.label }}
@@ -323,6 +337,110 @@
           </div>
         </div>
       </div>
+      
+      <!-- Extraction View -->
+      <div v-if="activeView === 'extraction'" class="content-wrapper">
+        <!-- Upload/Preview Section -->
+        <div class="upload-section">
+          <!-- Upload Dropzone or Preview -->
+          <div v-if="!previewFile" 
+            class="upload-dropzone"
+            :class="{ 'drag-over': isDragging }"
+            @dragover.prevent="isDragging = true"
+            @dragleave.prevent="isDragging = false"
+            @drop.prevent="handleDrop"
+            @click="triggerFileInput"
+          >
+            <svg class="dropzone-icon" width="48" height="48" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+            </svg>
+            <p class="dropzone-text">Drop files here or click to upload</p>
+            <p class="dropzone-subtext">Supported: PNG, JPG, JPEG, PDF (max 10MB)</p>
+          </div>
+
+          <div v-else class="preview-area">
+            <div v-if="previewFile && previewFile.type === 'pdf'" class="pdf-preview-wrapper">
+              <iframe 
+                v-if="pdfSourceUrl"
+                :key="`pdf-${previewFile.id}`"
+                :src="pdfSourceUrl" 
+                type="application/pdf" 
+                class="pdf-embed"
+                frameborder="0"
+              />
+              <div v-else class="preview-error">
+                <p>Unable to load PDF preview</p>
+              </div>
+            </div>
+            <div v-else-if="previewFile && previewFile.type !== 'pdf'" class="image-preview-wrapper">
+              <img 
+                v-if="previewFileUrl"
+                :src="previewFileUrl" 
+                :alt="previewFile.name"
+                class="image-embed"
+                :style="{ transform: `scale(${zoom / 100})` }"
+              />
+              <div v-else class="preview-error">
+                <p>Unable to load image preview</p>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Hidden file input for extraction view -->
+          <input
+            ref="fileInput"
+            type="file"
+            accept=".png,.jpg,.jpeg,.pdf"
+            multiple
+            style="display: none"
+            @change="handleFileSelect"
+          />
+        </div>
+
+        <!-- Extraction Config Panel -->
+        <div class="config-panel">
+          <div class="panel-tabs">
+            <button
+              v-for="tab in extractionTabs"
+              :key="tab.id"
+              class="panel-tab"
+              :class="{ active: extractionActiveTab === tab.id }"
+              @click="extractionActiveTab = tab.id"
+            >
+              <!-- Sliders icon for Build tab -->
+              <svg v-if="tab.icon === 'sliders'" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="21" x2="14" y1="4" y2="4"></line>
+                <line x1="10" x2="3" y1="4" y2="4"></line>
+                <line x1="21" x2="12" y1="12" y2="12"></line>
+                <line x1="8" x2="3" y1="12" y2="12"></line>
+                <line x1="21" x2="16" y1="20" y2="20"></line>
+                <line x1="12" x2="3" y1="20" y2="20"></line>
+                <line x1="14" x2="14" y1="2" y2="6"></line>
+                <line x1="8" x2="8" y1="10" y2="14"></line>
+                <line x1="16" x2="16" y1="18" y2="22"></line>
+              </svg>
+              <!-- Document icon for Result tabs -->
+              <svg v-else-if="tab.icon === 'document'" width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              {{ tab.label }}
+            </button>
+          </div>
+          
+          <ConfigPanel
+            :available-models="availableModels"
+            :is-processing="isProcessing"
+            :can-process="canProcess"
+            :active-tab="extractionActiveTab"
+            :selected-file="selectedFileObject"
+            :extraction-result="results?.structured_data"
+            :field-errors="results?.field_errors"
+            @process="handleExtractionProcess"
+            @cancel="handleExtractionCancel"
+            @update:activeTab="extractionActiveTab = $event"
+          />
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -331,6 +449,7 @@
 import { marked } from 'marked'
 import { useOCR } from '~/composables/useOCR'
 import { useFilePreview } from '~/composables/useFilePreview'
+import ConfigPanel from '~/components/ConfigPanel.vue'
 
 // Composables
 const {
@@ -342,7 +461,8 @@ const {
   processFile,
   removeFile,
   checkHealth,
-  clearFiles
+  clearFiles,
+  cancelProcessing
 } = useOCR()
 
 const {
@@ -362,6 +482,7 @@ const {
 } = useFilePreview()
 
 // Local state
+const activeView = ref('parse') // 'parse' or 'extraction'
 const selectedFile = ref<any>(null)
 const uploadedFiles = ref<Map<string, File>>(new Map())
 const previewFileUrl = ref<string>('')
@@ -380,10 +501,37 @@ const editableParsedResult = ref('')
 const showFullScreenEditor = ref(false)
 
 const tabs = [
-  { id: 'build', label: 'Build' },
-  { id: 'raw', label: 'Raw Result' },
-  { id: 'parsed', label: 'Parsed Result' }
+  { 
+    id: 'build', 
+    label: 'Build',
+    icon: 'sliders'
+  },
+  { 
+    id: 'raw', 
+    label: 'Raw Result',
+    icon: 'document'
+  },
+  { 
+    id: 'parsed', 
+    label: 'Parsed Result',
+    icon: 'document'
+  }
 ]
+
+const extractionTabs = [
+  { 
+    id: 'build', 
+    label: 'Build',
+    icon: 'sliders'
+  },
+  { 
+    id: 'result', 
+    label: 'Result',
+    icon: 'document'
+  }
+]
+
+const extractionActiveTab = ref('build')
 
 // Tier to model mapping
 const tierToModel: Record<string, string> = {
@@ -421,6 +569,12 @@ const canProcess = computed(() => {
 
 const selectedModel = computed(() => {
   return tierToModel[selectedTier.value]
+})
+
+// Get the actual File object for the selected file
+const selectedFileObject = computed(() => {
+  if (!selectedFile.value) return null
+  return uploadedFiles.value.get(selectedFile.value.id) || null
 })
 
 // Parse results into pages (split by "--- Page X ---" markers)
@@ -964,6 +1118,70 @@ const handleEditorUpdate = (text: string) => {
 
 const handleEditorPageChange = (page: number) => {
   currentResultPage.value = page
+}
+
+const handleExtractionProcess = async (config: any) => {
+  console.log('Extraction process triggered with config:', config)
+  
+  // Clear current results before processing
+  results.value = null
+  
+  // If processAllFiles is enabled, process all unprocessed files
+  if (config.processAllFiles) {
+    console.log('Processing all unprocessed files with extraction')
+    
+    // Get all files that don't have results yet (status is 'pending')
+    const unprocessedFiles = files.value.filter(f => f.status === 'pending')
+    
+    if (unprocessedFiles.length === 0) {
+      console.log('No unprocessed files to extract')
+      return
+    }
+    
+    // Process each unprocessed file sequentially
+    for (const fileItem of unprocessedFiles) {
+      const file = uploadedFiles.value.get(fileItem.id)
+      if (file) {
+        console.log(`Processing file: ${fileItem.name}`)
+        await processFile(fileItem.id, file, config)
+      }
+    }
+    
+    // Switch to result tab after processing all files
+    extractionActiveTab.value = 'result'
+    return
+  }
+  
+  // Single file processing
+  if (!selectedFile.value) {
+    console.log('No file selected for extraction')
+    return
+  }
+  
+  const file = uploadedFiles.value.get(selectedFile.value.id)
+  
+  if (!file) {
+    console.error('File not found in uploaded files map')
+    return
+  }
+  
+  console.log('Processing extraction with config:', config)
+  
+  // Reset to page 1 before processing
+  currentResultPage.value = 1
+  
+  // Clear parsed HTML cache when processing new file
+  parsedHtmlCache.value.clear()
+  
+  await processFile(selectedFile.value.id, file, config)
+  
+  // Switch to result tab after processing
+  extractionActiveTab.value = 'result'
+}
+
+const handleExtractionCancel = () => {
+  console.log('Cancelling extraction process')
+  cancelProcessing()
 }
 </script>
 

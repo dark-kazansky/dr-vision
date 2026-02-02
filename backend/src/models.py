@@ -5,8 +5,8 @@ This module defines all data models used for API request validation,
 response serialization, and data transfer objects in the OCR Web UI application.
 """
 
-from pydantic import BaseModel, Field
-from typing import Optional, List
+from pydantic import BaseModel, Field, validator
+from typing import Optional, List, Dict, Any, Literal
 from enum import Enum
 
 
@@ -15,6 +15,21 @@ class TierEnum(str, Enum):
     RAPID = "Rapid"
     NORMAL = "Normal"
     ADVANCE = "Advance"
+
+
+class FieldType(str, Enum):
+    """Field type enumeration for extraction schema fields."""
+    STRING = "string"
+    NUMBER = "number"
+    BOOLEAN = "boolean"
+    DATE = "date"
+
+
+class ExtractionTarget(str, Enum):
+    """Extraction target enumeration for specifying extraction scope."""
+    DOCUMENT = "document"
+    PAGE = "page"
+    TABLE_ROW = "table_row"
 
 
 class OCRRequest(BaseModel):
@@ -37,11 +52,108 @@ class OCRRequest(BaseModel):
     )
 
 
+class SchemaField(BaseModel):
+    """Schema field definition for extraction configuration.
+    
+    This model defines a single field in an extraction schema, including
+    its name, data type, description, and whether it's required.
+    """
+    name: str = Field(
+        ..., 
+        min_length=1, 
+        description="Field name - must be non-empty and unique within the schema"
+    )
+    type: FieldType = Field(
+        ..., 
+        description="Field data type (string, number, boolean, or date)"
+    )
+    description: str = Field(
+        default="", 
+        description="Human-readable description of what this field represents"
+    )
+    required: bool = Field(
+        default=False, 
+        description="Whether this field must be present in extraction results"
+    )
+    
+    @validator('name')
+    def validate_name(cls, v):
+        """Validate field name is not empty and contains valid characters."""
+        if not v or not v.strip():
+            raise ValueError("Field name cannot be empty")
+        # Allow alphanumeric, underscore, hyphen, and spaces
+        if not all(c.isalnum() or c in ('_', '-', ' ') for c in v):
+            raise ValueError("Field name contains invalid characters")
+        return v.strip()
+
+
+class ExtractionConfig(BaseModel):
+    """Extraction configuration model.
+    
+    This model defines the complete extraction configuration including
+    the target scope (document, page, or table row) and the schema
+    defining what fields to extract.
+    """
+    enabled: bool = Field(
+        default=False, 
+        description="Whether extraction is enabled for this OCR request"
+    )
+    target: ExtractionTarget = Field(
+        ..., 
+        description="Extraction target scope - determines result structure"
+    )
+    fields: List[SchemaField] = Field(
+        ..., 
+        min_items=1, 
+        description="List of fields to extract - must contain at least one field",
+        alias="schema"
+    )
+    
+    model_config = {"populate_by_name": True}
+    
+    @validator('fields')
+    def validate_unique_names(cls, v):
+        """Validate all field names are unique within the schema."""
+        names = [field.name for field in v]
+        if len(names) != len(set(names)):
+            raise ValueError("Schema field names must be unique")
+        return v
+
+
+class ExtractionResult(BaseModel):
+    """Extraction result model.
+    
+    This model represents the result of a structured extraction operation,
+    including the extracted data and any errors that occurred.
+    """
+    success: bool = Field(
+        ..., 
+        description="Whether the extraction operation completed successfully"
+    )
+    structured_data: Optional[Any] = Field(
+        None, 
+        description="Extracted structured data - single object for document target, list for page/table_row targets"
+    )
+    extraction_config: Optional[ExtractionConfig] = Field(
+        None, 
+        description="The extraction configuration that was used"
+    )
+    error: Optional[str] = Field(
+        None, 
+        description="Error message if extraction failed"
+    )
+    error_type: Optional[str] = Field(
+        None, 
+        description="Type of error that occurred (e.g., 'validation_error', 'processing_error', 'extraction_error')"
+    )
+
+
 class OCRResponse(BaseModel):
     """Response model for OCR processing.
     
     This model represents the result of an OCR operation, including
-    success status, extracted text, or error information.
+    success status, extracted text, structured data (if extraction enabled),
+    or error information.
     """
     success: bool = Field(
         ..., 
@@ -51,13 +163,29 @@ class OCRResponse(BaseModel):
         None, 
         description="Extracted text from the OCR operation. Present only if success is True"
     )
+    structured_data: Optional[Any] = Field(
+        None, 
+        description="Extracted structured data when extraction is enabled. Single object for document target, list for page/table_row targets"
+    )
+    extraction_config: Optional[Dict[str, Any]] = Field(
+        None, 
+        description="The extraction configuration that was used, if extraction was enabled"
+    )
     error: Optional[str] = Field(
         None, 
         description="Error message describing what went wrong. Present only if success is False"
     )
     error_type: Optional[str] = Field(
         None, 
-        description="Type of error that occurred (e.g., 'invalid_model', 'connection_error', 'processing_error')"
+        description="Type of error that occurred (e.g., 'invalid_model', 'connection_error', 'processing_error', 'timeout_error')"
+    )
+    field_errors: Optional[Dict[str, str]] = Field(
+        None,
+        description="Field-level extraction errors mapping field names to error messages"
+    )
+    partial_results: Optional[Dict[str, Any]] = Field(
+        None,
+        description="Partial results when extraction partially succeeds or fails with recoverable data"
     )
     pages: Optional[int] = Field(
         None, 

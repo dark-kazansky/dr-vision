@@ -6,6 +6,7 @@ This module handles all OCR processing logic including:
 - PDF OCR processing (single and multi-page)
 - API communication with OCR providers
 - Error handling for various failure scenarios
+- Structured data extraction integration
 
 The module is independent of FastAPI/Flask and can be used standalone.
 
@@ -18,6 +19,8 @@ from pathlib import Path
 from typing import Optional, Dict, Any
 from dataclasses import dataclass
 import requests
+from .extraction_processor import ExtractionProcessor, ExtractionResult
+from .models import ExtractionConfig
 
 
 @dataclass
@@ -353,5 +356,70 @@ class OCRProcessor:
             return OCRResult(
                 success=False,
                 error=f"OCR processing failed: {str(e)}",
+                error_type="processing_error"
+            )
+
+    def process_with_extraction(
+        self,
+        file_path: str,
+        extraction_config: ExtractionConfig,
+        extraction_model: str = "qwen3-max",
+        render_dpi: int = 200,
+        timeout: int = 60
+    ) -> ExtractionResult:
+        """
+        Process file with OCR and then extract structured data.
+        
+        Args:
+            file_path: Path to the file (image or PDF)
+            extraction_config: Extraction configuration with schema and target
+            extraction_model: Poe model to use for extraction (assistant, qwen3-max, gemini-3-pro)
+            render_dpi: DPI for rendering PDF pages (default: 200)
+            timeout: Timeout in seconds for LLM API call (default: 60)
+            
+        Returns:
+            ExtractionResult with success status and extracted structured data or error
+        """
+        try:
+            # Determine file type
+            ext = Path(file_path).suffix.lower()
+            
+            # Process OCR first
+            if ext in ['.png', '.jpg', '.jpeg']:
+                ocr_result = self.process_image(file_path)
+            elif ext == '.pdf':
+                # For extraction, always process all pages to get complete context
+                ocr_result = self.process_pdf_all_pages(file_path, render_dpi)
+            else:
+                return ExtractionResult(
+                    success=False,
+                    error=f"Unsupported file type: {ext}",
+                    error_type="processing_error"
+                )
+            
+            # Check if OCR was successful
+            if not ocr_result.success:
+                return ExtractionResult(
+                    success=False,
+                    error=f"OCR failed: {ocr_result.error}",
+                    error_type=ocr_result.error_type
+                )
+            
+            # Create extraction processor with specified model
+            extractor = ExtractionProcessor(extraction_model)
+            
+            # Extract structured data with timeout
+            extraction_result = extractor.extract_from_text(
+                ocr_result.text,
+                extraction_config,
+                timeout=timeout
+            )
+            
+            return extraction_result
+            
+        except Exception as e:
+            return ExtractionResult(
+                success=False,
+                error=f"Extraction processing failed: {str(e)}",
                 error_type="processing_error"
             )

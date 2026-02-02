@@ -30,6 +30,9 @@ export interface OCRConfig {
   tier: 'Rapid' | 'Normal' | 'Advance'
   processAllPages: boolean
   modelId: string
+  extractorModel?: string
+  extractorTier?: string
+  extractionConfig?: any
 }
 
 export interface HealthStatus {
@@ -47,6 +50,9 @@ export function useOCR() {
   const isProcessing = useState<boolean>('ocr-processing', () => false)
   const results = useState<any>('ocr-results', () => null)
   const availableModels = useState<string[]>('available-models', () => [])
+  
+  // AbortController for cancelling requests
+  let abortController: AbortController | null = null
   
   /**
    * Upload files to the file list
@@ -79,6 +85,9 @@ export function useOCR() {
     fileItem.status = 'processing'
     isProcessing.value = true
     
+    // Create new AbortController for this request
+    abortController = new AbortController()
+    
     try {
       // Create form data
       const formData = new FormData()
@@ -87,10 +96,28 @@ export function useOCR() {
       formData.append('process_all_pages', config.processAllPages.toString())
       formData.append('tier', config.tier)
       
-      // Make API request
+      // Add extraction parameters if provided
+      if (config.extractionConfig) {
+        formData.append('extraction_enabled', 'true')
+        formData.append('extraction_target', config.extractionConfig.target)
+        formData.append('extraction_schema', JSON.stringify(config.extractionConfig.schema))
+        
+        // Add extractor model and tier if provided
+        if (config.extractorModel) {
+          formData.append('extractor_model', config.extractorModel)
+        }
+        if (config.extractorTier) {
+          formData.append('extractor_tier', config.extractorTier)
+        }
+      } else {
+        formData.append('extraction_enabled', 'false')
+      }
+      
+      // Make API request with abort signal
       const response = await $fetch<OCRResult>(`${apiBaseUrl}/ocr`, {
         method: 'POST',
-        body: formData
+        body: formData,
+        signal: abortController.signal
       })
       
       // Update file with result
@@ -99,7 +126,20 @@ export function useOCR() {
       results.value = response
       
     } catch (error: any) {
-      // Handle error
+      // Handle abort
+      if (error.name === 'AbortError' || error.message?.includes('aborted')) {
+        console.log('Request was cancelled')
+        fileItem.status = 'pending'
+        fileItem.result = {
+          success: false,
+          error: 'Processing was cancelled',
+          error_type: 'cancelled'
+        }
+        results.value = null
+        return
+      }
+      
+      // Handle other errors
       console.error('OCR processing error:', error)
       
       fileItem.status = 'error'
@@ -113,6 +153,7 @@ export function useOCR() {
       
     } finally {
       isProcessing.value = false
+      abortController = null
     }
   }
   
@@ -150,6 +191,16 @@ export function useOCR() {
     results.value = null
   }
   
+  /**
+   * Cancel ongoing processing
+   */
+  const cancelProcessing = () => {
+    if (abortController) {
+      abortController.abort()
+      console.log('Processing cancelled')
+    }
+  }
+  
   return {
     // State
     files,
@@ -162,6 +213,7 @@ export function useOCR() {
     processFile,
     removeFile,
     checkHealth,
-    clearFiles
+    clearFiles,
+    cancelProcessing
   }
 }
