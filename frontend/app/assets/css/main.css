@@ -583,7 +583,7 @@ body {
 /* Panel Content */
 .panel-content {
   flex: 1;
-  padding: 20px;
+  padding: 1rem;
   overflow-y: auto;
   padding-bottom: 80px;
 }

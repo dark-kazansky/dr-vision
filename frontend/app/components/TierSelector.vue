@@ -20,10 +20,16 @@
           @click="$emit('update:modelValue', 'Advance')" 
           :disabled="disabled"
         ></button>
+        <button 
+          v-if="showMultimodal"
+          class="tier-bar multimodal" 
+          @click="$emit('update:modelValue', 'Multimodal')" 
+          :disabled="disabled"
+        ></button>
       </div>
       <div class="tier-labels">
         <button
-          v-for="tier in tiers"
+          v-for="tier in displayTiers"
           :key="tier"
           class="tier-label-btn"
           :class="{ active: modelValue === tier }"
@@ -43,16 +49,20 @@ interface Props {
   modelValue: string
   label: string
   disabled?: boolean
+  showMultimodal?: boolean
 }
 
 interface Emits {
   (e: 'update:modelValue', value: string): void
 }
 
-defineProps<Props>()
+const props = defineProps<Props>()
 defineEmits<Emits>()
 
-const tiers = ['Rapid', 'Normal', 'Advance']
+const displayTiers = computed(() => {
+  const baseTiers = ['Rapid', 'Normal', 'Advance']
+  return props.showMultimodal ? [...baseTiers, 'Multimodal'] : baseTiers
+})
 </script>
 
 <style scoped>
@@ -77,8 +87,14 @@ const tiers = ['Rapid', 'Normal', 'Advance']
 .tier-selector {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: 8px;
   width: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
 }
 
 .tier-bars {
@@ -94,6 +110,9 @@ const tiers = ['Rapid', 'Normal', 'Advance']
   cursor: pointer;
   transition: all 0.2s;
   position: relative;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
 }
 
 .tier-bar:disabled {
@@ -111,6 +130,10 @@ const tiers = ['Rapid', 'Normal', 'Advance']
 
 .tier-bar.advance {
   background: #FF6F3C;
+}
+
+.tier-bar.multimodal {
+  background: #E55A2B;
 }
 
 .tier-bar:hover:not(:disabled) {

@@ -1,10 +1,27 @@
 <template>
   <div class="app-container">
+    <!-- Notification Container -->
+    <NotificationContainer />
+    
     <!-- Feedback Dialog -->
     <FeedbackDialog 
       :is-open="showFeedbackDialog" 
       @close="showFeedbackDialog = false"
       @submit="handleFeedbackSubmit"
+    />
+    
+    <!-- Help Dialog -->
+    <HelpDialog 
+      :is-open="showHelpDialog" 
+      :current-tab="getTabName(activeView)"
+      @close="showHelpDialog = false"
+    />
+    
+    <!-- Deploy Dialog -->
+    <DeployDialog 
+      :is-open="showDeployDialog" 
+      :current-tab="getTabName(activeView)"
+      @close="showDeployDialog = false"
     />
     
     <!-- Full Screen Editor -->
@@ -28,11 +45,23 @@
         <span class="logo-text" @click="handleRefresh">Dr.Vision</span>
       </div>
       <div class="top-bar-actions">
+        <button class="top-bar-btn" @click="handleDeploy">
+          <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+          </svg>
+          Deploy
+        </button>
         <button class="top-bar-btn" @click="handleFeedback">
           <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
           </svg>
           Feedback
+        </button>
+        <button class="top-bar-btn" @click="handleHelp">
+          <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          Help
         </button>
       </div>
     </div>
@@ -41,28 +70,50 @@
     <div class="sidebar">
       <div class="sidebar-nav">
         <a href="#" class="nav-item" :class="{ active: activeView === 'parse' }" @click.prevent="activeView = 'parse'">
-          <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 22h14a2 2 0 0 0 2-2V7l-5-5H6a2 2 0 0 0-2 2v4"></path>
+            <path d="M14 2v4a2 2 0 0 0 2 2h4"></path>
+            <path d="m5 12-3 3 3 3"></path>
+            <path d="m9 18 3-3-3-3"></path>
           </svg>
           Parse
         </a>
-        <a href="#" class="nav-item disabled" @click.prevent>
-          <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+        <a href="#" class="nav-item" :class="{ active: activeView === 'classify' }" @click.prevent="activeView = 'classify'">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="m15 5 6.3 6.3a2.4 2.4 0 0 1 0 3.4L17 19"></path>
+            <path d="M9.586 5.586A2 2 0 0 0 8.172 5H3a1 1 0 0 0-1 1v5.172a2 2 0 0 0 .586 1.414L8.29 18.29a2.426 2.426 0 0 0 3.42 0l3.58-3.58a2.426 2.426 0 0 0 0-3.42z"></path>
+            <circle cx="6.5" cy="9.5" r=".5" fill="currentColor"></circle>
           </svg>
           Classify
         </a>
         <a href="#" class="nav-item" :class="{ active: activeView === 'extraction' }" @click.prevent="activeView = 'extraction'">
-          <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2v4a2 2 0 0 0 2 2h4"></path>
+            <path d="M4 7V4a2 2 0 0 1 2-2 2 2 0 0 0-2 2"></path>
+            <path d="M4.063 20.999a2 2 0 0 0 2 1L18 22a2 2 0 0 0 2-2V7l-5-5H6"></path>
+            <path d="m5 11-3 3"></path>
+            <path d="m5 17-3-3h10"></path>
           </svg>
           Extract
         </a>
-        <a href="#" class="nav-item disabled" @click.prevent>
-          <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+        <a href="#" class="nav-item" :class="{ active: activeView === 'split' }" @click.prevent="activeView = 'split'">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="6" cy="6" r="3"></circle>
+            <path d="M8.12 8.12 12 12"></path>
+            <path d="M20 4 8.12 15.88"></path>
+            <circle cx="6" cy="18" r="3"></circle>
+            <path d="M14.8 14.8 20 20"></path>
           </svg>
-          Index
+          Split
+        </a>
+        <a href="#" class="nav-item" :class="{ active: activeView === 'journey' }" @click.prevent="activeView = 'journey'">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 12H3"></path>
+            <path d="M16 6H3"></path>
+            <path d="M12 18H3"></path>
+            <path d="m16 12 5 3-5 3v-6Z"></path>
+          </svg>
+          Doc Journey
         </a>
       </div>
 
@@ -203,7 +254,7 @@
             <!-- Build Tab -->
             <div v-if="activeTab === 'build'" class="config-section">
               <div class="config-header">
-                <span class="config-label">Tiers</span>
+                <span class="config-label" style="display: flex; align-items: center; gap: 6px; margin-bottom: 12px;">Parser Tiers</span>
               </div>
               <div class="tier-selector">
                 <div class="tier-bars">
@@ -338,6 +389,110 @@
         </div>
       </div>
       
+      <!-- Classify View -->
+      <div v-if="activeView === 'classify'" class="content-wrapper">
+        <!-- Upload/Preview Section -->
+        <div class="upload-section">
+          <!-- Upload Dropzone or Preview -->
+          <div v-if="!previewFile" 
+            class="upload-dropzone"
+            :class="{ 'drag-over': isDragging }"
+            @dragover.prevent="isDragging = true"
+            @dragleave.prevent="isDragging = false"
+            @drop.prevent="handleDrop"
+            @click="triggerFileInput"
+          >
+            <svg class="dropzone-icon" width="48" height="48" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+            </svg>
+            <p class="dropzone-text">Drop files here or click to upload</p>
+            <p class="dropzone-subtext">Supported: PNG, JPG, JPEG, PDF (max 10MB)</p>
+          </div>
+
+          <div v-else class="preview-area">
+            <div v-if="previewFile && previewFile.type === 'pdf'" class="pdf-preview-wrapper">
+              <iframe 
+                v-if="pdfSourceUrl"
+                :key="`pdf-${previewFile.id}`"
+                :src="pdfSourceUrl" 
+                type="application/pdf" 
+                class="pdf-embed"
+                frameborder="0"
+              />
+              <div v-else class="preview-error">
+                <p>Unable to load PDF preview</p>
+              </div>
+            </div>
+            <div v-else-if="previewFile && previewFile.type !== 'pdf'" class="image-preview-wrapper">
+              <img 
+                v-if="previewFileUrl"
+                :src="previewFileUrl" 
+                :alt="previewFile.name"
+                class="image-embed"
+                :style="{ transform: `scale(${zoom / 100})` }"
+              />
+              <div v-else class="preview-error">
+                <p>Unable to load image preview</p>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Hidden file input for classify view -->
+          <input
+            ref="fileInput"
+            type="file"
+            accept=".png,.jpg,.jpeg,.pdf"
+            multiple
+            style="display: none"
+            @change="handleFileSelect"
+          />
+        </div>
+
+        <!-- Classify Config Panel -->
+        <div class="config-panel">
+          <div class="panel-tabs">
+            <button
+              v-for="tab in classifyTabs"
+              :key="tab.id"
+              class="panel-tab"
+              :class="{ active: classifyActiveTab === tab.id }"
+              @click="classifyActiveTab = tab.id"
+            >
+              <!-- Sliders icon for Build tab -->
+              <svg v-if="tab.icon === 'sliders'" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="21" x2="14" y1="4" y2="4"></line>
+                <line x1="10" x2="3" y1="4" y2="4"></line>
+                <line x1="21" x2="12" y1="12" y2="12"></line>
+                <line x1="8" x2="3" y1="12" y2="12"></line>
+                <line x1="21" x2="16" y1="20" y2="20"></line>
+                <line x1="12" x2="3" y1="20" y2="20"></line>
+                <line x1="14" x2="14" y1="2" y2="6"></line>
+                <line x1="8" x2="8" y1="10" y2="14"></line>
+                <line x1="16" x2="16" y1="18" y2="22"></line>
+              </svg>
+              <!-- Document icon for Result tabs -->
+              <svg v-else-if="tab.icon === 'document'" width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              {{ tab.label }}
+            </button>
+          </div>
+          
+          <ClassifyConfigPanel
+            :available-models="availableModels"
+            :is-processing="isProcessing"
+            :can-process="canProcess"
+            :active-tab="classifyActiveTab"
+            :selected-file="selectedFileObject"
+            :extraction-result="results?.results"
+            :field-errors="results?.field_errors"
+            @process="handleClassifyProcess"
+            @cancel="handleClassifyCancel"
+            @update:activeTab="classifyActiveTab = $event"
+          />
+        </div>
+      </div>
+      
       <!-- Extraction View -->
       <div v-if="activeView === 'extraction'" class="content-wrapper">
         <!-- Upload/Preview Section -->
@@ -433,14 +588,121 @@
             :can-process="canProcess"
             :active-tab="extractionActiveTab"
             :selected-file="selectedFileObject"
-            :extraction-result="results?.structured_data"
-            :field-errors="results?.field_errors"
+            :extraction-result="results?.extraction?.structured_data"
+            :field-errors="results?.extraction?.field_errors"
             @process="handleExtractionProcess"
             @cancel="handleExtractionCancel"
             @update:activeTab="extractionActiveTab = $event"
           />
         </div>
       </div>
+      
+      <!-- Split View -->
+      <div v-if="activeView === 'split'" class="content-wrapper">
+        <!-- Upload/Preview Section -->
+        <div class="upload-section">
+          <!-- Upload Dropzone or Preview -->
+          <div v-if="!previewFile" 
+            class="upload-dropzone"
+            :class="{ 'drag-over': isDragging }"
+            @dragover.prevent="isDragging = true"
+            @dragleave.prevent="isDragging = false"
+            @drop.prevent="handleDrop"
+            @click="triggerFileInput"
+          >
+            <svg class="dropzone-icon" width="48" height="48" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+            </svg>
+            <p class="dropzone-text">Drop files here or click to upload</p>
+            <p class="dropzone-subtext">Supported: PNG, JPG, JPEG, PDF (max 10MB)</p>
+          </div>
+
+          <div v-else class="preview-area">
+            <div v-if="previewFile && previewFile.type === 'pdf'" class="pdf-preview-wrapper">
+              <iframe 
+                v-if="pdfSourceUrl"
+                :key="`pdf-${previewFile.id}`"
+                :src="pdfSourceUrl" 
+                type="application/pdf" 
+                class="pdf-embed"
+                frameborder="0"
+              />
+              <div v-else class="preview-error">
+                <p>Unable to load PDF preview</p>
+              </div>
+            </div>
+            <div v-else-if="previewFile && previewFile.type !== 'pdf'" class="image-preview-wrapper">
+              <img 
+                v-if="previewFileUrl"
+                :src="previewFileUrl" 
+                :alt="previewFile.name"
+                class="image-embed"
+                :style="{ transform: `scale(${zoom / 100})` }"
+              />
+              <div v-else class="preview-error">
+                <p>Unable to load image preview</p>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Hidden file input for split view -->
+          <input
+            ref="fileInput"
+            type="file"
+            accept=".png,.jpg,.jpeg,.pdf"
+            multiple
+            style="display: none"
+            @change="handleFileSelect"
+          />
+        </div>
+
+        <!-- Split Config Panel -->
+        <div class="config-panel">
+          <div class="panel-tabs">
+            <button
+              v-for="tab in splitTabs"
+              :key="tab.id"
+              class="panel-tab"
+              :class="{ active: splitActiveTab === tab.id }"
+              @click="splitActiveTab = tab.id"
+            >
+              <!-- Sliders icon for Build tab -->
+              <svg v-if="tab.icon === 'sliders'" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="21" x2="14" y1="4" y2="4"></line>
+                <line x1="10" x2="3" y1="4" y2="4"></line>
+                <line x1="21" x2="12" y1="12" y2="12"></line>
+                <line x1="8" x2="3" y1="12" y2="12"></line>
+                <line x1="21" x2="16" y1="20" y2="20"></line>
+                <line x1="12" x2="3" y1="20" y2="20"></line>
+                <line x1="14" x2="14" y1="2" y2="6"></line>
+                <line x1="8" x2="8" y1="10" y2="14"></line>
+                <line x1="16" x2="16" y1="18" y2="22"></line>
+              </svg>
+              <!-- Document icon for Result tabs -->
+              <svg v-else-if="tab.icon === 'document'" width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              {{ tab.label }}
+            </button>
+          </div>
+          
+          <SplitConfigPanel
+            :available-models="availableModels"
+            :is-processing="isProcessing"
+            :can-process="canProcess"
+            :active-tab="splitActiveTab"
+            :selected-file="selectedFileObject"
+            :split-result="results"
+            :field-errors="results?.field_errors"
+            @process="handleSplitProcess"
+            @cancel="handleSplitCancel"
+            @update:activeTab="splitActiveTab = $event"
+          />
+        </div>
+      </div>
+      
+      <!-- Journey View -->
+      <JourneyWorkflow v-if="activeView === 'journey'" />
     </div>
   </div>
 </template>
@@ -450,6 +712,11 @@ import { marked } from 'marked'
 import { useOCR } from '~/composables/useOCR'
 import { useFilePreview } from '~/composables/useFilePreview'
 import ConfigPanel from '~/components/ConfigPanel.vue'
+import ClassifyConfigPanel from '~/components/ClassifyConfigPanel.vue'
+import SplitConfigPanel from '~/components/SplitConfigPanel.vue'
+import JourneyWorkflow from '~/components/JourneyWorkflow.vue'
+import HelpDialog from '~/components/HelpDialog.vue'
+import DeployDialog from '~/components/DeployDialog.vue'
 
 // Composables
 const {
@@ -459,6 +726,8 @@ const {
   availableModels,
   uploadFiles,
   processFile,
+  classifyFile,
+  splitFile,
   removeFile,
   checkHealth,
   clearFiles,
@@ -531,13 +800,41 @@ const extractionTabs = [
   }
 ]
 
+const classifyTabs = [
+  { 
+    id: 'build', 
+    label: 'Build',
+    icon: 'sliders'
+  },
+  { 
+    id: 'result', 
+    label: 'Result',
+    icon: 'document'
+  }
+]
+
+const splitTabs = [
+  { 
+    id: 'build', 
+    label: 'Build',
+    icon: 'sliders'
+  },
+  { 
+    id: 'result', 
+    label: 'Result',
+    icon: 'document'
+  }
+]
+
 const extractionActiveTab = ref('build')
+const classifyActiveTab = ref('build')
+const splitActiveTab = ref('build')
 
 // Tier to model mapping
 const tierToModel: Record<string, string> = {
-  'Rapid': 'deepseek-ocr',
-  'Normal': 'lightonocr-2-1b',
-  'Advance': 'nanonets-ocr2-3b'
+  'Rapid': 'assistant',
+  'Normal': 'gemini-3-flash',
+  'Advance': 'gemini-3-pro'
 }
 
 // Check health on mount
@@ -844,14 +1141,28 @@ const handleDrop = async (e: DragEvent) => {
 
 const handleUpload = async (newFiles: File[]) => {
   // Upload files first to get the file items with IDs
-  await uploadFiles(newFiles)
+  const result = await uploadFiles(newFiles)
+  
+  // Show notification for duplicates
+  if (result.duplicates.length > 0) {
+    const { warning } = useNotification()
+    if (result.duplicates.length === 1) {
+      warning(`File "${result.duplicates[0]}" is already uploaded`)
+    } else {
+      warning(`${result.duplicates.length} duplicate files skipped: ${result.duplicates.slice(0, 2).join(', ')}${result.duplicates.length > 2 ? '...' : ''}`)
+    }
+  }
   
   // Store the actual File objects with matching IDs
-  if (files.value.length > 0) {
-    // Get the newly added files (last N files where N = newFiles.length)
-    const newlyAddedFiles = files.value.slice(-newFiles.length)
+  if (files.value.length > 0 && result.added > 0) {
+    // Get the newly added files (last N files where N = result.added)
+    const newlyAddedFiles = files.value.slice(-result.added)
+    
+    // Map only the unique files that were actually added
+    const uniqueNewFiles = newFiles.filter(f => !result.duplicates.includes(f.name))
+    
     newlyAddedFiles.forEach((fileItem, index) => {
-      uploadedFiles.value.set(fileItem.id, newFiles[index])
+      uploadedFiles.value.set(fileItem.id, uniqueNewFiles[index])
     })
     
     // Auto-select first file if none selected
@@ -861,7 +1172,7 @@ const handleUpload = async (newFiles: File[]) => {
       setPreviewFile(firstFile)
       
       // Generate preview URL for the first file
-      const fileObj = newFiles[0]
+      const fileObj = uniqueNewFiles[0]
       if (fileObj) {
         try {
           previewFileUrl.value = URL.createObjectURL(fileObj)
@@ -1063,9 +1374,30 @@ const handleRefresh = async () => {
 }
 
 const showFeedbackDialog = ref(false)
+const showHelpDialog = ref(false)
+const showDeployDialog = ref(false)
 
 const handleFeedback = () => {
   showFeedbackDialog.value = true
+}
+
+const handleHelp = () => {
+  showHelpDialog.value = true
+}
+
+const handleDeploy = () => {
+  showDeployDialog.value = true
+}
+
+const getTabName = (view: string) => {
+  const tabNames: Record<string, string> = {
+    'parse': 'Parse',
+    'classify': 'Classify',
+    'extraction': 'Extract',
+    'split': 'Split',
+    'journey': 'Doc Journey'
+  }
+  return tabNames[view] || 'Parse'
 }
 
 const handleFeedbackSubmit = (feedback: { type: string; message: string }) => {
@@ -1181,6 +1513,148 @@ const handleExtractionProcess = async (config: any) => {
 
 const handleExtractionCancel = () => {
   console.log('Cancelling extraction process')
+  cancelProcessing()
+}
+
+const handleClassifyProcess = async (config: any) => {
+  console.log('Classify process triggered with config:', config)
+  
+  // Clear current results before processing
+  results.value = null
+  
+  // If processAllFiles is enabled, process all unprocessed files
+  if (config.processAllFiles) {
+    console.log('Processing all unprocessed files with classification')
+    
+    // Get all files that don't have results yet (status is 'pending')
+    const unprocessedFiles = files.value.filter(f => f.status === 'pending')
+    
+    if (unprocessedFiles.length === 0) {
+      console.log('No unprocessed files to classify')
+      return
+    }
+    
+    // Array to collect all classification results
+    const allResults: any[] = []
+    
+    // Process each unprocessed file sequentially
+    for (const fileItem of unprocessedFiles) {
+      const file = uploadedFiles.value.get(fileItem.id)
+      if (file) {
+        console.log(`Classifying file: ${fileItem.name}`)
+        await classifyFile(fileItem.id, file, config)
+        
+        // Collect result if successful
+        if (fileItem.result?.success && fileItem.result?.results) {
+          allResults.push(...fileItem.result.results)
+        }
+      }
+    }
+    
+    // Set aggregated results
+    if (allResults.length > 0) {
+      results.value = {
+        success: true,
+        results: allResults
+      }
+    }
+    
+    // Switch to result tab after processing all files
+    classifyActiveTab.value = 'result'
+    return
+  }
+  
+  // Single file processing
+  if (!selectedFile.value) {
+    console.log('No file selected for classification')
+    return
+  }
+  
+  const file = uploadedFiles.value.get(selectedFile.value.id)
+  
+  if (!file) {
+    console.error('File not found in uploaded files map')
+    return
+  }
+  
+  console.log('Classifying with config:', config)
+  
+  await classifyFile(selectedFile.value.id, file, config)
+  
+  // Switch to result tab after processing
+  classifyActiveTab.value = 'result'
+}
+
+const handleClassifyCancel = () => {
+  console.log('Cancelling classify process')
+  cancelProcessing()
+}
+
+const handleSplitProcess = async (config: any) => {
+  console.log('[index.vue] Split process triggered with config:', config)
+  console.log('[index.vue] selectedFile:', selectedFile.value)
+  console.log('[index.vue] isProcessing:', isProcessing.value)
+  
+  // Clear current results before processing
+  results.value = null
+  
+  // If processAllFiles is enabled, process all unprocessed files
+  if (config.processAllFiles) {
+    console.log('[index.vue] Processing all unprocessed files with split')
+    
+    // Get all files that don't have results yet (status is 'pending')
+    const unprocessedFiles = files.value.filter(f => f.status === 'pending')
+    
+    if (unprocessedFiles.length === 0) {
+      console.log('[index.vue] No unprocessed files to split')
+      return
+    }
+    
+    // Process each unprocessed file sequentially
+    for (const fileItem of unprocessedFiles) {
+      const file = uploadedFiles.value.get(fileItem.id)
+      if (file) {
+        console.log(`[index.vue] Splitting file: ${fileItem.name}`)
+        await splitFile(fileItem.id, file, config)
+      }
+    }
+    
+    // Switch to result tab after processing all files
+    splitActiveTab.value = 'result'
+    return
+  }
+  
+  // Single file processing
+  if (!selectedFile.value) {
+    console.log('[index.vue] No file selected for split')
+    return
+  }
+  
+  const file = uploadedFiles.value.get(selectedFile.value.id)
+  
+  if (!file) {
+    console.error('[index.vue] File not found in uploaded files map')
+    console.error('[index.vue] selectedFile.id:', selectedFile.value.id)
+    console.error('[index.vue] uploadedFiles keys:', Array.from(uploadedFiles.value.keys()))
+    return
+  }
+  
+  console.log('[index.vue] Calling splitFile with:', {
+    fileId: selectedFile.value.id,
+    fileName: file.name,
+    config
+  })
+  
+  await splitFile(selectedFile.value.id, file, config)
+  
+  console.log('[index.vue] splitFile completed, switching to result tab')
+  
+  // Switch to result tab after processing
+  splitActiveTab.value = 'result'
+}
+
+const handleSplitCancel = () => {
+  console.log('Cancelling split process')
   cancelProcessing()
 }
 </script>

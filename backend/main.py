@@ -17,11 +17,14 @@ from dotenv import load_dotenv
 # Load environment variables from .env file
 load_dotenv()
 
-# Add src to path for imports
-sys.path.insert(0, str(Path(__file__).parent / 'src'))
+from routes import router
+from core import Config, ConfigurationError
 
-from src.routes import router
-from src.config import Config, ConfigurationError
+# Load environment variables from parent directory (root .env)
+# This ensures GOOGLE_STUDIO_API_KEY and other root-level env vars are loaded
+root_env_path = Path(__file__).parent.parent / '.env'
+if root_env_path.exists():
+    load_dotenv(root_env_path)
 
 
 # Lifespan context manager for startup/shutdown events

@@ -33,7 +33,7 @@ import ConfigPanel from '~/components/ConfigPanel.vue'
 import type { ExtractionConfig } from '~/types/extraction'
 
 // Test data
-const availableModels = ref(['lightonocr-2-1b', 'deepseek-ocr', 'nanonets-ocr2-3b'])
+const availableModels = ref(['assistant', 'gemini-3-flash', 'gemini-3-pro', 'qwen3-max', 'claude-opus-4.5'])
 const isProcessing = ref(false)
 const canProcess = ref(true)
 const lastProcessConfig = ref<any>(null)

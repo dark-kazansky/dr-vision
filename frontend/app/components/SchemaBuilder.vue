@@ -5,65 +5,32 @@
         Extraction Schema
       </label>
       <div v-if="flattenedSchema.length > 0" class="header-actions">
-        <div class="view-toggle">
+        <div class="view-toggle-group">
           <button
             @click="viewMode = 'visual'"
-            :class="{ active: viewMode === 'visual' }"
-            class="toggle-button"
+            :class="viewMode === 'visual' ? 'view-toggle-btn active' : 'view-toggle-btn'"
             type="button"
             :disabled="disabled"
           >
-            Visual
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="toggle-icon">
+              <path d="M12 3v18"></path>
+              <rect width="18" height="18" x="3" y="3" rx="2"></rect>
+              <path d="M3 9h18"></path>
+              <path d="M3 15h18"></path>
+            </svg>
           </button>
           <button
             @click="viewMode = 'code'"
-            :class="{ active: viewMode === 'code' }"
-            class="toggle-button"
+            :class="viewMode === 'code' ? 'view-toggle-btn active' : 'view-toggle-btn'"
             type="button"
             :disabled="disabled"
           >
-            Code
-          </button>
-        </div>
-        <!-- Bulk Actions Dropdown - only show when there are multiple fields -->
-        <div v-if="localSchema.length > 1" class="bulk-actions-container">
-          <button
-            @click="toggleBulkActionsMenu"
-            :disabled="disabled"
-            class="bulk-actions-button"
-            type="button"
-            ref="bulkActionsButton"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-              <path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zM12 10a2 2 0 11-4 0 2 2 0 014 0zM16 12a2 2 0 100-4 2 2 0 000 4z" />
-            </svg>
-            Apply to all fields
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="chevron">
-              <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="toggle-icon">
+              <path d="m18 16 4-4-4-4"></path>
+              <path d="m6 8-4 4 4 4"></path>
+              <path d="m14.5 4-5 16"></path>
             </svg>
           </button>
-          <div v-if="showBulkActionsMenu" class="bulk-actions-menu" ref="bulkActionsMenu">
-            <button
-              @click="markAllAsRequired"
-              class="bulk-action-item"
-              type="button"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
-              </svg>
-              Mark all as required
-            </button>
-            <button
-              @click="markAllAsOptional"
-              class="bulk-action-item"
-              type="button"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
-              </svg>
-              Mark all as optional
-            </button>
-          </div>
         </div>
       </div>
     </div>
@@ -345,11 +312,6 @@ const jsonError = ref<string>('')
 
 // Validation errors for each field
 const validationErrors = ref<Map<number, string[]>>(new Map())
-
-// Bulk actions menu state
-const showBulkActionsMenu = ref(false)
-const bulkActionsButton = ref<HTMLElement | null>(null)
-const bulkActionsMenu = ref<HTMLElement | null>(null)
 
 // Auto-generate state
 const showAutoGenerate = ref(false)
@@ -773,44 +735,7 @@ const handleFieldChange = () => {
   emit('update:modelValue', [...localSchema.value])
 }
 
-// Toggle bulk actions menu
-const toggleBulkActionsMenu = () => {
-  showBulkActionsMenu.value = !showBulkActionsMenu.value
-}
-
-// Mark all fields as required
-const markAllAsRequired = () => {
-  localSchema.value.forEach(field => {
-    field.required = true
-  })
-  showBulkActionsMenu.value = false
-  handleFieldChange()
-}
-
-// Mark all fields as optional
-const markAllAsOptional = () => {
-  localSchema.value.forEach(field => {
-    field.required = false
-  })
-  showBulkActionsMenu.value = false
-  handleFieldChange()
-}
-
-// Close bulk actions menu when clicking outside
-const handleClickOutside = (event: MouseEvent) => {
-  if (showBulkActionsMenu.value) {
-    const target = event.target as Node
-    if (
-      bulkActionsButton.value &&
-      bulkActionsMenu.value &&
-      !bulkActionsButton.value.contains(target) &&
-      !bulkActionsMenu.value.contains(target)
-    ) {
-      showBulkActionsMenu.value = false
-    }
-  }
-}
-
+// Auto-generate handlers
 // Auto-generate handlers
 const handleBackFromAutoGenerate = () => {
   showAutoGenerate.value = false
@@ -929,14 +854,8 @@ onMounted(() => {
   updateFlattenedSchema()
   validateSchema()
   updateJsonText()
-  // Add click outside listener for bulk actions menu
-  document.addEventListener('click', handleClickOutside)
 })
 
-// Cleanup
-onUnmounted(() => {
-  document.removeEventListener('click', handleClickOutside)
-})
 </script>
 
 <style scoped>
@@ -957,42 +876,44 @@ onUnmounted(() => {
   gap: 0.75rem;
 }
 
-.view-toggle {
+.view-toggle-group {
   display: flex;
-  border: 1px solid #cbd5e0;
   border-radius: 0.375rem;
-  overflow: hidden;
+  border: 1px solid #e5e7eb;
+  background-color: #f9fafb;
+  padding: 0.125rem;
 }
 
-.toggle-button {
-  padding: 0.5rem 0.75rem;
-  background-color: white;
-  color: #4a5568;
-  border: none;
-  font-size: 0.875rem;
-  font-weight: 500;
-  cursor: pointer;
+.view-toggle-btn {
+  display: flex;
+  align-items: center;
+  border-radius: 0.25rem;
+  padding: 0.375rem;
   transition: all 0.2s;
-  border-right: 1px solid #cbd5e0;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: #6b7280;
 }
 
-.toggle-button:last-child {
-  border-right: none;
+.view-toggle-btn:hover:not(:disabled) {
+  color: #374151;
 }
 
-.toggle-button:hover:not(:disabled):not(.active) {
-  background-color: #f7fafc;
+.view-toggle-btn.active {
+  background-color: #ffffff;
+  color: #111827;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
 }
 
-.toggle-button.active {
-  background-color: #4299e1;
-  color: white;
-}
-
-.toggle-button:disabled {
-  background-color: #f7fafc;
-  color: #a0aec0;
+.view-toggle-btn:disabled {
+  color: #d1d5db;
   cursor: not-allowed;
+}
+
+.toggle-icon {
+  width: 0.875rem;
+  height: 0.875rem;
 }
 
 .config-label {
@@ -1048,96 +969,6 @@ onUnmounted(() => {
 .add-field-button svg {
   width: 1rem;
   height: 1rem;
-}
-
-.bulk-actions-container {
-  position: relative;
-}
-
-.bulk-actions-button {
-  display: flex;
-  align-items: center;
-  gap: 0.375rem;
-  padding: 0.5rem 0.75rem;
-  background-color: white;
-  color: #4a5568;
-  border: 1px solid #cbd5e0;
-  border-radius: 0.375rem;
-  font-size: 0.875rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.bulk-actions-button:hover:not(:disabled) {
-  background-color: #f7fafc;
-  border-color: #4299e1;
-}
-
-.bulk-actions-button:disabled {
-  background-color: #f7fafc;
-  color: #a0aec0;
-  cursor: not-allowed;
-  opacity: 0.6;
-}
-
-.bulk-actions-button svg {
-  width: 1rem;
-  height: 1rem;
-}
-
-.bulk-actions-button .chevron {
-  width: 0.875rem;
-  height: 0.875rem;
-  margin-left: 0.125rem;
-}
-
-.bulk-actions-menu {
-  position: absolute;
-  top: calc(100% + 0.25rem);
-  right: 0;
-  min-width: 12rem;
-  background-color: white;
-  border: 1px solid #e2e8f0;
-  border-radius: 0.375rem;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-  z-index: 50;
-  overflow: hidden;
-}
-
-.bulk-action-item {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  width: 100%;
-  padding: 0.625rem 0.875rem;
-  background-color: white;
-  color: #2d3748;
-  border: none;
-  font-size: 0.875rem;
-  font-weight: 500;
-  text-align: left;
-  cursor: pointer;
-  transition: background-color 0.2s;
-}
-
-.bulk-action-item:hover {
-  background-color: #f7fafc;
-}
-
-.bulk-action-item:active {
-  background-color: #edf2f7;
-}
-
-.bulk-action-item svg {
-  width: 1rem;
-  height: 1rem;
-  color: #4299e1;
-  flex-shrink: 0;
-}
-
-.bulk-action-item:first-child {
-  border-bottom: 1px solid #e2e8f0;
 }
 
 .empty-state {

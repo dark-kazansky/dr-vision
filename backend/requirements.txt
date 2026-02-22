@@ -21,6 +21,12 @@ pypdfium2==4.26.0
 # Image Processing
 Pillow>=10.2.0
 
+# Document Generation
+python-docx>=1.1.0
+
+# Google Generative AI (Gemini API)
+google-generativeai>=0.3.0
+
 # CORS Support (included with FastAPI but listed for clarity)
 # python-multipart is required for file uploads
 python-multipart==0.0.6

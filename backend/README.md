@@ -35,7 +35,8 @@ backend/
 ### Prerequisites
 
 - Python 3.9 or higher
-- LM Studio running with an OCR model loaded
+- LM Studio running with an OCR model loaded (for DeepSeek-OCR and Nanonets-OCR2-3B)
+- LightOnOCR-2-1B is served via vLLM at aimsb.theworkpc.com:8081 (production API)
 
 ### Setup
 
@@ -48,14 +49,15 @@ backend/
 2. **Configure the application:**
    
    Edit `config/config.yaml` to customize settings:
-   - API provider URLs
+   - API provider URLs (LM Studio for local models, vLLM for LightOnOCR)
    - Model configurations
    - Server settings (host, port, CORS)
    - Upload constraints (max size, allowed extensions)
 
-3. **Start LM Studio:**
+3. **Start OCR Services:**
    
-   Ensure LM Studio is running at `http://localhost:1234` (or your configured URL) with an OCR model loaded.
+   - **LightOnOCR-2-1B**: Served via vLLM at `http://aimsb.theworkpc.com:8081` (production API, no local setup needed)
+   - **Other models**: Ensure LM Studio is running at `http://localhost:1234` (or your configured URL) with the desired OCR model loaded
 
 ## Configuration
 
@@ -69,6 +71,11 @@ api_providers:
   lm_studio:
     base_url: "http://localhost:1234"
     timeout: 30
+  
+  lightonocr_api:
+    # Production LightOnOCR API server (vLLM-based)
+    base_url: "http://aimsb.theworkpc.com:8081"
+    timeout: 300
 ```
 
 #### Models
@@ -76,8 +83,16 @@ api_providers:
 models:
   lightonocr-2-1b:
     model_id: "lightonocr-2-1b"
-    provider: "lm_studio"
-    name: "LightOnOCR-2-1B"
+    provider: "lightonocr_api"  # Uses vLLM production API
+    name: "LightOnOCR-2-1B (Production)"
+    max_tokens: 4096
+    temperature: 0.2
+    top_p: 0.9
+  
+  deepseek-ocr:
+    model_id: "deepseek-ocr"
+    provider: "lm_studio"  # Uses local LM Studio
+    name: "DeepSeek OCR"
     max_tokens: 4096
     temperature: 0.2
     top_p: 0.9

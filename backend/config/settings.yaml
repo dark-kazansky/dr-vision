@@ -1,0 +1,245 @@
+# Dr.Vision Configuration File
+# This file contains all configurable settings for the Dr.Vision OCR application.
+# Settings can be overridden using environment variables (see documentation).
+
+# =============================================================================
+# API Provider Configuration
+# =============================================================================
+# Define external API providers that host models.
+# Each provider has a base URL and timeout settings.
+
+api_providers:
+  google_studio:
+    # Google Studio API (Gemini API)
+    # Uses GOOGLE_STUDIO_API_KEY environment variable
+    base_url: "https://generativelanguage.googleapis.com"
+    timeout: 60
+  
+  poe_api:
+    # POE API for LLM-based processing
+    # Uses POE_API_KEY environment variable
+    base_url: "https://api.poe.com/v1"
+    timeout: 120
+  
+  lm_studio:
+    # LM Studio API server for local models
+    # Can be overridden with environment variable: LM_STUDIO_BASE_URL
+    base_url: "http://localhost:1234"
+    timeout: 30
+
+# =============================================================================
+# Model Configurations
+# =============================================================================
+# Define models available for processing.
+# Each model specifies its provider, display name, and inference parameters.
+
+models:
+  # ---------------------------------------------------------------------------
+  # Google Studio Models (Gemini API)
+  # ---------------------------------------------------------------------------
+  # Primary provider for OCR (VLM), Classification (LLM), Schema Generation
+  
+  gemini-2.5-flash-lite:
+    model_id: "gemini-2.5-flash-lite"
+    provider: "google_studio"
+    name: "Gemini 2.5 Flash Lite"
+    max_tokens: 4096
+    temperature: 0.2
+    top_p: 0.9
+  
+  gemini-2.5-flash:
+    model_id: "gemini-2.5-flash"
+    provider: "google_studio"
+    name: "Gemini 2.5 Flash"
+    max_tokens: 4096
+    temperature: 0.2
+    top_p: 0.9
+  
+  gemini-2.5-flash-image:
+    model_id: "gemini-2.5-flash-image"
+    provider: "google_studio"
+    name: "Gemini 2.5 Flash Image"
+    max_tokens: 4096
+    temperature: 0.2
+    top_p: 0.9
+  
+  gemini-3-pro-preview:
+    model_id: "gemini-3-pro-preview"
+    provider: "google_studio"
+    name: "Gemini 3 Pro Preview"
+    max_tokens: 4096
+    temperature: 0.2
+    top_p: 0.9
+  
+  gemini-3-pro-image-preview:
+    model_id: "gemini-3-pro-image-preview"
+    provider: "google_studio"
+    name: "Gemini 3 Pro Image Preview"
+    max_tokens: 4096
+    temperature: 0.2
+    top_p: 0.9
+  
+  # ---------------------------------------------------------------------------
+  # POE API Models
+  # ---------------------------------------------------------------------------
+  # Secondary provider for Extraction, Splitting, and fallback operations
+  
+  assistant:
+    model_id: "assistant"
+    provider: "poe_api"
+    name: "POE Assistant"
+    max_tokens: 4096
+    temperature: 0.2
+    top_p: 0.9
+  
+  gemini-3-flash:
+    model_id: "gemini-3-flash"
+    provider: "poe_api"
+    name: "Gemini 3 Flash (POE)"
+    max_tokens: 4096
+    temperature: 0.2
+    top_p: 0.9
+  
+  gemini-3-pro:
+    model_id: "gemini-3-pro"
+    provider: "poe_api"
+    name: "Gemini 3 Pro (POE)"
+    max_tokens: 4096
+    temperature: 0.2
+    top_p: 0.9
+  
+  qwen3-max:
+    model_id: "qwen3-max"
+    provider: "poe_api"
+    name: "Qwen3 Max"
+    max_tokens: 4096
+    temperature: 0.2
+    top_p: 0.9
+  
+  claude-opus-4.5:
+    model_id: "claude-opus-4.5"
+    provider: "poe_api"
+    name: "Claude Opus 4.5"
+    max_tokens: 4096
+    temperature: 0.2
+    top_p: 0.9
+  
+  # ---------------------------------------------------------------------------
+  # LM Studio Models (Local)
+  # ---------------------------------------------------------------------------
+  # Local provider for offline OCR processing
+  
+  deepseek-ocr:
+    model_id: "deepseek-ocr"
+    provider: "lm_studio"
+    name: "DeepSeek OCR"
+    max_tokens: 4096
+    temperature: 0.2
+    top_p: 0.9
+
+# Default model to use when none is specified
+default_model: "gemini-2.5-flash"
+
+# =============================================================================
+# FastAPI Server Configuration
+# =============================================================================
+# Settings for the FastAPI web server.
+
+fastapi:
+  # Enable debug mode for development (shows detailed error messages)
+  # Set to false in production
+  debug: true
+  
+  # Host address to bind the server to
+  # "0.0.0.0" allows external connections, "127.0.0.1" for localhost only
+  host: "0.0.0.0"
+  
+  # Port number for the server
+  port: 8082
+  
+  # CORS (Cross-Origin Resource Sharing) allowed origins
+  # List of URLs that can make requests to this API
+  cors_origins:
+    - "http://localhost:3000"  # Nuxt.js development server
+    - "http://localhost:5001"  # Alternative frontend port
+    - "http://aimsb.theworkpc.com:3000"  # Production frontend
+    - "http://aimsb.theworkpc.com"  # Production frontend (port 80)
+
+# =============================================================================
+# File Upload Configuration
+# =============================================================================
+# Settings for file upload handling and validation.
+
+upload:
+  # Directory where uploaded files are temporarily stored
+  folder: "uploads"
+  
+  # Maximum file size in megabytes
+  max_size_mb: 10
+  
+  # Allowed file extensions for upload
+  allowed_extensions:
+    - png
+    - jpg
+    - jpeg
+    - pdf
+
+# =============================================================================
+# PDF Processing Configuration
+# =============================================================================
+# Settings specific to PDF file processing.
+
+pdf:
+  # DPI (dots per inch) for rendering PDF pages to images
+  # Higher values produce better quality but slower processing
+  # Recommended: 150-300 for most documents
+  render_dpi: 200
+  
+  # Whether to process all pages by default when not specified
+  default_process_all_pages: false
+
+# =============================================================================
+# Document Splitting Configuration
+# =============================================================================
+# Settings for document splitting feature.
+
+split:
+  # Model for splitting (uses POE API)
+  model: "claude-opus-4.5"
+  
+  # Maximum number of categories allowed
+  max_categories: 50
+  
+  # Request timeout in seconds
+  timeout: 120
+  
+  # Number of retry attempts for network errors
+  retry_attempts: 3
+
+# =============================================================================
+# Tier Configuration Reference
+# =============================================================================
+# This is a reference summary. Actual tier mappings are in tier_config.py
+#
+# Parser (OCR):
+#   Rapid:   deepseek-ocr (LM Studio - Local)
+#   Normal:  gemini-2.5-flash-image (Google Studio)
+#   Advance: gemini-3-pro-image-preview (Google Studio)
+#
+# Classifier LLM:
+#   Rapid:   gemini-2.5-flash-lite (Google Studio)
+#   Normal:  gemini-2.5-flash (Google Studio)
+#   Advance: gemini-3-pro-preview (Google Studio)
+#
+# Extractor:
+#   Rapid:   assistant (POE)
+#   Normal:  qwen3-max (POE)
+#   Advance: gemini-3-pro (POE)
+#
+# Schema Generator:
+#   All tiers: gemini-3-pro-preview (Google Studio)
+#
+# Splitter:
+#   Rapid:   gemini-3-flash (POE)
+#   Normal:  gemini-3-pro (POE)
+#   Advance: claude-opus-4.5 (POE)

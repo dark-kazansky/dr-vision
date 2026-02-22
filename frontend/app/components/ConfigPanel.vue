@@ -73,22 +73,35 @@
       <!-- Only show content if there's a selected file and extraction result -->
       <div v-if="props.selectedFile && extractionResult" class="panel-content">
         <!-- Toggle Button for Visual/Code -->
-        <div class="result-toggle">
-        <button
-          @click="resultViewMode = 'visual'"
-          :class="{ active: resultViewMode === 'visual' }"
-          class="toggle-btn"
-        >
-          Visual
-        </button>
-        <button
-          @click="resultViewMode = 'code'"
-          :class="{ active: resultViewMode === 'code' }"
-          class="toggle-btn"
-        >
-          Code
-        </button>
-      </div>
+        <div class="view-toggle-group">
+          <button
+            @click="resultViewMode = 'visual'"
+            :class="{ active: resultViewMode === 'visual' }"
+            class="view-toggle-btn"
+            type="button"
+            title="Visual View"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="toggle-icon">
+              <path d="M12 3v18"></path>
+              <rect width="18" height="18" x="3" y="3" rx="2"></rect>
+              <path d="M3 9h18"></path>
+              <path d="M3 15h18"></path>
+            </svg>
+          </button>
+          <button
+            @click="resultViewMode = 'code'"
+            :class="{ active: resultViewMode === 'code' }"
+            class="view-toggle-btn"
+            type="button"
+            title="Code View"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="toggle-icon">
+              <path d="m18 16 4-4-4-4"></path>
+              <path d="m6 8-4 4 4 4"></path>
+              <path d="m14.5 4-5 16"></path>
+            </svg>
+          </button>
+        </div>
       
       <!-- Result Display -->
       <div v-if="!extractionResult" class="result-placeholder">
@@ -151,6 +164,14 @@
     <div v-if="errorMessage" class="error-message">
       {{ errorMessage }}
     </div>
+    
+    <!-- Helper message when extraction is enabled but schema is empty -->
+    <div v-if="extractionEnabled && !isSchemaValid && extractionSchema.length === 0" class="info-message">
+      <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+      Add at least one field to the schema or use "Auto Generate" to enable processing
+    </div>
   </div>
 </template>
 
@@ -159,7 +180,6 @@ import type { ExtractionConfig, ExtractionTarget, SchemaField } from '~/types/ex
 import ExtractionTargetSelector from './ExtractionTargetSelector.vue'
 import SchemaBuilder from './SchemaBuilder.vue'
 import TierSelector from './TierSelector.vue'
-import { parserTierToModel, extractorTierToModel } from '~/utils/tierMappings'
 
 interface Props {
   availableModels: string[]
@@ -185,6 +205,10 @@ interface Emits {
 
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
+
+// Use tier config composable
+const { getParserModel, getExtractorModel } = useTierConfig()
+
 const selectedParserTier = ref('Normal')
 const selectedExtractorTier = ref('Normal')
 const processAllPages = ref(false)
@@ -343,11 +367,11 @@ const highlightedJsonResult = computed(() => {
 const handleProcess = () => {
   errorMessage.value = ''
   
-  // Get parser model from parser tier
-  const parserModel = parserTierToModel[selectedParserTier.value]
+  // Get parser model from parser tier using composable
+  const parserModel = getParserModel(selectedParserTier.value)
   
-  // Get extractor model from extractor tier
-  const extractorModel = extractorTierToModel[selectedExtractorTier.value]
+  // Get extractor model from extractor tier using composable
+  const extractorModel = getExtractorModel(selectedExtractorTier.value)
   
   if (!parserModel) {
     errorMessage.value = 'Please select a parser tier'
@@ -569,44 +593,53 @@ const handleCancel = () => {
 .extraction-config {
   margin-top: 1rem;
   padding: 1rem;
-  background-color: #f7fafc;
+  background-color: #ffffff;
   border-radius: 0.375rem;
   border: 1px solid #e2e8f0;
   width: 100%;
   box-sizing: border-box;
 }
 
-/* Result Toggle Styles */
-.result-toggle {
+/* View Toggle Styles */
+.view-toggle-group {
   display: flex;
-  gap: 0.5rem;
+  border-radius: 0.25rem;
+  border: 1px solid #e5e7eb;
+  background-color: #f9fafb;
+  padding: 0.075rem;
   margin-bottom: 1rem;
-  padding: 0.25rem;
-  background-color: #f3f4f6;
-  border-radius: 0.5rem;
   width: fit-content;
 }
 
-.toggle-btn {
-  padding: 0.5rem 1rem;
-  border: none;
-  border-radius: 0.375rem;
+.view-toggle-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.3rem;
   background-color: transparent;
   color: #6b7280;
-  font-size: 0.875rem;
-  font-weight: 500;
+  border: none;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all 0.2s;
+  min-width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 0.15rem;
 }
 
-.toggle-btn:hover {
-  color: #111827;
+.view-toggle-btn:hover {
+  background-color: #e5e7eb;
+  color: #4b5563;
 }
 
-.toggle-btn.active {
-  background-color: white;
+.view-toggle-btn.active {
+  background-color: #ffffff;
   color: #111827;
   box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+}
+
+.toggle-icon {
+  width: 0.75rem;
+  height: 0.75rem;
 }
 
 /* Result Display Styles */
@@ -821,3 +854,20 @@ const handleCancel = () => {
   font-style: italic;
 }
 </style>
+
+.info-message {
+  margin-top: 1rem;
+  padding: 0.75rem;
+  background-color: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 0.375rem;
+  color: #1e40af;
+  font-size: 0.875rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.info-message svg {
+  flex-shrink: 0;
+}
