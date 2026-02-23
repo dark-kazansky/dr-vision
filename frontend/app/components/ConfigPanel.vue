@@ -164,14 +164,6 @@
     <div v-if="errorMessage" class="error-message">
       {{ errorMessage }}
     </div>
-    
-    <!-- Helper message when extraction is enabled but schema is empty -->
-    <div v-if="extractionEnabled && !isSchemaValid && extractionSchema.length === 0" class="info-message">
-      <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-      </svg>
-      Add at least one field to the schema or use "Auto Generate" to enable processing
-    </div>
   </div>
 </template>
 
@@ -206,8 +198,9 @@ interface Emits {
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
-// Use tier config composable
+// Use composables
 const { getParserModel, getExtractorModel } = useTierConfig()
+const { info } = useNotification()
 
 const selectedParserTier = ref('Normal')
 const selectedExtractorTier = ref('Normal')
@@ -386,6 +379,12 @@ const handleProcess = () => {
   // Validate extraction config if enabled
   if (extractionEnabled.value && !isSchemaValid.value) {
     errorMessage.value = 'Please fix validation errors in the extraction schema'
+    return
+  }
+  
+  // Show notification if extraction is enabled but schema is empty
+  if (extractionEnabled.value && extractionSchema.value.length === 0) {
+    info('Add at least one field to the schema or use "Auto Generate" to enable processing', 5000)
     return
   }
   
@@ -855,19 +854,3 @@ const handleCancel = () => {
 }
 </style>
 
-.info-message {
-  margin-top: 1rem;
-  padding: 0.75rem;
-  background-color: #eff6ff;
-  border: 1px solid #bfdbfe;
-  border-radius: 0.375rem;
-  color: #1e40af;
-  font-size: 0.875rem;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.info-message svg {
-  flex-shrink: 0;
-}

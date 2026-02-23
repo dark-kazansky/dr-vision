@@ -39,7 +39,7 @@ export function useJourney() {
   /**
    * Add a node to the workflow
    */
-  const addNode = (type: WorkflowNode['type']) => {
+  const addNode = (type: WorkflowNode['type'], viewportX?: number, viewportY?: number) => {
     const labels = {
       upload: 'Upload Files',
       ocr: 'OCR',
@@ -91,12 +91,26 @@ export function useJourney() {
       inactive = true // Backend not implemented yet
     }
     
+    // Calculate position - use viewport center if provided, otherwise use default layout
+    let x: number
+    let y: number
+    
+    if (viewportX !== undefined && viewportY !== undefined) {
+      // Center node in viewport (node width ~300px, height ~200px)
+      x = Math.max(20, viewportX - 150)
+      y = Math.max(20, viewportY - 100)
+    } else {
+      // Fallback to horizontal spread layout
+      x = 100 + nodes.value.length * 350
+      y = 100
+    }
+    
     const node: WorkflowNode = {
       id: `node-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       type,
       label: labels[type],
-      x: 100 + nodes.value.length * 350, // Spread horizontally
-      y: 100, // Fixed vertical position
+      x,
+      y,
       tier: 'Normal',
       status: inactive ? 'inactive' : 'pending',
       files: type === 'upload' ? [] : undefined,
@@ -400,7 +414,10 @@ export function useJourney() {
     
     // Add extraction schema from config
     if (node.config?.schema && node.config.schema.fields && node.config.schema.fields.length > 0) {
-      formData.append('extraction_schema', JSON.stringify(node.config.schema))
+      // Backend expects array of fields directly, not { fields: [...] }
+      const schemaFields = node.config.schema.fields
+      console.log('Sending extraction schema:', schemaFields)
+      formData.append('extraction_schema', JSON.stringify(schemaFields))
     } else {
       throw new Error('No extraction schema defined. Please add schema fields or generate schema in node settings.')
     }
@@ -414,12 +431,48 @@ export function useJourney() {
     const extractorModel = extractorTierConfig[node.tier as keyof typeof extractorTierConfig] || 'gemini-2.5-flash'
     formData.append('extractor_model', extractorModel)
     
-    const response = await $fetch(`${apiBaseUrl}/parse`, {
-      method: 'POST',
-      body: formData
+    console.log('Extract node parameters:', {
+      tier: node.tier,
+      model_id: modelId,
+      extraction_target: node.config?.target || 'document',
+      extractor_model: extractorModel,
+      extraction_enabled: true,
+      schema_fields_count: node.config?.schema?.fields?.length || 0
     })
     
-    return response
+    try {
+      const response = await $fetch(`${apiBaseUrl}/parse`, {
+        method: 'POST',
+        body: formData
+      })
+      
+      return response
+    } catch (error: any) {
+      console.error('Extract node error:', error)
+      
+      // Check for Google API copyright/safety issues
+      if (error.data?.detail && typeof error.data.detail === 'string') {
+        const detail = error.data.detail
+        
+        if (detail.includes('finish_reason') && detail.includes('4')) {
+          throw new Error(
+            'Google API blocked this document (copyrighted material detected). ' +
+            'Try using "Rapid" tier which uses a different OCR model, or use a different document.'
+          )
+        }
+        
+        if (detail.includes('reciting from copyrighted material')) {
+          throw new Error(
+            'Document contains copyrighted material. ' +
+            'Try using "Rapid" tier (deepseek-ocr) instead of Normal/Advance tier (Google models).'
+          )
+        }
+        
+        throw new Error(detail)
+      }
+      
+      throw error
+    }
   }
   
   /**

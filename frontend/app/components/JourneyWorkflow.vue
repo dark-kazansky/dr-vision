@@ -5,21 +5,24 @@
       <div class="workflow-canvas">
         <div class="canvas-area" 
              ref="canvasArea"
-             :class="{ 'panning': isPanning || isSpacePressed }"
+             :class="{ 'panning': isPanning }"
              @click="handleCanvasClick"
              @mousedown="handleCanvasMouseDown"
              @mousemove="handleCanvasMouseMove"
              @mouseup="handleCanvasMouseUp"
-             @mouseleave="handleCanvasMouseUp">
-          <div v-if="nodes.length === 0" class="canvas-empty">
-            <svg width="48" height="48" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-            </svg>
-            <p>Add nodes to build your workflow</p>
-          </div>
+             @mouseleave="handleCanvasMouseUp"
+             @contextmenu.prevent>
+          <!-- Large canvas content area to ensure scrollable space -->
+          <div class="canvas-content">
+            <div v-if="nodes.length === 0" class="canvas-empty">
+              <svg width="48" height="48" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              <p>Add nodes to build your workflow</p>
+            </div>
 
-          <!-- Connection lines SVG -->
-          <svg class="connections-svg" v-if="nodes.length > 0">
+            <!-- Connection lines SVG -->
+            <svg class="connections-svg" v-if="nodes.length > 0">
             <defs>
               <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
                 <polygon points="0 0, 10 3, 0 6" fill="#9ca3af" />
@@ -127,6 +130,7 @@
               <div class="connection-dot"></div>
             </div>
           </div>
+          </div><!-- End canvas-content -->
         </div>
       </div>
 
@@ -142,38 +146,38 @@
             </button>
           </div>
           <div class="node-buttons">
-            <button class="node-btn" @click="addNode('upload')" :disabled="hasUploadNode || isProcessing">
+            <button class="node-btn" @click="addNodeInViewport('upload')" :disabled="hasUploadNode || isProcessing">
               <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
               </svg>
               <span>Upload</span>
             </button>
-            <button class="node-btn" @click="addNode('parse')" :disabled="isProcessing">
+            <button class="node-btn" @click="addNodeInViewport('parse')" :disabled="isProcessing">
               <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
               <span>Parse</span>
             </button>
-            <button class="node-btn" @click="addNode('ocr')" :disabled="isProcessing">
+            <button class="node-btn" @click="addNodeInViewport('ocr')" :disabled="isProcessing">
               <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
               </svg>
               <span>OCR</span>
             </button>
-            <button class="node-btn" @click="addNode('classify')" :disabled="isProcessing">
+            <button class="node-btn" @click="addNodeInViewport('classify')" :disabled="isProcessing">
               <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
               </svg>
               <span>Classify</span>
             </button>
-            <button class="node-btn" @click="addNode('extract')" :disabled="isProcessing">
+            <button class="node-btn" @click="addNodeInViewport('extract')" :disabled="isProcessing">
               <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
               <span>Extract</span>
             </button>
-            <button class="node-btn" @click="addNode('split')" :disabled="isProcessing">
+            <button class="node-btn" @click="addNodeInViewport('split')" :disabled="isProcessing">
               <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12M8 12h12m-12 5h12M3 7h.01M3 12h.01M3 17h.01" />
               </svg>
@@ -762,7 +766,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useJourney } from '~/composables/useJourney'
 import { useOCR } from '~/composables/useOCR'
 
@@ -777,6 +781,23 @@ const {
   executeWorkflow
 } = useJourney()
 
+// Pass canvas ref to addNode for viewport-aware positioning
+const addNodeInViewport = (type: WorkflowNode['type']) => {
+  const canvas = canvasArea.value
+  if (!canvas) {
+    // Fallback if canvas not available
+    addNode(type)
+    return
+  }
+  
+  // Calculate center of visible viewport
+  const viewportCenterX = canvas.scrollLeft + canvas.clientWidth / 2
+  const viewportCenterY = canvas.scrollTop + canvas.clientHeight / 2
+  
+  // Add node with viewport-aware positioning
+  addNode(type, viewportCenterX, viewportCenterY)
+}
+
 const canvasArea = ref<HTMLElement | null>(null)
 const draggedNode = ref<string | null>(null)
 const dragOffset = ref({ x: 0, y: 0 })
@@ -785,14 +806,14 @@ const selectedNode = ref<string | null>(null)
 const isDraggingConnection = ref(false)
 const dragConnectionEnd = ref({ x: 0, y: 0 })
 const nearbyInputNode = ref<string | null>(null)
-const isGeneratingSchema = ref(false)
+const generatingSchemaNodes = ref<Set<string>>(new Set())
 const schemaJsonInput = ref('')
 const jsonParseError = ref('')
 const showResultsModal = ref(false)
 const selectedConnection = ref<{ fromId: string; toId: string } | null>(null)
 const isPanning = ref(false)
+const hasPanned = ref(false)
 const panStart = ref({ x: 0, y: 0 })
-const isSpacePressed = ref(false)
 
 const uploadNodes = computed(() => nodes.value.filter(n => n.type === 'upload'))
 const totalUploadedFiles = computed(() => {
@@ -959,6 +980,11 @@ const handleCanvasMouseMove = (event: MouseEvent) => {
     const deltaX = panStart.value.x - event.clientX
     const deltaY = panStart.value.y - event.clientY
     
+    // Mark that we've actually panned (moved)
+    if (Math.abs(deltaX - canvas.scrollLeft) > 2 || Math.abs(deltaY - canvas.scrollTop) > 2) {
+      hasPanned.value = true
+    }
+    
     canvas.scrollLeft = deltaX
     canvas.scrollTop = deltaY
     return
@@ -1036,6 +1062,12 @@ const handleCanvasMouseMove = (event: MouseEvent) => {
 const handleCanvasMouseUp = () => {
   if (isPanning.value) {
     isPanning.value = false
+    // Set flag to prevent click event
+    if (hasPanned.value) {
+      setTimeout(() => {
+        hasPanned.value = false
+      }, 10)
+    }
     return
   }
   
@@ -1185,6 +1217,12 @@ const getSelectedNodeObject = computed(() => {
   return nodes.value.find(n => n.id === selectedNode.value) || null
 })
 
+// Check if selected node is generating schema
+const isGeneratingSchema = computed(() => {
+  if (!selectedNode.value) return false
+  return generatingSchemaNodes.value.has(selectedNode.value)
+})
+
 // Node configuration management functions
 const addRule = () => {
   if (!selectedNode.value) return
@@ -1313,6 +1351,9 @@ const generateSchema = async () => {
   const node = nodes.value.find(n => n.id === selectedNode.value)
   if (!node || node.type !== 'extract') return
   
+  // Check if this node is already generating
+  if (generatingSchemaNodes.value.has(node.id)) return
+  
   // Check if prompt is provided
   if (!node.config.schemaPrompt || node.config.schemaPrompt.trim() === '') {
     alert('Please enter a prompt describing what data to extract')
@@ -1327,7 +1368,7 @@ const generateSchema = async () => {
   }
   
   const file = uploadNode.files[0]
-  isGeneratingSchema.value = true
+  generatingSchemaNodes.value.add(node.id)
   
   try {
     const config = useRuntimeConfig()
@@ -1336,7 +1377,6 @@ const generateSchema = async () => {
     const formData = new FormData()
     formData.append('file', file)
     formData.append('tier', node.tier)
-    formData.append('target', node.config.target || 'document')
     formData.append('prompt', node.config.schemaPrompt)
     
     const response = await $fetch<any>(`${apiBaseUrl}/generate-schema`, {
@@ -1345,17 +1385,88 @@ const generateSchema = async () => {
     })
     
     // Update node config with generated schema
-    if (response.schema && response.schema.fields) {
+    // Backend returns { success: true, schema: [...] }
+    if (response.schema && Array.isArray(response.schema)) {
       if (!node.config.schema) {
         node.config.schema = { fields: [] }
       }
-      node.config.schema.fields = response.schema.fields
+      node.config.schema.fields = response.schema
     }
   } catch (error: any) {
     console.error('Schema generation failed:', error)
     alert(`Schema generation failed: ${error.message || 'Unknown error'}`)
   } finally {
-    isGeneratingSchema.value = false
+    generatingSchemaNodes.value.delete(node.id)
+  }
+}
+
+// Generate schemas for all extract nodes in parallel
+const generateAllSchemas = async () => {
+  // Find all extract nodes with prompts
+  const extractNodes = nodes.value.filter(n => 
+    n.type === 'extract' && 
+    n.config?.schemaPrompt && 
+    n.config.schemaPrompt.trim() !== '' &&
+    !generatingSchemaNodes.value.has(n.id)
+  )
+  
+  if (extractNodes.length === 0) {
+    alert('No extract nodes with prompts found')
+    return
+  }
+  
+  // Find upload node to get the file
+  const uploadNode = nodes.value.find(n => n.type === 'upload')
+  if (!uploadNode || !uploadNode.files || uploadNode.files.length === 0) {
+    alert('Please upload a file first')
+    return
+  }
+  
+  const file = uploadNode.files[0]
+  const config = useRuntimeConfig()
+  const apiBaseUrl = config.public.apiBaseUrl as string
+  
+  // Generate schemas in parallel
+  const promises = extractNodes.map(async (node) => {
+    generatingSchemaNodes.value.add(node.id)
+    
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('tier', node.tier)
+      formData.append('prompt', node.config.schemaPrompt)
+      
+      const response = await $fetch<any>(`${apiBaseUrl}/generate-schema`, {
+        method: 'POST',
+        body: formData
+      })
+      
+      // Update node config with generated schema
+      // Backend returns { success: true, schema: [...] }
+      if (response.schema && Array.isArray(response.schema)) {
+        if (!node.config.schema) {
+          node.config.schema = { fields: [] }
+        }
+        node.config.schema.fields = response.schema
+      }
+      
+      return { nodeId: node.id, success: true }
+    } catch (error: any) {
+      console.error(`Schema generation failed for node ${node.id}:`, error)
+      return { nodeId: node.id, success: false, error: error.message }
+    } finally {
+      generatingSchemaNodes.value.delete(node.id)
+    }
+  })
+  
+  const results = await Promise.all(promises)
+  const successCount = results.filter(r => r.success).length
+  const failCount = results.filter(r => !r.success).length
+  
+  if (failCount > 0) {
+    alert(`Schema generation completed: ${successCount} succeeded, ${failCount} failed`)
+  } else {
+    alert(`All ${successCount} schemas generated successfully!`)
   }
 }
 
@@ -1422,13 +1533,15 @@ const handleConnectionClick = (fromId: string, toId: string, event: MouseEvent) 
 
 // Handle keyboard events for deleting connections and nodes
 const handleKeyDown = (event: KeyboardEvent) => {
-  // Track space key for panning
-  if (event.code === 'Space' && !isSpacePressed.value) {
-    isSpacePressed.value = true
-    event.preventDefault()
-  }
+  // Check if user is typing in an input field
+  const target = event.target as HTMLElement
+  const isInputField = target.tagName === 'INPUT' || 
+                       target.tagName === 'TEXTAREA' || 
+                       target.tagName === 'SELECT' ||
+                       target.isContentEditable
   
-  if (event.key === 'Delete' || event.key === 'Backspace') {
+  // Don't handle Delete/Backspace when typing in input fields
+  if ((event.key === 'Delete' || event.key === 'Backspace') && !isInputField) {
     // Delete selected connection
     if (selectedConnection.value) {
       deleteConnection(selectedConnection.value.fromId, selectedConnection.value.toId)
@@ -1447,10 +1560,7 @@ const handleKeyDown = (event: KeyboardEvent) => {
 }
 
 const handleKeyUp = (event: KeyboardEvent) => {
-  if (event.code === 'Space') {
-    isSpacePressed.value = false
-    isPanning.value = false
-  }
+  // No longer needed for panning
 }
 
 // Handle canvas mouse down for panning
@@ -1458,14 +1568,31 @@ const handleCanvasMouseDown = (event: MouseEvent) => {
   const canvas = canvasArea.value
   if (!canvas) return
   
-  // Start panning with space + left click or middle mouse button
-  if ((isSpacePressed.value && event.button === 0) || event.button === 1) {
+  // Check if clicking on elements that should not trigger panning
+  const target = event.target as HTMLElement
+  const isInteractiveElement = 
+    target.tagName === 'BUTTON' ||
+    target.tagName === 'INPUT' ||
+    target.tagName === 'SELECT' ||
+    target.tagName === 'TEXTAREA' ||
+    target.closest('button') ||
+    target.closest('input') ||
+    target.closest('select') ||
+    target.closest('textarea') ||
+    target.classList.contains('connection-point') ||
+    target.closest('.connection-point') ||
+    target.classList.contains('node-header') ||
+    target.closest('.node-header')
+  
+  // Start panning with left click (except on interactive elements and node headers) or middle mouse button
+  if ((!isInteractiveElement && event.button === 0) || event.button === 1) {
     isPanning.value = true
     panStart.value = {
       x: event.clientX + canvas.scrollLeft,
       y: event.clientY + canvas.scrollTop
     }
     event.preventDefault()
+    event.stopPropagation()
   }
 }
 
@@ -1480,13 +1607,29 @@ const deleteConnection = (fromId: string, toId: string) => {
 
 // Deselect connection when clicking canvas
 const handleCanvasClick = () => {
+  // Don't handle click if we just finished panning
+  if (hasPanned.value) {
+    return
+  }
   selectedConnection.value = null
 }
 
-// Setup keyboard listener
+// Setup keyboard listener and center canvas
 onMounted(() => {
   window.addEventListener('keydown', handleKeyDown)
   window.addEventListener('keyup', handleKeyUp)
+  
+  // Center the canvas scroll position
+  const canvas = canvasArea.value
+  if (canvas) {
+    // Use nextTick to ensure DOM is fully rendered
+    nextTick(() => {
+      // Center the scroll position (canvas-content is 200% of viewport)
+      // So we scroll to 50% to center it
+      canvas.scrollLeft = (canvas.scrollWidth - canvas.clientWidth) / 2
+      canvas.scrollTop = (canvas.scrollHeight - canvas.clientHeight) / 2
+    })
+  }
 })
 
 onUnmounted(() => {
@@ -1542,20 +1685,19 @@ onUnmounted(() => {
   flex: 1;
   position: relative;
   overflow: auto;
-  padding: 2rem;
   background: #fafafa;
   min-height: 0;
   cursor: default;
-  min-width: 100%;
 }
 
-/* Show grab cursor when space is pressed */
-.canvas-area.panning:not(:active) {
-  cursor: grab;
+.canvas-content {
+  position: relative;
+  min-width: 200%;
+  min-height: 200%;
+  padding: 2rem;
 }
 
 /* Show grabbing cursor when actively panning */
-.canvas-area.panning:active,
 .canvas-area.panning {
   cursor: grabbing;
   user-select: none;
