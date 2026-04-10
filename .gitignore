@@ -65,7 +65,7 @@ backend/data/splited/*
 backend/uploads/
 *.tmp
 *.log
-
+.env
 # OS
 .DS_Store
 Thumbs.db

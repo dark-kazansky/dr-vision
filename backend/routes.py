@@ -25,6 +25,7 @@ from functions.classifier import Classifier, ClassificationRule
 from functions.schema_generator import SchemaGenerator
 from functions.splitter import Splitter
 from functions.text_parser import TextParser
+from functions.condition_evaluator import ConditionEvaluator, Condition, ConditionOperator
 
 
 # Create API router
@@ -365,7 +366,7 @@ async def parse_document(
 async def classify_document(
     file: UploadFile = File(...),
     parser_model_id: str = Form(...),
-    classifier_model_id: str = Form("qwen3-max"),
+    classifier_model_id: str = Form(None),  # Make optional, will use tier config if not provided
     classification_rules: str = Form(...),
     tier: str = Form("Normal"),
     max_pages: int = Form(5),
@@ -378,7 +379,7 @@ async def classify_document(
     Args:
         file: Uploaded file
         parser_model_id: OCR model ID
-        classifier_model_id: LLM model ID for classification
+        classifier_model_id: LLM model ID for classification (optional, uses tier config if not provided)
         classification_rules: JSON string with classification rules
         tier: Processing tier (Rapid, Normal, Advance, Multimodal)
         max_pages: Maximum number of pages to process
@@ -388,13 +389,37 @@ async def classify_document(
     Returns:
         ClassifyResponse with classification results
     """
+    try:
+        print(f"\n=== CLASSIFY REQUEST ===")
+        print(f"File: {file.filename if file else 'None'}")
+        print(f"Parser Model: {parser_model_id}")
+        print(f"Classifier Model: {classifier_model_id}")
+        print(f"Tier: {tier}")
+        print(f"Rules: {classification_rules[:100]}..." if len(classification_rules) > 100 else f"Rules: {classification_rules}")
+        print(f"========================\n")
+    except Exception as e:
+        print(f"Error logging request: {e}")
+    
+    # Use tier config if classifier_model_id not provided
+    if not classifier_model_id:
+        from config import TierConfig
+        classifier_model_id = TierConfig.get_classifier_llm_model(tier)
+        print(f"Using classifier model from tier config: {classifier_model_id} for tier: {tier}")
+    else:
+        print(f"Using provided classifier model: {classifier_model_id}")
+    
     # Validate file
     if not file.filename:
         raise HTTPException(status_code=400, detail="No file selected")
     
+    print(f"Processing file: {file.filename}")
+    
     # Parse classification rules
     try:
         rules_data = json.loads(classification_rules)
+        if not rules_data or len(rules_data) == 0:
+            raise HTTPException(status_code=400, detail="Classification rules cannot be empty. Please add rules in node settings.")
+        
         rules = [
             ClassificationRule(
                 doc_type=rule.get('type', rule.get('doc_type', '')),
@@ -402,7 +427,23 @@ async def classify_document(
             )
             for rule in rules_data
         ]
+        
+        # Validate that rules have doc_type
+        for i, rule in enumerate(rules):
+            if not rule.doc_type:
+                raise HTTPException(status_code=400, detail=f"Rule {i+1} is missing doc_type. Please fill in all rule fields.")
+        
+        print(f"Loaded {len(rules)} classification rules: {[r.doc_type for r in rules]}")
+        
+    except json.JSONDecodeError as e:
+        print(f"JSON decode error: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"Invalid classification rules JSON: {str(e)}")
+    except HTTPException:
+        raise
     except Exception as e:
+        print(f"Error parsing rules: {str(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=400, detail=f"Invalid classification rules: {str(e)}")
     
     # Setup directories
@@ -414,7 +455,6 @@ async def classify_document(
     
     # Read file content
     file_content = await file.read()
-    await file.seek(0)  # Reset file pointer
     
     # Calculate file hash for duplicate detection
     import hashlib
@@ -443,30 +483,66 @@ async def classify_document(
     else:
         print(f"Skipping duplicate file: {file.filename}")
     
-    # Also save to temp folder for processing
+    # Save to temp folder for processing (using already-read content)
     upload_config = config.upload_config
     upload_folder = upload_config.get('folder', 'uploads')
     try:
-        file_path = await secure_save_file(file, upload_folder)
+        # Create upload folder if it doesn't exist
+        os.makedirs(upload_folder, exist_ok=True)
+        
+        # Generate secure temp filename
+        import secrets
+        random_hex = secrets.token_hex(16)
+        safe_filename = file.filename.replace('/', '_').replace('\\', '_')
+        temp_filename = f"{random_hex}_{safe_filename}"
+        file_path = os.path.join(upload_folder, temp_filename)
+        
+        # Write the already-read content to temp file
+        with open(file_path, 'wb') as f:
+            f.write(file_content)
+        
+        print(f"Temp file created for processing: {file_path}")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to save file: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to save temp file: {str(e)}")
     
     try:
         # Step 1: Parse document
+        print(f"Parsing document with model: {parser_model_id}")
+        
+        # Check if model exists
+        if parser_model_id not in config.models:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Parser model '{parser_model_id}' not found in configuration. Available models: {', '.join(config.models.keys())}"
+            )
+        
         ocr_agent = AgentFactory.create_from_config(config, parser_model_id)
         parser = Parser(ocr_agent=ocr_agent)
         parse_result = parser.parse(file_path)
         
         if not parse_result.success:
-            raise HTTPException(status_code=500, detail=parse_result.error)
+            raise HTTPException(status_code=500, detail=f"Parse failed: {parse_result.error}")
+        
+        print(f"Parse successful, text length: {len(parse_result.text)}")
         
         # Step 2: Classify
+        print(f"Classifying with model: {classifier_model_id}, rules: {len(rules)}")
+        
+        # Check if model exists
+        if classifier_model_id not in config.models:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Classifier model '{classifier_model_id}' not found in configuration. Available models: {', '.join(config.models.keys())}"
+            )
+        
         llm_agent = AgentFactory.create_llm_agent(classifier_model_id)
         classifier = Classifier(agent=llm_agent)
         classify_result = classifier.classify(parse_result.text, rules)
         
         if not classify_result.success:
-            raise HTTPException(status_code=500, detail=classify_result.error)
+            raise HTTPException(status_code=500, detail=f"Classification failed: {classify_result.error}")
+        
+        print(f"Classification successful: {classify_result.document_type}")
         
         # Import ClassificationResult from core.schemas
         from core.schemas import ClassificationResult
@@ -506,10 +582,87 @@ async def classify_document(
             error=None,
             error_type=None
         )
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Classification error: {str(e)}")
         
     finally:
         if os.path.exists(file_path):
             os.remove(file_path)
+
+
+@router.post("/classify-text", response_model=ClassifyResponse)
+async def classify_text(
+    text: str = Form(...),
+    classification_rules: str = Form(...),
+    classifier_model_id: str = Form(None),  # Make optional
+    tier: str = Form("Normal"),  # Add tier parameter
+    config: Config = Depends(get_config)
+) -> ClassifyResponse:
+    """
+    Classify text directly without OCR (for reusing OCR results).
+    
+    Args:
+        text: Text content to classify
+        classification_rules: JSON string with classification rules
+        classifier_model_id: LLM model ID for classification (optional, uses tier config if not provided)
+        tier: Processing tier (Rapid, Normal, Advance)
+        config: Configuration instance
+        
+    Returns:
+        ClassifyResponse with classification results
+    """
+    # Use tier config if classifier_model_id not provided
+    if not classifier_model_id:
+        from config import TierConfig
+        classifier_model_id = TierConfig.get_classifier_llm_model(tier)
+        print(f"Using classifier model from tier config: {classifier_model_id}")
+    
+    # Parse classification rules
+    try:
+        rules_data = json.loads(classification_rules)
+        rules = [
+            ClassificationRule(
+                doc_type=rule.get('type', rule.get('doc_type', '')),
+                description=rule.get('description', '')
+            )
+            for rule in rules_data
+        ]
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid classification rules: {str(e)}")
+    
+    try:
+        # Classify text directly
+        llm_agent = AgentFactory.create_llm_agent(classifier_model_id)
+        classifier = Classifier(agent=llm_agent)
+        classify_result = classifier.classify(text, rules)
+        
+        if not classify_result.success:
+            raise HTTPException(status_code=500, detail=classify_result.error)
+        
+        # Import ClassificationResult from core.schemas
+        from core.schemas import ClassificationResult
+        
+        # Create classification result
+        classification_result = ClassificationResult(
+            fileName="text_input",
+            documentType=classify_result.document_type,
+            confidence=classify_result.confidence,
+            reasoning=classify_result.reasoning
+        )
+        
+        return ClassifyResponse(
+            success=True,
+            results=[classification_result],
+            error=None,
+            error_type=None
+        )
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Classification failed: {str(e)}")
 
 
 @router.post("/generate-schema")
@@ -681,6 +834,69 @@ async def extract_data(
     finally:
         if os.path.exists(file_path):
             os.remove(file_path)
+
+
+@router.post("/extract-text")
+async def extract_text(
+    text: str = Form(...),
+    extraction_schema: str = Form(...),
+    extraction_target: str = Form("document"),
+    extractor_model_id: str = Form("gemini-2.5-flash"),
+    config: Config = Depends(get_config)
+) -> JSONResponse:
+    """
+    Extract structured data from text directly without OCR (for reusing OCR results).
+    
+    Args:
+        text: Text content to extract from
+        extraction_schema: JSON string with schema
+        extraction_target: Target scope (document, page, table_row)
+        extractor_model_id: LLM model ID for extraction
+        config: Configuration instance
+        
+    Returns:
+        JSON response with extracted data
+    """
+    try:
+        # Parse schema
+        schema_data = json.loads(extraction_schema)
+        fields = [
+            SchemaField(
+                name=field['name'],
+                type=FieldType(field['type']),
+                description=field.get('description', ''),
+                required=field.get('required', False)
+            )
+            for field in schema_data
+        ]
+        
+        # Create extraction config
+        extraction_config = ExtractionConfig(
+            fields=fields,
+            target=ExtractionTarget(extraction_target)
+        )
+        
+        # Extract data
+        llm_agent = AgentFactory.create_llm_agent(extractor_model_id)
+        extractor = Extractor(agent=llm_agent)
+        extract_result = extractor.extract(text, extraction_config)
+        
+        if not extract_result.success:
+            raise HTTPException(status_code=500, detail=extract_result.error)
+        
+        return JSONResponse({
+            "success": True,
+            "extraction": {
+                "success": True,
+                "structured_data": extract_result.structured_data,
+                "field_errors": extract_result.field_errors
+            }
+        })
+        
+    except json.JSONDecodeError as e:
+        raise HTTPException(status_code=400, detail=f"Invalid schema JSON: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Extraction failed: {str(e)}")
 
 
 @router.post("/split", response_model=SplitResponse)
@@ -959,6 +1175,89 @@ async def health_check(config: Config = Depends(get_config)) -> HealthResponse:
     )
 
 
+@router.get("/models/check")
+async def check_models(config: Config = Depends(get_config)) -> JSONResponse:
+    """
+    Check which models are configured and available.
+    
+    Returns detailed information about model availability and configuration.
+    """
+    import os
+    
+    print("\n=== MODEL CHECK REQUEST ===")
+    
+    models_info = []
+    
+    # Check each model in config
+    for model_id, model_config in config.models.items():
+        provider = model_config.get('provider')
+        provider_config = config.api_providers.get(provider, {})
+        
+        # Check if API key is set for this provider
+        api_key_set = False
+        api_key_name = None
+        if provider == 'google_studio':
+            api_key_name = 'GOOGLE_STUDIO_API_KEY'
+            api_key_set = bool(os.getenv('GOOGLE_STUDIO_API_KEY'))
+        elif provider == 'poe_api':
+            api_key_name = 'POE_API_KEY'
+            api_key_set = bool(os.getenv('POE_API_KEY'))
+        elif provider == 'lm_studio':
+            api_key_name = 'N/A (local)'
+            api_key_set = True  # Local, no API key needed
+        
+        models_info.append({
+            'model_id': model_id,
+            'name': model_config.get('name', model_id),
+            'provider': provider,
+            'base_url': provider_config.get('base_url'),
+            'api_key_name': api_key_name,
+            'api_key_set': api_key_set,
+            'available': api_key_set
+        })
+        
+        print(f"  {model_id}: provider={provider}, api_key={api_key_name}, available={api_key_set}")
+    
+    # Group by provider
+    by_provider = {}
+    for model in models_info:
+        provider = model['provider']
+        if provider not in by_provider:
+            by_provider[provider] = []
+        by_provider[provider].append(model)
+    
+    print(f"Total models: {len(models_info)}, Available: {len([m for m in models_info if m['available']])}")
+    print("===========================\n")
+    
+    return JSONResponse({
+        'success': True,
+        'models': models_info,
+        'by_provider': by_provider,
+        'total_models': len(models_info),
+        'available_models': len([m for m in models_info if m['available']])
+    })
+
+
+@router.get("/test-logging")
+async def test_logging() -> JSONResponse:
+    """Test endpoint to verify logging is working."""
+    print("\n" + "="*50)
+    print("TEST LOGGING ENDPOINT CALLED")
+    print("If you can see this in your terminal, logging is working!")
+    print("="*50 + "\n")
+    
+    import sys
+    import os
+    
+    return JSONResponse({
+        'success': True,
+        'message': 'Check your backend terminal for log output',
+        'python_version': sys.version,
+        'cwd': os.getcwd(),
+        'stdout_isatty': sys.stdout.isatty()
+    })
+
+
 @router.get("/tier-config")
 async def get_tier_config() -> JSONResponse:
     """
@@ -1083,6 +1382,64 @@ async def list_saved_files() -> JSONResponse:
         "count": len(files),
         "files": files
     })
+
+
+@router.post("/condition/evaluate")
+async def evaluate_condition(
+    conditions: str = Form(...),
+    previous_result: str = Form(...),
+    field_name: str = Form("document_type")
+) -> JSONResponse:
+    """
+    Evaluate conditions against previous workflow result.
+    
+    This endpoint determines which output path to take based on conditions.
+    
+    Args:
+        conditions: JSON string with condition definitions
+        previous_result: JSON string with previous node result
+        field_name: Field name to evaluate (default: document_type)
+        
+    Returns:
+        JSON response with matched condition index (or null for else)
+    """
+    try:
+        # Parse conditions
+        conditions_data = json.loads(conditions)
+        condition_list = [
+            Condition(
+                operator=ConditionOperator(cond['operator']),
+                value=cond.get('value'),
+                valueMin=cond.get('valueMin'),
+                valueMax=cond.get('valueMax')
+            )
+            for cond in conditions_data
+        ]
+        
+        # Parse previous result
+        result_data = json.loads(previous_result)
+        
+        # Evaluate conditions
+        evaluator = ConditionEvaluator()
+        eval_result = evaluator.evaluate_from_previous_result(
+            result_data,
+            condition_list,
+            field_name
+        )
+        
+        if not eval_result.success:
+            raise HTTPException(status_code=500, detail=eval_result.error)
+        
+        return JSONResponse({
+            "success": True,
+            "matched_index": eval_result.matched_index,
+            "is_else": eval_result.matched_index is None
+        })
+        
+    except json.JSONDecodeError as e:
+        raise HTTPException(status_code=400, detail=f"Invalid JSON: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Condition evaluation failed: {str(e)}")
 
 
 @router.post("/workflow/execute")

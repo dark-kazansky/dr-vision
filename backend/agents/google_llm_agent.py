@@ -86,6 +86,28 @@ class GoogleLLMAgent(BaseLLMAgent):
                 request_options={'timeout': timeout}
             )
             
+            # Check finish reason before accessing text
+            if response.candidates:
+                finish_reason = response.candidates[0].finish_reason
+                if finish_reason == 4:  # RECITATION
+                    return LLMResponse(
+                        success=False,
+                        error="Content blocked: Model detected copyrighted material",
+                        error_type="content_blocked"
+                    )
+                elif finish_reason == 3:  # SAFETY
+                    return LLMResponse(
+                        success=False,
+                        error="Content blocked: Safety filters triggered",
+                        error_type="safety_blocked"
+                    )
+                elif finish_reason not in [0, 1]:  # Not UNSPECIFIED or STOP
+                    return LLMResponse(
+                        success=False,
+                        error=f"Generation incomplete: finish_reason={finish_reason}",
+                        error_type="incomplete_generation"
+                    )
+            
             # Extract text from response
             content = response.text
             
@@ -185,6 +207,28 @@ class GoogleLLMAgent(BaseLLMAgent):
                 last_message,
                 request_options={'timeout': timeout}
             )
+            
+            # Check finish reason before accessing text
+            if response.candidates:
+                finish_reason = response.candidates[0].finish_reason
+                if finish_reason == 4:  # RECITATION
+                    return LLMResponse(
+                        success=False,
+                        error="Content blocked: Model detected copyrighted material",
+                        error_type="content_blocked"
+                    )
+                elif finish_reason == 3:  # SAFETY
+                    return LLMResponse(
+                        success=False,
+                        error="Content blocked: Safety filters triggered",
+                        error_type="safety_blocked"
+                    )
+                elif finish_reason not in [0, 1]:  # Not UNSPECIFIED or STOP
+                    return LLMResponse(
+                        success=False,
+                        error=f"Generation incomplete: finish_reason={finish_reason}",
+                        error_type="incomplete_generation"
+                    )
             
             content = response.text
             

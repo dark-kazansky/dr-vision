@@ -94,6 +94,29 @@ class GoogleVLMAgent(BaseVLMAgent):
                 request_options={'timeout': timeout}
             )
             
+            # Check finish reason before accessing text
+            if response.candidates:
+                finish_reason = response.candidates[0].finish_reason
+                # finish_reason: 0=UNSPECIFIED, 1=STOP, 2=MAX_TOKENS, 3=SAFETY, 4=RECITATION, 5=OTHER
+                if finish_reason == 4:  # RECITATION
+                    return VLMResponse(
+                        success=False,
+                        error="Content blocked: Model detected copyrighted material",
+                        error_type="content_blocked"
+                    )
+                elif finish_reason == 3:  # SAFETY
+                    return VLMResponse(
+                        success=False,
+                        error="Content blocked: Safety filters triggered",
+                        error_type="safety_blocked"
+                    )
+                elif finish_reason not in [0, 1]:  # Not UNSPECIFIED or STOP
+                    return VLMResponse(
+                        success=False,
+                        error=f"Generation incomplete: finish_reason={finish_reason}",
+                        error_type="incomplete_generation"
+                    )
+            
             content = response.text
             
             return VLMResponse(
@@ -178,6 +201,28 @@ class GoogleVLMAgent(BaseVLMAgent):
                 request_options={'timeout': timeout}
             )
             
+            # Check finish reason before accessing text
+            if response.candidates:
+                finish_reason = response.candidates[0].finish_reason
+                if finish_reason == 4:  # RECITATION
+                    return VLMResponse(
+                        success=False,
+                        error="Content blocked: Model detected copyrighted material",
+                        error_type="content_blocked"
+                    )
+                elif finish_reason == 3:  # SAFETY
+                    return VLMResponse(
+                        success=False,
+                        error="Content blocked: Safety filters triggered",
+                        error_type="safety_blocked"
+                    )
+                elif finish_reason not in [0, 1]:  # Not UNSPECIFIED or STOP
+                    return VLMResponse(
+                        success=False,
+                        error=f"Generation incomplete: finish_reason={finish_reason}",
+                        error_type="incomplete_generation"
+                    )
+            
             text_content = response.text
             
             return VLMResponse(
@@ -257,6 +302,28 @@ class GoogleVLMAgent(BaseVLMAgent):
                 [full_prompt, image_part],
                 request_options={'timeout': timeout}
             )
+            
+            # Check finish reason before accessing text
+            if response.candidates:
+                finish_reason = response.candidates[0].finish_reason
+                if finish_reason == 4:  # RECITATION
+                    return VLMResponse(
+                        success=False,
+                        error="Content blocked: Model detected copyrighted material",
+                        error_type="content_blocked"
+                    )
+                elif finish_reason == 3:  # SAFETY
+                    return VLMResponse(
+                        success=False,
+                        error="Content blocked: Safety filters triggered",
+                        error_type="safety_blocked"
+                    )
+                elif finish_reason not in [0, 1]:  # Not UNSPECIFIED or STOP
+                    return VLMResponse(
+                        success=False,
+                        error=f"Generation incomplete: finish_reason={finish_reason}",
+                        error_type="incomplete_generation"
+                    )
             
             content = response.text
             
