@@ -35,6 +35,7 @@ export interface WorkflowResult {
 export function useJourney() {
   const config = useRuntimeConfig()
   const apiBaseUrl = config.public.apiBaseUrl as string
+  const { getParserModel } = useTierConfig()
   
   // State
   const nodes = useState<WorkflowNode[]>('journey-nodes', () => [])
@@ -426,12 +427,7 @@ export function useJourney() {
     formData.append('parse_formatting', 'false') // Raw text only
     
     // Get model_id based on tier from backend tier config
-    const tierConfig = {
-      'Rapid': 'deepseek-ocr',
-      'Normal': 'gemini-2.5-flash-image',
-      'Advance': 'gemini-3-pro-image-preview'
-    }
-    const modelId = tierConfig[node.tier as keyof typeof tierConfig] || 'gemini-2.5-flash-image'
+    const modelId = getParserModel(node.tier)
     formData.append('model_id', modelId)
     
     const response = await $fetch(`${apiBaseUrl}/parse`, {
@@ -456,12 +452,7 @@ export function useJourney() {
     formData.append('parse_formatting', 'true') // Parse to formatted text
     
     // Get model_id based on tier from backend tier config
-    const tierConfig = {
-      'Rapid': 'deepseek-ocr',
-      'Normal': 'gemini-2.5-flash-image',
-      'Advance': 'gemini-3-pro-image-preview'
-    }
-    const modelId = tierConfig[node.tier as keyof typeof tierConfig] || 'gemini-2.5-flash-image'
+    const modelId = getParserModel(node.tier)
     formData.append('model_id', modelId)
     
     const response = await $fetch(`${apiBaseUrl}/parse`, {
@@ -527,12 +518,7 @@ export function useJourney() {
     }
     
     // Get parser model from tier config
-    const parserTierConfig = {
-      'Rapid': 'deepseek-ocr',
-      'Normal': 'gemini-2.5-flash-image',
-      'Advance': 'gemini-3-pro-image-preview'
-    }
-    const parserModelId = parserTierConfig[node.tier as keyof typeof parserTierConfig] || 'gemini-2.5-flash-image'
+    const parserModelId = getParserModel(node.tier)
     formData.append('parser_model_id', parserModelId)
     
     // Backend will use TierConfig to determine classifier model based on tier
@@ -605,12 +591,7 @@ export function useJourney() {
     formData.append('parse_formatting', 'true')
     
     // Parse endpoint doesn't support OCR reuse yet - always perform OCR
-    const parserTierConfig = {
-      'Rapid': 'deepseek-ocr',
-      'Normal': 'gemini-2.5-flash-image',
-      'Advance': 'gemini-3-pro-image-preview'
-    }
-    const modelId = parserTierConfig[node.tier as keyof typeof parserTierConfig] || 'gemini-2.5-flash-image'
+    const modelId = getParserModel(node.tier)
     formData.append('model_id', modelId)
     
     // Add extraction target
@@ -672,7 +653,7 @@ export function useJourney() {
         if (detail.includes('reciting from copyrighted material')) {
           throw new Error(
             'Document contains copyrighted material. ' +
-            'Try using "Rapid" tier (deepseek-ocr) instead of Normal/Advance tier (Google models).'
+            'Try using "Rapid" tier (lightonocr-2-1b) instead of Normal/Advance tier.'
           )
         }
         

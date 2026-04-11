@@ -431,6 +431,10 @@ Respond ONLY with valid JSON."""
         elif provider_lower in ['lm_studio', 'lmstudio', 'vllm', 'lightonocr_api']:
             return ModelType.OCR
         
+        # VLM providers (vision capable)
+        elif provider_lower in ['bedrock', 'bedrock_runtime']:
+            return ModelType.VLM
+        
         # Default to LLM
         return ModelType.LLM
     

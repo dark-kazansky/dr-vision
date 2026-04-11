@@ -8,22 +8,32 @@ Input → Backend API → Functions + Config → Agents → Output → Frontend
 from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from typing import Optional, List
+import asyncio
+import logging
 import os
 import json
+import threading
+
+logger = logging.getLogger(__name__)
 
 from core import Config, ConfigurationError
-from core.utils import allowed_file, secure_save_file
+from core.utils import allowed_file, secure_save_file, validate_file_path
 from core.agent_factory import AgentFactory
+from core.middleware import FileSizeValidator
+from core.docx_generator import DocxGenerator
+from core.dependencies import get_config, get_parser, get_classifier, get_extractor
+from core.background_tasks import job_manager
 from core import (
     OCRResponse, HealthResponse, ClassifyResponse,
     SplitResponse, ChunkModel, ChunkCategoryModel,
     ExtractionConfig, SchemaField, FieldType, ExtractionTarget
 )
+from core.schemas import DocumentTypeResult
 from functions.parser import Parser
 from functions.extractor import Extractor
 from functions.classifier import Classifier, ClassificationRule
 from functions.schema_generator import SchemaGenerator
-from functions.splitter import Splitter
+from functions.splitter import Splitter, ChunkCategory, DocumentTypeItem
 from functions.text_parser import TextParser
 from functions.condition_evaluator import ConditionEvaluator, Condition, ConditionOperator
 
@@ -31,14 +41,60 @@ from functions.condition_evaluator import ConditionEvaluator, Condition, Conditi
 # Create API router
 router = APIRouter()
 
+# File size validator instance
+file_size_validator = FileSizeValidator()
 
-# Dependency injection for configuration
-def get_config() -> Config:
-    """Get configuration instance."""
+
+def _safe_remove(path: str) -> None:
+    """Remove a file safely, logging a warning on failure instead of raising."""
     try:
-        return Config.load()
-    except ConfigurationError as e:
-        raise HTTPException(status_code=500, detail=f"Configuration error: {str(e)}")
+        if os.path.exists(path):
+            os.remove(path)
+    except Exception as e:
+        logger.warning("Failed to remove temp file %s: %s", path, e)
+
+
+# Dependency injection functions are imported from core.dependencies
+# (get_config, get_parser, get_classifier, get_extractor)
+
+
+@router.get("/job/{job_id}/status")
+async def get_job_status(job_id: str) -> JSONResponse:
+    """
+    Poll the status of a background processing job.
+
+    Args:
+        job_id: The unique job identifier returned by a background request.
+
+    Returns:
+        JSON with job_id, status, progress, created_at, completed_at.
+    """
+    status = job_manager.get_status(job_id)
+    if status is None:
+        raise HTTPException(status_code=404, detail=f"Job not found: {job_id}")
+    return JSONResponse(status)
+
+
+@router.get("/job/{job_id}/result")
+async def get_job_result(job_id: str) -> JSONResponse:
+    """
+    Retrieve the result of a completed background job.
+
+    Args:
+        job_id: The unique job identifier.
+
+    Returns:
+        Full job payload including result or error.
+    """
+    result = job_manager.get_result(job_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail=f"Job not found: {job_id}")
+    if result["status"] not in ("completed", "failed"):
+        raise HTTPException(
+            status_code=409,
+            detail=f"Job {job_id} is still {result['status']}. Poll /job/{job_id}/status until completed.",
+        )
+    return JSONResponse(result)
 
 
 @router.post("/ocr")
@@ -90,6 +146,10 @@ async def parse_document(
             detail=f"Invalid file type. Allowed: {', '.join(allowed_extensions)}"
         )
     
+    # Validate file size
+    max_size_mb = upload_config.get('max_size_mb', 10)
+    await file_size_validator.validate(file, max_size_mb)
+    
     # Save file
     upload_folder = upload_config.get('folder', 'uploads')
     try:
@@ -98,14 +158,153 @@ async def parse_document(
         raise HTTPException(status_code=500, detail=f"Failed to save file: {str(e)}")
     
     try:
+        # --- Background task check: get page count for PDFs quickly ---
+        bg_config = config._config_data.get("background_tasks", {})
+        bg_enabled = bg_config.get("enabled", False)
+        threshold_pages = bg_config.get("threshold_pages", 5)
+
+        page_count = None
+        if bg_enabled and file_path.lower().endswith(".pdf"):
+            try:
+                import pypdfium2 as pdfium
+                _pdf = pdfium.PdfDocument(file_path)
+                try:
+                    page_count = len(_pdf)
+                finally:
+                    _pdf.close()
+            except Exception:
+                page_count = None
+
+        if bg_enabled and page_count is not None and page_count > threshold_pages:
+            # Offload heavy processing to a background thread and return job ID
+            job_id = job_manager.create_job()
+            job_manager.update_status(job_id, "processing", progress=0.0)
+
+            def _run_parse_in_background(
+                _file_path, _filename, _model_id, _force_ocr, _parse_formatting,
+                _extraction_enabled, _extraction_target, _extraction_schema,
+                _extractor_model, _config, _job_id,
+            ):
+                try:
+                    ocr_agent = AgentFactory.create_from_config(_config, _model_id)
+                    parser = Parser(ocr_agent=ocr_agent)
+                    result = parser.parse(_file_path, _force_ocr)
+
+                    if not result.success:
+                        job_manager.update_status(_job_id, "failed", error=result.error)
+                        return
+
+                    job_manager.update_status(_job_id, "processing", progress=0.5)
+
+                    text = result.text
+                    if _parse_formatting:
+                        text = TextParser.auto_parse(text)
+
+                    # Save raw OCR + DOCX
+                    data_dir = os.path.join(os.path.dirname(__file__), 'data')
+                    raw_ocr_dir = os.path.join(data_dir, 'raw_ocr')
+                    parsed_dir = os.path.join(data_dir, 'parsed')
+                    os.makedirs(raw_ocr_dir, exist_ok=True)
+                    os.makedirs(parsed_dir, exist_ok=True)
+                    base_fn = os.path.splitext(_filename)[0]
+
+                    try:
+                        with open(os.path.join(raw_ocr_dir, f"{base_fn}.txt"), 'w', encoding='utf-8') as f:
+                            f.write(result.text)
+                    except Exception as e:
+                        logger.warning("BG job %s: failed to save raw OCR: %s", _job_id, e)
+
+                    try:
+                        DocxGenerator().generate(
+                            text=text, filename=_filename, model_id=_model_id,
+                            pages=result.pages or 1, file_type=result.file_type,
+                            output_path=os.path.join(parsed_dir, f"{base_fn}.docx"),
+                        )
+                    except Exception as e:
+                        logger.warning("BG job %s: failed to create DOCX: %s", _job_id, e)
+
+                    response_data = {
+                        "success": True,
+                        "text": text,
+                        "parsed_text": text if _parse_formatting else None,
+                        "file_type": result.file_type,
+                        "is_scanned": result.is_scanned,
+                        "pages": result.pages,
+                        "filename": _filename,
+                        "model": _model_id,
+                    }
+
+                    # Optional extraction
+                    if _extraction_enabled and _extraction_schema:
+                        try:
+                            schema_data = json.loads(_extraction_schema)
+                            fields = [
+                                SchemaField(
+                                    name=field['name'],
+                                    type=FieldType(field['type']),
+                                    description=field.get('description', ''),
+                                    required=field.get('required', False),
+                                )
+                                for field in schema_data
+                            ]
+                            extraction_config = ExtractionConfig(
+                                fields=fields,
+                                target=ExtractionTarget(_extraction_target or "document"),
+                            )
+                            llm_agent = AgentFactory.create_llm_agent(_extractor_model, config=_config)
+                            extractor = Extractor(agent=llm_agent)
+                            extract_result = extractor.extract(text, extraction_config)
+                            if extract_result.success:
+                                response_data["extraction"] = {
+                                    "success": True,
+                                    "structured_data": extract_result.structured_data,
+                                    "field_errors": extract_result.field_errors,
+                                }
+                            else:
+                                response_data["extraction"] = {
+                                    "success": False,
+                                    "error": extract_result.error,
+                                }
+                        except Exception as e:
+                            response_data["extraction"] = {
+                                "success": False,
+                                "error": f"Extraction failed: {str(e)}",
+                            }
+
+                    job_manager.update_status(_job_id, "completed", progress=1.0, result=response_data)
+                except Exception as exc:
+                    logger.exception("Background job %s failed", _job_id)
+                    job_manager.update_status(_job_id, "failed", error=str(exc))
+                finally:
+                    _safe_remove(_file_path)
+
+            thread = threading.Thread(
+                target=_run_parse_in_background,
+                args=(
+                    file_path, file.filename, model_id, force_ocr, parse_formatting,
+                    extraction_enabled, extraction_target, extraction_schema,
+                    extractor_model, config, job_id,
+                ),
+                daemon=True,
+            )
+            thread.start()
+
+            return JSONResponse({
+                "success": True,
+                "background": True,
+                "job_id": job_id,
+                "message": f"Document has {page_count} pages (threshold: {threshold_pages}). Processing in background.",
+            })
+
+        # --- Standard synchronous path (below threshold or non-PDF) ---
         # Create OCR agent
         ocr_agent = AgentFactory.create_from_config(config, model_id)
         
         # Create parser
         parser = Parser(ocr_agent=ocr_agent)
         
-        # Parse file
-        result = parser.parse(file_path, force_ocr)
+        # Parse file (non-blocking)
+        result = await asyncio.to_thread(parser.parse, file_path, force_ocr)
         
         if not result.success:
             raise HTTPException(status_code=500, detail=result.error)
@@ -113,7 +312,7 @@ async def parse_document(
         # Parse formatting if requested
         text = result.text
         if parse_formatting:
-            text = TextParser.auto_parse(text)
+            text = await asyncio.to_thread(TextParser.auto_parse, text)
         
         # Save raw OCR result and create DOCX
         data_dir = os.path.join(os.path.dirname(__file__), 'data')
@@ -130,150 +329,26 @@ async def parse_document(
         try:
             with open(raw_ocr_path, 'w', encoding='utf-8') as f:
                 f.write(result.text)
-            print(f"Raw OCR saved: {raw_ocr_path}")
+            logger.info("Raw OCR saved: %s", raw_ocr_path)
         except Exception as e:
-            print(f"Warning: Failed to save raw OCR: {str(e)}")
+            logger.warning("Failed to save raw OCR: %s", e)
         
         # Convert to DOCX and save
         docx_path = os.path.join(parsed_dir, f"{base_filename}.docx")
         try:
-            from docx import Document
-            from docx.shared import Pt, RGBColor
-            from docx.enum.text import WD_ALIGN_PARAGRAPH
-            import re
-            
-            # Helper function to add inline formatting
-            def _add_inline_formatting(para, text):
-                """Add text with inline markdown formatting to paragraph."""
-                patterns = [
-                    (r'\*\*(.+?)\*\*', 'bold'),           # **bold**
-                    (r'\*(.+?)\*', 'italic'),             # *italic*
-                    (r'`(.+?)`', 'code'),                 # `code`
-                    (r'\[(.+?)\]\((.+?)\)', 'link'),      # [text](url)
-                ]
-                
-                remaining_text = text
-                while remaining_text:
-                    earliest_match = None
-                    earliest_pos = len(remaining_text)
-                    earliest_pattern = None
-                    
-                    for pattern, ptype in patterns:
-                        match = re.search(pattern, remaining_text)
-                        if match and match.start() < earliest_pos:
-                            earliest_match = match
-                            earliest_pos = match.start()
-                            earliest_pattern = ptype
-                    
-                    if earliest_match:
-                        if earliest_pos > 0:
-                            run = para.add_run(remaining_text[:earliest_pos])
-                            run.font.size = Pt(11)
-                        
-                        if earliest_pattern == 'bold':
-                            run = para.add_run(earliest_match.group(1))
-                            run.bold = True
-                            run.font.size = Pt(11)
-                        elif earliest_pattern == 'italic':
-                            run = para.add_run(earliest_match.group(1))
-                            run.italic = True
-                            run.font.size = Pt(11)
-                        elif earliest_pattern == 'code':
-                            run = para.add_run(earliest_match.group(1))
-                            run.font.name = 'Courier New'
-                            run.font.size = Pt(10)
-                            run.font.color.rgb = RGBColor(220, 50, 47)
-                        elif earliest_pattern == 'link':
-                            link_text = earliest_match.group(1)
-                            link_url = earliest_match.group(2)
-                            run = para.add_run(f"{link_text} ({link_url})")
-                            run.font.color.rgb = RGBColor(0, 102, 204)
-                            run.font.size = Pt(11)
-                        
-                        remaining_text = remaining_text[earliest_match.end():]
-                    else:
-                        run = para.add_run(remaining_text)
-                        run.font.size = Pt(11)
-                        break
-            
-            # Create new document
-            doc = Document()
-            
-            # Add title
-            title = doc.add_heading(file.filename, level=1)
-            
-            # Add metadata
-            doc.add_paragraph(f"Model: {model_id}")
-            doc.add_paragraph(f"Pages: {result.pages if result.pages else 1}")
-            doc.add_paragraph(f"File Type: {result.file_type}")
-            doc.add_paragraph("")  # Empty line
-            
-            # Parse and add content with markdown/HTML formatting
-            lines = text.split('\n') if text else []
-            i = 0
-            while i < len(lines):
-                line = lines[i].strip()
-                
-                if not line:
-                    # Empty line - add spacing
-                    doc.add_paragraph("")
-                    i += 1
-                    continue
-                
-                # Check for markdown headers
-                if line.startswith('# '):
-                    # H1 - Heading 1
-                    doc.add_heading(line[2:].strip(), level=1)
-                elif line.startswith('## '):
-                    # H2 - Heading 2
-                    doc.add_heading(line[3:].strip(), level=2)
-                elif line.startswith('### '):
-                    # H3 - Heading 3
-                    doc.add_heading(line[4:].strip(), level=3)
-                elif line.startswith('#### '):
-                    # H4 - Heading 4
-                    doc.add_heading(line[5:].strip(), level=4)
-                elif line.startswith('- ') or line.startswith('* '):
-                    # Bullet list with inline formatting
-                    list_text = line[2:].strip()
-                    para = doc.add_paragraph(style='List Bullet')
-                    para.paragraph_format.left_indent = Pt(18)
-                    _add_inline_formatting(para, list_text)
-                elif re.match(r'^\d+\.\s', line):
-                    # Numbered list with inline formatting
-                    text_content = re.sub(r'^\d+\.\s', '', line)
-                    para = doc.add_paragraph(style='List Number')
-                    para.paragraph_format.left_indent = Pt(18)
-                    _add_inline_formatting(para, text_content)
-                elif line.startswith('> '):
-                    # Blockquote with inline formatting
-                    quote_text = line[2:].strip()
-                    para = doc.add_paragraph()
-                    para.paragraph_format.left_indent = Pt(36)
-                    para.paragraph_format.right_indent = Pt(36)
-                    _add_inline_formatting(para, quote_text)
-                    # Apply italic and gray color to all runs
-                    for run in para.runs:
-                        run.font.italic = True
-                        run.font.color.rgb = RGBColor(96, 96, 96)
-                elif line.startswith('---') or line.startswith('***'):
-                    # Horizontal rule - add empty paragraph with bottom border
-                    para = doc.add_paragraph()
-                    para.paragraph_format.space_after = Pt(12)
-                else:
-                    # Regular paragraph - parse inline formatting
-                    para = doc.add_paragraph()
-                    _add_inline_formatting(para, line)
-                
-                i += 1
-            
-            # Save document
-            doc.save(docx_path)
-            print(f"DOCX saved: {docx_path}")
+            DocxGenerator().generate(
+                text=text,
+                filename=file.filename,
+                model_id=model_id,
+                pages=result.pages if result.pages else 1,
+                file_type=result.file_type,
+                output_path=docx_path,
+            )
+            logger.info("DOCX saved: %s", docx_path)
         except Exception as e:
-            print(f"Warning: Failed to create DOCX: {str(e)}")
+            logger.warning("Failed to create DOCX: %s", e)
             import traceback
-            traceback.print_exc()
+            logger.debug("DOCX creation traceback: %s", traceback.format_exc())
         
         response_data = {
             "success": True,
@@ -308,9 +383,9 @@ async def parse_document(
                 )
                 
                 # Extract data
-                llm_agent = AgentFactory.create_llm_agent(extractor_model)
+                llm_agent = AgentFactory.create_llm_agent(extractor_model, config=config)
                 extractor = Extractor(agent=llm_agent)
-                extract_result = extractor.extract(text, extraction_config)
+                extract_result = await asyncio.to_thread(extractor.extract, text, extraction_config)
                 
                 if extract_result.success:
                     # Save extraction result to file
@@ -335,9 +410,9 @@ async def parse_document(
                         with open(extracted_file_path, 'w', encoding='utf-8') as f:
                             json.dump(extraction_output, f, indent=2, ensure_ascii=False)
                         
-                        print(f"Extraction result saved: {extracted_file_path}")
+                        logger.info("Extraction result saved: %s", extracted_file_path)
                     except Exception as e:
-                        print(f"Warning: Failed to save extraction result: {str(e)}")
+                        logger.warning("Failed to save extraction result: %s", e)
                     
                     response_data["extraction"] = {
                         "success": True,
@@ -358,8 +433,7 @@ async def parse_document(
         return JSONResponse(response_data)
         
     finally:
-        if os.path.exists(file_path):
-            os.remove(file_path)
+        _safe_remove(file_path)
 
 
 @router.post("/classify", response_model=ClassifyResponse)
@@ -390,29 +464,34 @@ async def classify_document(
         ClassifyResponse with classification results
     """
     try:
-        print(f"\n=== CLASSIFY REQUEST ===")
-        print(f"File: {file.filename if file else 'None'}")
-        print(f"Parser Model: {parser_model_id}")
-        print(f"Classifier Model: {classifier_model_id}")
-        print(f"Tier: {tier}")
-        print(f"Rules: {classification_rules[:100]}..." if len(classification_rules) > 100 else f"Rules: {classification_rules}")
-        print(f"========================\n")
+        logger.info("=== CLASSIFY REQUEST ===")
+        logger.info("File: %s", file.filename if file else "None")
+        logger.info("Parser Model: %s", parser_model_id)
+        logger.info("Classifier Model: %s", classifier_model_id)
+        logger.info("Tier: %s", tier)
+        logger.info("Rules: %s", classification_rules[:100] + "..." if len(classification_rules) > 100 else classification_rules)
+        logger.info("========================")
     except Exception as e:
-        print(f"Error logging request: {e}")
+        logger.warning("Error logging request: %s", e)
     
     # Use tier config if classifier_model_id not provided
     if not classifier_model_id:
         from config import TierConfig
         classifier_model_id = TierConfig.get_classifier_llm_model(tier)
-        print(f"Using classifier model from tier config: {classifier_model_id} for tier: {tier}")
+        logger.info("Using classifier model from tier config: %s for tier: %s", classifier_model_id, tier)
     else:
-        print(f"Using provided classifier model: {classifier_model_id}")
+        logger.info("Using provided classifier model: %s", classifier_model_id)
     
     # Validate file
     if not file.filename:
         raise HTTPException(status_code=400, detail="No file selected")
     
-    print(f"Processing file: {file.filename}")
+    # Validate file size
+    upload_config = config.upload_config
+    max_size_mb = upload_config.get('max_size_mb', 10)
+    await file_size_validator.validate(file, max_size_mb)
+    
+    logger.info("Processing file: %s", file.filename)
     
     # Parse classification rules
     try:
@@ -433,17 +512,17 @@ async def classify_document(
             if not rule.doc_type:
                 raise HTTPException(status_code=400, detail=f"Rule {i+1} is missing doc_type. Please fill in all rule fields.")
         
-        print(f"Loaded {len(rules)} classification rules: {[r.doc_type for r in rules]}")
+        logger.info("Loaded %d classification rules: %s", len(rules), [r.doc_type for r in rules])
         
     except json.JSONDecodeError as e:
-        print(f"JSON decode error: {str(e)}")
+        logger.error("JSON decode error: %s", e)
         raise HTTPException(status_code=400, detail=f"Invalid classification rules JSON: {str(e)}")
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Error parsing rules: {str(e)}")
+        logger.error("Error parsing rules: %s", e)
         import traceback
-        traceback.print_exc()
+        logger.debug("Rules parsing traceback: %s", traceback.format_exc())
         raise HTTPException(status_code=400, detail=f"Invalid classification rules: {str(e)}")
     
     # Setup directories
@@ -470,18 +549,18 @@ async def classify_document(
             existing_hash = hashlib.sha256(existing_file.read()).hexdigest()
             if existing_hash == file_hash:
                 is_duplicate = True
-                print(f"Duplicate file detected: {file.filename} (hash: {file_hash[:8]}...)")
+                logger.info("Duplicate file detected: %s (hash: %s...)", file.filename, file_hash[:8])
     
     # Save file only if not duplicate
     if not is_duplicate:
         try:
             with open(saved_file_path, 'wb') as f:
                 f.write(file_content)
-            print(f"File saved: {saved_file_path}")
+            logger.info("File saved: %s", saved_file_path)
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to save file: {str(e)}")
     else:
-        print(f"Skipping duplicate file: {file.filename}")
+        logger.info("Skipping duplicate file: %s", file.filename)
     
     # Save to temp folder for processing (using already-read content)
     upload_config = config.upload_config
@@ -501,13 +580,13 @@ async def classify_document(
         with open(file_path, 'wb') as f:
             f.write(file_content)
         
-        print(f"Temp file created for processing: {file_path}")
+        logger.info("Temp file created for processing: %s", file_path)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to save temp file: {str(e)}")
     
     try:
         # Step 1: Parse document
-        print(f"Parsing document with model: {parser_model_id}")
+        logger.info("Parsing document with model: %s", parser_model_id)
         
         # Check if model exists
         if parser_model_id not in config.models:
@@ -518,15 +597,15 @@ async def classify_document(
         
         ocr_agent = AgentFactory.create_from_config(config, parser_model_id)
         parser = Parser(ocr_agent=ocr_agent)
-        parse_result = parser.parse(file_path)
+        parse_result = await asyncio.to_thread(parser.parse, file_path)
         
         if not parse_result.success:
             raise HTTPException(status_code=500, detail=f"Parse failed: {parse_result.error}")
         
-        print(f"Parse successful, text length: {len(parse_result.text)}")
+        logger.info("Parse successful, text length: %d", len(parse_result.text))
         
         # Step 2: Classify
-        print(f"Classifying with model: {classifier_model_id}, rules: {len(rules)}")
+        logger.info("Classifying with model: %s, rules: %d", classifier_model_id, len(rules))
         
         # Check if model exists
         if classifier_model_id not in config.models:
@@ -535,14 +614,14 @@ async def classify_document(
                 detail=f"Classifier model '{classifier_model_id}' not found in configuration. Available models: {', '.join(config.models.keys())}"
             )
         
-        llm_agent = AgentFactory.create_llm_agent(classifier_model_id)
+        llm_agent = AgentFactory.create_llm_agent(classifier_model_id, config=config)
         classifier = Classifier(agent=llm_agent)
-        classify_result = classifier.classify(parse_result.text, rules)
+        classify_result = await asyncio.to_thread(classifier.classify, parse_result.text, rules)
         
         if not classify_result.success:
             raise HTTPException(status_code=500, detail=f"Classification failed: {classify_result.error}")
         
-        print(f"Classification successful: {classify_result.document_type}")
+        logger.info("Classification successful: %s", classify_result.document_type)
         
         # Import ClassificationResult from core.schemas
         from core.schemas import ClassificationResult
@@ -572,9 +651,9 @@ async def classify_document(
             with open(result_file_path, 'w', encoding='utf-8') as f:
                 json.dump(results_data, f, indent=2, ensure_ascii=False)
             
-            print(f"Result saved to: {result_file_path}")
+            logger.info("Result saved to: %s", result_file_path)
         except Exception as e:
-            print(f"Warning: Failed to save result to result.json: {str(e)}")
+            logger.warning("Failed to save result to result.json: %s", e)
         
         return ClassifyResponse(
             success=True,
@@ -590,8 +669,9 @@ async def classify_document(
         raise HTTPException(status_code=500, detail=f"Classification error: {str(e)}")
         
     finally:
-        if os.path.exists(file_path):
-            os.remove(file_path)
+        _safe_remove(file_path)
+        # Clean up the copy saved to data/uploaded/ to avoid accumulating files
+        _safe_remove(saved_file_path)
 
 
 @router.post("/classify-text", response_model=ClassifyResponse)
@@ -600,6 +680,7 @@ async def classify_text(
     classification_rules: str = Form(...),
     classifier_model_id: str = Form(None),  # Make optional
     tier: str = Form("Normal"),  # Add tier parameter
+    classifier: Classifier = Depends(get_classifier),
     config: Config = Depends(get_config)
 ) -> ClassifyResponse:
     """
@@ -610,16 +691,17 @@ async def classify_text(
         classification_rules: JSON string with classification rules
         classifier_model_id: LLM model ID for classification (optional, uses tier config if not provided)
         tier: Processing tier (Rapid, Normal, Advance)
+        classifier: Classifier instance (injected via DI based on tier)
         config: Configuration instance
         
     Returns:
         ClassifyResponse with classification results
     """
-    # Use tier config if classifier_model_id not provided
-    if not classifier_model_id:
-        from config import TierConfig
-        classifier_model_id = TierConfig.get_classifier_llm_model(tier)
-        print(f"Using classifier model from tier config: {classifier_model_id}")
+    # If an explicit model was provided, create a custom classifier instead of using the injected one
+    if classifier_model_id:
+        logger.info("Using provided classifier model: %s", classifier_model_id)
+        llm_agent = AgentFactory.create_llm_agent(classifier_model_id, config=config)
+        classifier = Classifier(agent=llm_agent)
     
     # Parse classification rules
     try:
@@ -635,10 +717,8 @@ async def classify_text(
         raise HTTPException(status_code=400, detail=f"Invalid classification rules: {str(e)}")
     
     try:
-        # Classify text directly
-        llm_agent = AgentFactory.create_llm_agent(classifier_model_id)
-        classifier = Classifier(agent=llm_agent)
-        classify_result = classifier.classify(text, rules)
+        # Classify text directly using injected or overridden classifier
+        classify_result = await asyncio.to_thread(classifier.classify, text, rules)
         
         if not classify_result.success:
             raise HTTPException(status_code=500, detail=classify_result.error)
@@ -699,7 +779,7 @@ async def generate_schema(
             if ocr_model_id:
                 ocr_agent = AgentFactory.create_from_config(config, ocr_model_id)
                 parser = Parser(ocr_agent=ocr_agent)
-                parse_result = parser.parse(file_path)
+                parse_result = await asyncio.to_thread(parser.parse, file_path)
                 
                 if parse_result.success:
                     sample_text = parse_result.text[:2000]  # Limit to 2000 chars
@@ -708,10 +788,10 @@ async def generate_schema(
         from config import TierConfig
         model_id = TierConfig.get_extractor_model(tier)
         
-        # Generate schema
-        llm_agent = AgentFactory.create_llm_agent(model_id)
+        # Generate schema (non-blocking)
+        llm_agent = AgentFactory.create_llm_agent(model_id, config=config)
         schema_gen = SchemaGenerator(agent=llm_agent)
-        result = schema_gen.generate(sample_text or "", prompt)
+        result = await asyncio.to_thread(schema_gen.generate, sample_text or "", prompt)
         
         if not result.success:
             raise HTTPException(status_code=500, detail=result.error)
@@ -733,8 +813,8 @@ async def generate_schema(
         })
         
     finally:
-        if file_path and os.path.exists(file_path):
-            os.remove(file_path)
+        if file_path:
+            _safe_remove(file_path)
 
 
 @router.post("/extract")
@@ -768,8 +848,12 @@ async def extract_data(
     if not file.filename:
         raise HTTPException(status_code=400, detail="No file selected")
     
-    # Save file
+    # Validate file size
     upload_config = config.upload_config
+    max_size_mb = upload_config.get('max_size_mb', 10)
+    await file_size_validator.validate(file, max_size_mb)
+    
+    # Save file
     upload_folder = upload_config.get('folder', 'uploads')
     try:
         file_path = await secure_save_file(file, upload_folder)
@@ -777,20 +861,20 @@ async def extract_data(
         raise HTTPException(status_code=500, detail=f"Failed to save file: {str(e)}")
     
     try:
-        # Step 1: Parse document
+        # Step 1: Parse document (non-blocking)
         ocr_agent = AgentFactory.create_from_config(config, parser_model_id)
         parser = Parser(ocr_agent=ocr_agent)
-        parse_result = parser.parse(file_path)
+        parse_result = await asyncio.to_thread(parser.parse, file_path)
         
         if not parse_result.success:
             raise HTTPException(status_code=500, detail=parse_result.error)
         
-        llm_agent = AgentFactory.create_llm_agent(extractor_model_id)
+        llm_agent = AgentFactory.create_llm_agent(extractor_model_id, config=config)
         
-        # Step 2: Generate schema if requested
+        # Step 2: Generate schema if requested (non-blocking)
         if generate_schema and schema_prompt:
             schema_gen = SchemaGenerator(agent=llm_agent)
-            schema_result = schema_gen.generate(parse_result.text, schema_prompt)
+            schema_result = await asyncio.to_thread(schema_gen.generate, parse_result.text, schema_prompt)
             
             if not schema_result.success:
                 raise HTTPException(status_code=500, detail=schema_result.error)
@@ -819,7 +903,7 @@ async def extract_data(
         )
         
         extractor = Extractor(agent=llm_agent)
-        extract_result = extractor.extract(parse_result.text, extraction_config)
+        extract_result = await asyncio.to_thread(extractor.extract, parse_result.text, extraction_config)
         
         if not extract_result.success:
             raise HTTPException(status_code=500, detail=extract_result.error)
@@ -832,8 +916,7 @@ async def extract_data(
         })
         
     finally:
-        if os.path.exists(file_path):
-            os.remove(file_path)
+        _safe_remove(file_path)
 
 
 @router.post("/extract-text")
@@ -842,6 +925,8 @@ async def extract_text(
     extraction_schema: str = Form(...),
     extraction_target: str = Form("document"),
     extractor_model_id: str = Form("gemini-2.5-flash"),
+    tier: str = Form("Normal"),
+    extractor: Extractor = Depends(get_extractor),
     config: Config = Depends(get_config)
 ) -> JSONResponse:
     """
@@ -851,13 +936,20 @@ async def extract_text(
         text: Text content to extract from
         extraction_schema: JSON string with schema
         extraction_target: Target scope (document, page, table_row)
-        extractor_model_id: LLM model ID for extraction
+        extractor_model_id: LLM model ID for extraction (optional override)
+        tier: Processing tier (Rapid, Normal, Advance)
+        extractor: Extractor instance (injected via DI based on tier)
         config: Configuration instance
         
     Returns:
         JSON response with extracted data
     """
     try:
+        # If an explicit model was provided (non-default), create a custom extractor
+        if extractor_model_id != "gemini-2.5-flash":
+            llm_agent = AgentFactory.create_llm_agent(extractor_model_id, config=config)
+            extractor = Extractor(agent=llm_agent)
+
         # Parse schema
         schema_data = json.loads(extraction_schema)
         fields = [
@@ -876,10 +968,8 @@ async def extract_text(
             target=ExtractionTarget(extraction_target)
         )
         
-        # Extract data
-        llm_agent = AgentFactory.create_llm_agent(extractor_model_id)
-        extractor = Extractor(agent=llm_agent)
-        extract_result = extractor.extract(text, extraction_config)
+        # Extract data using injected or overridden extractor
+        extract_result = await asyncio.to_thread(extractor.extract, text, extraction_config)
         
         if not extract_result.success:
             raise HTTPException(status_code=500, detail=extract_result.error)
@@ -906,34 +996,47 @@ async def split_document(
     allow_uncategorized: bool = Form(True),
     parser_tier: str = Form("Normal"),
     splitter_tier: str = Form("Normal"),
+    split_mode: str = Form("sections"),
     config: Config = Depends(get_config)
 ) -> SplitResponse:
     """
-    Split document into categorized chunks.
+    Split document into categorized chunks using VLM-based Splitter.
     
-    This endpoint uses a two-step process:
-    1. Parse document with OCR to extract text
-    2. Use LLM to categorize chunks based on text content
+    This endpoint uses the Splitter class to analyze the document image
+    and categorize content into user-defined categories. Supports two modes:
+    - "sections": splits into categorized text chunks (default)
+    - "document_type": identifies document type boundaries and page ranges
     
     Args:
         file: Uploaded file
         categories: JSON string with categories
         allow_uncategorized: Whether to include unknown chunks
-        parser_tier: OCR processing tier (Rapid, Normal, Advance)
+        parser_tier: OCR processing tier (kept for backward compatibility)
         splitter_tier: Splitting processing tier (Rapid, Normal, Advance)
+        split_mode: Splitting mode - "sections" or "document_type"
         config: Configuration instance
         
     Returns:
-        SplitResponse with categorized chunks
+        SplitResponse with categorized chunks or document type results
     """
+    # Validate split_mode
+    if split_mode not in ("sections", "document_type"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid split_mode: '{split_mode}'. Allowed values: 'sections', 'document_type'"
+        )
     # Validate file
     if not file.filename:
         raise HTTPException(status_code=400, detail="No file selected")
     
+    # Validate file size
+    upload_config = config.upload_config
+    max_size_mb = upload_config.get('max_size_mb', 10)
+    await file_size_validator.validate(file, max_size_mb)
+    
     # Parse categories
     try:
         categories_data = json.loads(categories)
-        from functions.splitter import ChunkCategory
         chunk_categories = [
             ChunkCategory(
                 name=cat['name'],
@@ -945,9 +1048,8 @@ async def split_document(
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Invalid categories: {str(e)}")
     
-    # Get models from tier configuration
+    # Get splitter model from tier configuration
     from config import TierConfig
-    parser_model_id = TierConfig.get_parser_model(parser_tier)
     splitter_model_id = TierConfig.get_splitter_model(splitter_tier)
     
     # Save file
@@ -959,182 +1061,158 @@ async def split_document(
         raise HTTPException(status_code=500, detail=f"Failed to save file: {str(e)}")
     
     try:
-        # Step 1: Parse document with OCR
-        ocr_agent = AgentFactory.create_from_config(config, parser_model_id)
-        parser = Parser(ocr_agent=ocr_agent)
-        parse_result = parser.parse(file_path)
+        # Use Splitter class for consistent splitting approach
+        vlm_agent = AgentFactory.create_vlm_agent(splitter_model_id, config=config)
+        splitter = Splitter(agent=vlm_agent)
         
-        if not parse_result.success:
-            raise HTTPException(status_code=500, detail=f"OCR failed: {parse_result.error}")
-        
-        # Step 2: Use LLM to categorize text chunks
-        # For now, we'll use a simple approach: split by pages and categorize each page
-        llm_agent = AgentFactory.create_llm_agent(splitter_model_id)
-        
-        # Build categorization prompt
-        categories_list = "\n".join([
-            f"{i+1}. {cat.name}: {cat.description}"
-            for i, cat in enumerate(chunk_categories)
-        ])
-        
-        # Split text by pages if available
-        text = parse_result.text
-        pages = []
-        
-        if "--- Page" in text:
-            # Split by page markers
-            page_texts = text.split("--- Page")[1:]  # Skip first empty split
-            for i, page_text in enumerate(page_texts):
-                # Extract page number and content
-                lines = page_text.strip().split('\n', 1)
-                if len(lines) > 1:
-                    page_num = i + 1
-                    content = lines[1].strip()
-                    if content:
-                        pages.append({"page_number": page_num, "content": content})
-        else:
-            # Single page document
-            pages.append({"page_number": 1, "content": text})
-        
-        # Categorize each page
-        categorized_chunks = []
-        unknown_chunks = []
-        
-        for page in pages:
-            prompt = f"""Analyze this page content and assign it to the most appropriate category.
-
-Categories:
-{categories_list}
-
-Page content:
-{page['content'][:2000]}  # Limit to first 2000 chars
-
-Return ONLY a JSON object with this format:
-{{
-  "category": "category_name",
-  "confidence": 0.95,
-  "reasoning": "brief explanation"
-}}
-
-Use exact category names from the list above, or "unknown" if it doesn't fit any category."""
-
+        if split_mode == "document_type":
+            # Document type mode: identify document boundaries and page ranges
+            split_result = await asyncio.to_thread(
+                splitter.split_by_document_type,
+                file_path,
+                chunk_categories
+            )
+            
+            if not split_result.success:
+                raise HTTPException(status_code=500, detail=f"Split failed: {split_result.error}")
+            
+            # Map DocumentTypeItem objects to DocumentTypeResult schema objects
+            document_type_models = [
+                DocumentTypeResult(
+                    type_name=dt.type_name,
+                    page_numbers=dt.page_numbers,
+                    confidence=dt.confidence
+                )
+                for dt in split_result.document_types or []
+            ]
+            
+            # Save split result to file
+            data_dir = os.path.join(os.path.dirname(__file__), 'data')
+            splited_dir = os.path.join(data_dir, 'splited')
+            os.makedirs(splited_dir, exist_ok=True)
+            
+            base_filename = os.path.splitext(file.filename)[0]
+            split_file_path = os.path.join(splited_dir, f"{base_filename}.json")
+            
             try:
-                response = llm_agent.generate(prompt, timeout=60)
+                split_output = {
+                    "filename": file.filename,
+                    "splitter_model": splitter_model_id,
+                    "splitter_tier": splitter_tier,
+                    "split_mode": split_mode,
+                    "categories": categories_data,
+                    "document_types": [
+                        {
+                            "type_name": dt.type_name,
+                            "page_numbers": dt.page_numbers,
+                            "confidence": dt.confidence
+                        }
+                        for dt in split_result.document_types or []
+                    ],
+                    "timestamp": os.path.getctime(file_path) if os.path.exists(file_path) else None
+                }
                 
-                if response.success:
-                    # Parse response
-                    response_text = response.content.strip()
-                    
-                    # Remove markdown code blocks if present
-                    if response_text.startswith('```'):
-                        lines = response_text.split('\n')
-                        if lines[0].startswith('```'):
-                            lines = lines[1:]
-                        if lines and lines[-1].strip() == '```':
-                            lines = lines[:-1]
-                        response_text = '\n'.join(lines).strip()
-                    
-                    result_data = json.loads(response_text)
-                    category = result_data.get('category', 'unknown')
-                    confidence = result_data.get('confidence', 0.0)
-                    
-                    # Check if category matches
-                    category_names = {cat.name.lower() for cat in chunk_categories}
-                    
-                    chunk = {
-                        "content": page['content'],
-                        "category": category,
-                        "page_number": page['page_number'],
-                        "confidence": confidence
-                    }
-                    
-                    if category.lower() in category_names:
-                        categorized_chunks.append(chunk)
-                    else:
-                        chunk['category'] = 'unknown'
-                        unknown_chunks.append(chunk)
-                else:
-                    # If categorization fails, mark as unknown
-                    unknown_chunks.append({
-                        "content": page['content'],
-                        "category": 'unknown',
-                        "page_number": page['page_number'],
-                        "confidence": None
-                    })
+                with open(split_file_path, 'w', encoding='utf-8') as f:
+                    json.dump(split_output, f, indent=2, ensure_ascii=False)
+                
+                logger.info("Split result saved: %s", split_file_path)
             except Exception as e:
-                print(f"Error categorizing page {page['page_number']}: {str(e)}")
-                unknown_chunks.append({
-                    "content": page['content'],
-                    "category": 'unknown',
-                    "page_number": page['page_number'],
-                    "confidence": None
-                })
-        
-        # Filter unknown chunks if not allowed
-        if not allow_uncategorized:
-            unknown_chunks = []
-        
-        # Convert to response models
-        chunk_models = [
-            ChunkModel(
-                content=chunk['content'],
-                category=chunk['category'],
-                page_number=chunk['page_number'],
-                confidence=chunk['confidence']
-            )
-            for chunk in categorized_chunks
-        ]
-        
-        unknown_chunk_models = [
-            ChunkModel(
-                content=chunk['content'],
-                category=chunk['category'],
-                page_number=chunk['page_number'],
-                confidence=chunk['confidence']
-            )
-            for chunk in unknown_chunks
-        ]
-        
-        # Save split result to file
-        data_dir = os.path.join(os.path.dirname(__file__), 'data')
-        splited_dir = os.path.join(data_dir, 'splited')
-        os.makedirs(splited_dir, exist_ok=True)
-        
-        # Generate filename (without extension)
-        base_filename = os.path.splitext(file.filename)[0]
-        split_file_path = os.path.join(splited_dir, f"{base_filename}.json")
-        
-        try:
-            split_output = {
-                "filename": file.filename,
-                "parser_model": parser_model_id,
-                "parser_tier": parser_tier,
-                "splitter_model": splitter_model_id,
-                "splitter_tier": splitter_tier,
-                "categories": categories_data,
-                "allow_uncategorized": allow_uncategorized,
-                "chunks": categorized_chunks,
-                "unknown_chunks": unknown_chunks,
-                "timestamp": os.path.getctime(file_path) if os.path.exists(file_path) else None
-            }
+                logger.warning("Failed to save split result: %s", e)
             
-            with open(split_file_path, 'w', encoding='utf-8') as f:
-                json.dump(split_output, f, indent=2, ensure_ascii=False)
+            return SplitResponse(
+                success=True,
+                chunks=[],
+                unknown_chunks=[],
+                document_types=document_type_models,
+                filename=file.filename
+            )
+        else:
+            # Sections mode: existing behavior unchanged
+            split_result = await asyncio.to_thread(
+                splitter.split,
+                file_path,
+                chunk_categories,
+                allow_uncategorized=allow_uncategorized
+            )
             
-            print(f"Split result saved: {split_file_path}")
-        except Exception as e:
-            print(f"Warning: Failed to save split result: {str(e)}")
-        
-        return SplitResponse(
-            success=True,
-            chunks=chunk_models,
-            unknown_chunks=unknown_chunk_models,
-            filename=file.filename
-        )
+            if not split_result.success:
+                raise HTTPException(status_code=500, detail=f"Split failed: {split_result.error}")
+            
+            # Convert to response models
+            chunk_models = [
+                ChunkModel(
+                    content=chunk.content,
+                    category=chunk.category,
+                    page_number=chunk.page_number,
+                    confidence=chunk.confidence
+                )
+                for chunk in split_result.chunks or []
+            ]
+            
+            unknown_chunk_models = [
+                ChunkModel(
+                    content=chunk.content,
+                    category=chunk.category,
+                    page_number=chunk.page_number,
+                    confidence=chunk.confidence
+                )
+                for chunk in split_result.unknown_chunks or []
+            ]
+            
+            # Save split result to file
+            data_dir = os.path.join(os.path.dirname(__file__), 'data')
+            splited_dir = os.path.join(data_dir, 'splited')
+            os.makedirs(splited_dir, exist_ok=True)
+            
+            base_filename = os.path.splitext(file.filename)[0]
+            split_file_path = os.path.join(splited_dir, f"{base_filename}.json")
+            
+            try:
+                split_output = {
+                    "filename": file.filename,
+                    "splitter_model": splitter_model_id,
+                    "splitter_tier": splitter_tier,
+                    "split_mode": split_mode,
+                    "categories": categories_data,
+                    "allow_uncategorized": allow_uncategorized,
+                    "chunks": [
+                        {
+                            "content": c.content,
+                            "category": c.category,
+                            "page_number": c.page_number,
+                            "confidence": c.confidence
+                        }
+                        for c in split_result.chunks or []
+                    ],
+                    "unknown_chunks": [
+                        {
+                            "content": c.content,
+                            "category": c.category,
+                            "page_number": c.page_number,
+                            "confidence": c.confidence
+                        }
+                        for c in split_result.unknown_chunks or []
+                    ],
+                    "timestamp": os.path.getctime(file_path) if os.path.exists(file_path) else None
+                }
+                
+                with open(split_file_path, 'w', encoding='utf-8') as f:
+                    json.dump(split_output, f, indent=2, ensure_ascii=False)
+                
+                logger.info("Split result saved: %s", split_file_path)
+            except Exception as e:
+                logger.warning("Failed to save split result: %s", e)
+            
+            return SplitResponse(
+                success=True,
+                chunks=chunk_models,
+                unknown_chunks=unknown_chunk_models,
+                document_types=None,
+                filename=file.filename
+            )
         
     finally:
-        if os.path.exists(file_path):
-            os.remove(file_path)
+        _safe_remove(file_path)
 
 
 @router.get("/health", response_model=HealthResponse)
@@ -1184,7 +1262,7 @@ async def check_models(config: Config = Depends(get_config)) -> JSONResponse:
     """
     import os
     
-    print("\n=== MODEL CHECK REQUEST ===")
+    logger.info("=== MODEL CHECK REQUEST ===")
     
     models_info = []
     
@@ -1216,7 +1294,7 @@ async def check_models(config: Config = Depends(get_config)) -> JSONResponse:
             'available': api_key_set
         })
         
-        print(f"  {model_id}: provider={provider}, api_key={api_key_name}, available={api_key_set}")
+        logger.info("  %s: provider=%s, api_key=%s, available=%s", model_id, provider, api_key_name, api_key_set)
     
     # Group by provider
     by_provider = {}
@@ -1226,8 +1304,8 @@ async def check_models(config: Config = Depends(get_config)) -> JSONResponse:
             by_provider[provider] = []
         by_provider[provider].append(model)
     
-    print(f"Total models: {len(models_info)}, Available: {len([m for m in models_info if m['available']])}")
-    print("===========================\n")
+    logger.info("Total models: %d, Available: %d", len(models_info), len([m for m in models_info if m['available']]))
+    logger.info("===========================")
     
     return JSONResponse({
         'success': True,
@@ -1241,10 +1319,10 @@ async def check_models(config: Config = Depends(get_config)) -> JSONResponse:
 @router.get("/test-logging")
 async def test_logging() -> JSONResponse:
     """Test endpoint to verify logging is working."""
-    print("\n" + "="*50)
-    print("TEST LOGGING ENDPOINT CALLED")
-    print("If you can see this in your terminal, logging is working!")
-    print("="*50 + "\n")
+    logger.info("=" * 50)
+    logger.info("TEST LOGGING ENDPOINT CALLED")
+    logger.info("If you can see this in your terminal, logging is working!")
+    logger.info("=" * 50)
     
     import sys
     import os
@@ -1290,6 +1368,7 @@ async def get_raw_ocr(filename: str) -> JSONResponse:
     """
     data_dir = os.path.join(os.path.dirname(__file__), 'data')
     raw_ocr_dir = os.path.join(data_dir, 'raw_ocr')
+    validate_file_path(f"{filename}.txt", raw_ocr_dir)
     file_path = os.path.join(raw_ocr_dir, f"{filename}.txt")
     
     if not os.path.exists(file_path):
@@ -1324,6 +1403,7 @@ async def get_parsed_docx(filename: str):
     
     data_dir = os.path.join(os.path.dirname(__file__), 'data')
     parsed_dir = os.path.join(data_dir, 'parsed')
+    validate_file_path(f"{filename}.docx", parsed_dir)
     file_path = os.path.join(parsed_dir, f"{filename}.docx")
     
     if not os.path.exists(file_path):
@@ -1485,6 +1565,10 @@ async def execute_workflow(
             detail=f"Invalid file type. Allowed: {', '.join(allowed_extensions)}"
         )
     
+    # Validate file size
+    max_size_mb = upload_config.get('max_size_mb', 10)
+    await file_size_validator.validate(file, max_size_mb)
+    
     # Save file
     upload_folder = upload_config.get('folder', 'uploads')
     try:
@@ -1531,6 +1615,9 @@ async def execute_workflow(
             }
         )
     
+    finally:
+        _safe_remove(file_path)
+    
     return JSONResponse(content={
         'success': True,
         'results': results,
@@ -1546,7 +1633,7 @@ async def execute_parse_step(file_path: str, tier: str, step_config: dict, confi
     ocr_agent = AgentFactory.create_from_config(config, model_id)
     parser = Parser(ocr_agent=ocr_agent)
     
-    parse_result = parser.parse(file_path)
+    parse_result = await asyncio.to_thread(parser.parse, file_path)
     
     if not parse_result.success:
         raise Exception(f"Parse failed: {parse_result.error}")
@@ -1566,14 +1653,14 @@ async def execute_classify_step(file_path: str, tier: str, step_config: dict, co
     parser_model_id = TierConfig.get_parser_model(tier)
     ocr_agent = AgentFactory.create_from_config(config, parser_model_id)
     parser = Parser(ocr_agent=ocr_agent)
-    parse_result = parser.parse(file_path)
+    parse_result = await asyncio.to_thread(parser.parse, file_path)
     
     if not parse_result.success:
         raise Exception(f"Parse failed: {parse_result.error}")
     
     # Classify
     classifier_model_id = TierConfig.get_classifier_llm_model(tier)
-    llm_agent = AgentFactory.create_llm_agent(classifier_model_id)
+    llm_agent = AgentFactory.create_llm_agent(classifier_model_id, config=config)
     classifier = Classifier(agent=llm_agent)
     
     rules = [
@@ -1584,7 +1671,7 @@ async def execute_classify_step(file_path: str, tier: str, step_config: dict, co
         for rule in step_config.get('rules', [])
     ]
     
-    classify_result = classifier.classify(parse_result.text, rules)
+    classify_result = await asyncio.to_thread(classifier.classify, parse_result.text, rules)
     
     if not classify_result.success:
         raise Exception(f"Classify failed: {classify_result.error}")
@@ -1604,14 +1691,14 @@ async def execute_extract_step(file_path: str, tier: str, step_config: dict, con
     parser_model_id = TierConfig.get_parser_model(tier)
     ocr_agent = AgentFactory.create_from_config(config, parser_model_id)
     parser = Parser(ocr_agent=ocr_agent)
-    parse_result = parser.parse(file_path)
+    parse_result = await asyncio.to_thread(parser.parse, file_path)
     
     if not parse_result.success:
         raise Exception(f"Parse failed: {parse_result.error}")
     
     # Extract
     extractor_model_id = TierConfig.get_extractor_model(tier)
-    llm_agent = AgentFactory.create_llm_agent(extractor_model_id)
+    llm_agent = AgentFactory.create_llm_agent(extractor_model_id, config=config)
     extractor = Extractor(agent=llm_agent)
     
     # Build extraction config
@@ -1621,7 +1708,7 @@ async def execute_extract_step(file_path: str, tier: str, step_config: dict, con
         fields=[
             SchemaField(
                 name=field['name'],
-                field_type=FieldType(field['type']),
+                type=FieldType(field['type']),
                 description=field.get('description', ''),
                 required=field.get('required', False)
             )
@@ -1629,7 +1716,7 @@ async def execute_extract_step(file_path: str, tier: str, step_config: dict, con
         ]
     )
     
-    extract_result = extractor.extract(parse_result.text, extraction_config)
+    extract_result = await asyncio.to_thread(extractor.extract, parse_result.text, extraction_config)
     
     if not extract_result.success:
         raise Exception(f"Extract failed: {extract_result.error}")
@@ -1643,7 +1730,6 @@ async def execute_extract_step(file_path: str, tier: str, step_config: dict, con
 async def execute_split_step(file_path: str, tier: str, step_config: dict, config: Config):
     """Execute split step."""
     from config import TierConfig
-    from functions.splitter import ChunkCategory
     
     # Get models
     parser_model_id = TierConfig.get_parser_model(tier)
@@ -1652,13 +1738,13 @@ async def execute_split_step(file_path: str, tier: str, step_config: dict, confi
     # Parse document
     ocr_agent = AgentFactory.create_from_config(config, parser_model_id)
     parser = Parser(ocr_agent=ocr_agent)
-    parse_result = parser.parse(file_path)
+    parse_result = await asyncio.to_thread(parser.parse, file_path)
     
     if not parse_result.success:
         raise Exception(f"Parse failed: {parse_result.error}")
     
     # Split
-    vlm_agent = AgentFactory.create_vlm_agent(splitter_model_id)
+    vlm_agent = AgentFactory.create_vlm_agent(splitter_model_id, config=config)
     splitter = Splitter(agent=vlm_agent)
     
     categories = [
@@ -1670,7 +1756,8 @@ async def execute_split_step(file_path: str, tier: str, step_config: dict, confi
         for cat in step_config.get('categories', [])
     ]
     
-    split_result = splitter.split(
+    split_result = await asyncio.to_thread(
+        splitter.split,
         file_path,
         categories,
         allow_uncategorized=step_config.get('allow_uncategorized', True)

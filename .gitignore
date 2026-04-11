@@ -45,6 +45,7 @@ htmlcov/
 .env
 .env.local
 .env.*.local
+backend/.env
 
 # Uploads and temporary files
 uploads/
@@ -82,3 +83,5 @@ Screenshot*.png
 # Build artifacts
 *.pyc
 *.pyo
+.kiro/*
+tests/*

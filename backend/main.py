@@ -7,24 +7,37 @@ registers routes, configures CORS, and starts the server.
 Requirements: 1.4, 3.1, 7.1, 7.2, 7.3, 9.1, 9.3, 9.5
 """
 
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from contextlib import asynccontextmanager
-import sys
 from pathlib import Path
 from dotenv import load_dotenv
 
-# Load environment variables from .env file
-load_dotenv()
+# --- Environment variable loading (single, documented sequence) ---
+# Load order:
+#   1. Backend .env first — contains backend-specific variables (e.g., POE_API_KEY)
+#   2. Root .env second — provides additional variables (e.g., GOOGLE_STUDIO_API_KEY)
+#      Using override=False so backend .env values take precedence if duplicated.
+load_dotenv()  # loads backend/.env (cwd-relative)
+root_env_path = Path(__file__).parent.parent / '.env'
+if root_env_path.exists():
+    load_dotenv(root_env_path, override=False)
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
+import logging
+import sys
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+    stream=sys.stdout,
+)
 
 from routes import router
 from core import Config, ConfigurationError
+from core.middleware import RequestLoggingMiddleware
+from core.rate_limiter import RateLimiter
 
-# Load environment variables from parent directory (root .env)
-# This ensures GOOGLE_STUDIO_API_KEY and other root-level env vars are loaded
-root_env_path = Path(__file__).parent.parent / '.env'
-if root_env_path.exists():
-    load_dotenv(root_env_path)
+logger = logging.getLogger(__name__)
 
 
 # Lifespan context manager for startup/shutdown events
@@ -38,9 +51,9 @@ async def lifespan(app: FastAPI):
     - Cleanup on shutdown
     """
     # Startup
-    print("=" * 70)
-    print("OCR Web UI - FastAPI Backend")
-    print("=" * 70)
+    logger.info("=" * 70)
+    logger.info("OCR Web UI - FastAPI Backend")
+    logger.info("=" * 70)
     
     try:
         # Load and validate configuration
@@ -48,37 +61,37 @@ async def lifespan(app: FastAPI):
         errors = config.validate()
         
         if errors:
-            print("\n❌ Configuration validation failed:")
+            logger.error("Configuration validation failed:")
             for error in errors:
-                print(f"  - {error}")
-            print("\n" + "=" * 70)
+                logger.error("  - %s", error)
+            logger.error("=" * 70)
             raise RuntimeError(f"Configuration errors: {errors}")
         
-        print("\n✅ Configuration loaded and validated successfully")
+        logger.info("Configuration loaded and validated successfully")
         
         # Display configuration summary
-        print(f"\nAvailable Models: {', '.join(config.get_available_models())}")
-        print(f"Default Model: {config.default_model}")
+        logger.info("Available Models: %s", ", ".join(config.get_available_models()))
+        logger.info("Default Model: %s", config.default_model)
         
         fastapi_config = config.fastapi_config
-        print(f"Server: {fastapi_config.get('host')}:{fastapi_config.get('port')}")
-        print(f"Debug Mode: {fastapi_config.get('debug', False)}")
+        logger.info("Server: %s:%s", fastapi_config.get('host'), fastapi_config.get('port'))
+        logger.info("Debug Mode: %s", fastapi_config.get('debug', False))
         
-        print("\n" + "=" * 70)
-        print("✅ Server ready to accept requests")
-        print("=" * 70 + "\n")
+        logger.info("=" * 70)
+        logger.info("Server ready to accept requests")
+        logger.info("=" * 70)
         
     except ConfigurationError as e:
-        print(f"\n❌ Configuration error: {e}")
-        print("=" * 70 + "\n")
+        logger.error("Configuration error: %s", e)
+        logger.error("=" * 70)
         raise RuntimeError(f"Failed to load configuration: {e}")
     
     yield
     
     # Shutdown
-    print("\n" + "=" * 70)
-    print("Shutting down OCR Web UI")
-    print("=" * 70 + "\n")
+    logger.info("=" * 70)
+    logger.info("Shutting down OCR Web UI")
+    logger.info("=" * 70)
 
 
 # Create FastAPI application
@@ -95,8 +108,12 @@ try:
     config = Config.load()
     cors_origins = config.fastapi_config.get('cors_origins', ["*"])
 except Exception:
-    # Fallback to permissive CORS if config fails
-    cors_origins = ["*"]
+    # Fallback to restrictive CORS if config fails (localhost only)
+    logging.warning(
+        "CORS configuration loading failed. "
+        "Falling back to restrictive default: ['http://localhost:3000']"
+    )
+    cors_origins = ["http://localhost:3000"]
 
 app.add_middleware(
     CORSMiddleware,
@@ -105,6 +122,21 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Register request logging middleware
+app.add_middleware(RequestLoggingMiddleware)
+
+# Register rate limiting middleware
+try:
+    _rl_config = Config.load()._config_data.get("rate_limit", {})
+    app.add_middleware(
+        RateLimiter,
+        enabled=_rl_config.get("enabled", True),
+        requests_per_minute=_rl_config.get("requests_per_minute", 30),
+        burst_size=_rl_config.get("burst_size", 10),
+    )
+except Exception:
+    logging.warning("Failed to load rate_limit config; rate limiter disabled.")
 
 # Register routes
 app.include_router(router)
@@ -146,5 +178,5 @@ if __name__ == "__main__":
             reload=debug
         )
     except Exception as e:
-        print(f"Failed to start server: {e}")
+        logger.error("Failed to start server: %s", e)
         sys.exit(1)

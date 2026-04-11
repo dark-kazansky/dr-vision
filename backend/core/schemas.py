@@ -292,11 +292,26 @@ class ChunkModel(BaseModel):
     confidence: Optional[float] = Field(None, ge=0.0, le=1.0, description="Confidence score (0.0 to 1.0)")
 
 
+class DocumentTypeResult(BaseModel):
+    """Result for a single document type identified during document-type splitting."""
+    type_name: str = Field(..., min_length=1, description="Document type name")
+    page_numbers: List[int] = Field(..., min_length=1, description="Page numbers for this type")
+    confidence: Optional[float] = Field(None, ge=0.0, le=1.0, description="Confidence score")
+
+    @validator('page_numbers', each_item=True)
+    def validate_page_numbers(cls, v):
+        """Validate each page number is >= 1."""
+        if v < 1:
+            raise ValueError("Page numbers must be >= 1")
+        return v
+
+
 class SplitResponse(BaseModel):
     """Response model for split operation."""
     success: bool = Field(..., description="Whether the split operation succeeded")
     chunks: List[ChunkModel] = Field(default=[], description="List of categorized chunks")
     unknown_chunks: List[ChunkModel] = Field(default=[], description="List of chunks that don't match any category")
+    document_types: Optional[List[DocumentTypeResult]] = Field(None, description="List of document type results (populated in document_type split mode)")
     filename: Optional[str] = Field(None, description="Name of the file that was processed")
     error: Optional[str] = Field(None, description="Error message if split failed")
     error_type: Optional[str] = Field(None, description="Type of error that occurred")

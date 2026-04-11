@@ -17,14 +17,34 @@
       />
       
       <!-- Combined Config Card -->
-      <div class="config-card" style="margin-top: 24px;">
+      <div class="config-card">
         <!-- Splitting Strategy Section -->
         <div class="card-header">
           <h3 class="card-title">Splitting Strategy</h3>
         </div>
         
         <div class="card-body">
-          <div class="strategy-option">
+          <!-- Split Mode Toggle -->
+          <div class="split-mode-toggle" :class="{ disabled: isProcessing }">
+            <button
+              type="button"
+              :class="['split-mode-btn', { active: splitMode === 'sections' }]"
+              :disabled="isProcessing"
+              @click="splitMode = 'sections'"
+            >
+              Split by Sections
+            </button>
+            <button
+              type="button"
+              :class="['split-mode-btn', { active: splitMode === 'document_type' }]"
+              :disabled="isProcessing"
+              @click="splitMode = 'document_type'"
+            >
+              Split by Document Type
+            </button>
+          </div>
+
+          <div v-if="splitMode === 'sections'" class="strategy-option">
             <div class="option-content">
               <div class="option-title">Allow uncategorized pages</div>
               <div class="option-description">Group unmatched pages together.</div>
@@ -43,7 +63,7 @@
         <!-- Categories Section -->
         <div class="card-header">
           <h3 class="card-title">Categories</h3>
-          <p class="card-description">Define categories that represent different sections or types of content in your document.</p>
+          <p class="card-description">{{ splitMode === 'sections' ? 'Define categories that represent different sections or types of content in your document.' : 'Define document types that may appear in your multi-page file.' }}</p>
         </div>
         
         <div class="card-body">
@@ -233,7 +253,28 @@
       
       <!-- Success Display -->
       <div v-else-if="props.selectedFile && splitResult && splitResult.success" class="panel-content">
-        <div class="split-results-container">
+        <!-- Document Type Mode Results -->
+        <div v-if="isDocumentTypeMode" class="split-results-container">
+          <div 
+            v-for="(dtResult, index) in documentTypeResults" 
+            :key="index"
+            class="category-result-card doc-type-result-card"
+          >
+            <div class="category-header">
+              <h4 class="category-name">{{ dtResult.typeName }}</h4>
+              <span class="page-count-badge">{{ dtResult.pageCount }} {{ dtResult.pageCount === 1 ? 'page' : 'pages' }}</span>
+            </div>
+            <div class="doc-type-page-range">{{ dtResult.formattedPageRange }}</div>
+            <div v-if="dtResult.confidence != null" class="confidence-badge-wrapper">
+              <span class="confidence-badge" :class="getConfidenceClass(dtResult.confidence)">
+                {{ getConfidenceLabel(dtResult.confidence) }}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section Mode Results -->
+        <div v-else class="split-results-container">
           <div 
             v-for="(result, index) in splitResults" 
             :key="index"
@@ -326,6 +367,7 @@
 <script setup lang="ts">
 import { getTopChunkCategories, getRemainingChunkCategoryGroups } from '~/utils/chunkCategories'
 import type { ChunkCategory } from '~/utils/chunkCategories'
+import { formatPageRanges } from '~/utils/formatPageRanges'
 import TierSelector from './TierSelector.vue'
 
 interface Props {
@@ -344,6 +386,7 @@ interface Emits {
     allowUncategorized: boolean
     parserTier: string
     splitterTier: string
+    splitMode: string
   }): void
   (e: 'update:activeTab', value: string): void
   (e: 'cancel'): void
@@ -356,6 +399,7 @@ const errorMessage = ref('')
 const viewMode = ref<'table' | 'code'>('table')
 const showMoreTemplates = ref(false)
 const allowUncategorized = ref(false)
+const splitMode = ref<'sections' | 'document_type'>('sections')
 const parserTier = ref<'Rapid' | 'Normal' | 'Advance'>('Normal')
 const splitterTier = ref<'Rapid' | 'Normal' | 'Advance'>('Normal')
 
@@ -389,7 +433,32 @@ interface SplitResult {
   confidence?: number
 }
 
+interface DocumentTypeDisplayResult {
+  typeName: string
+  pageNumbers: number[]
+  pageCount: number
+  formattedPageRange: string
+  confidence?: number
+}
+
 const expandedContent = ref<Set<string>>(new Set())
+
+const documentTypeResults = computed<DocumentTypeDisplayResult[]>(() => {
+  if (!splitResult.value || !splitResult.value.success) return []
+  if (!splitResult.value.document_types || !Array.isArray(splitResult.value.document_types)) return []
+  
+  return splitResult.value.document_types.map((dt: any) => ({
+    typeName: dt.type_name,
+    pageNumbers: dt.page_numbers,
+    pageCount: dt.page_numbers.length,
+    formattedPageRange: formatPageRanges(dt.page_numbers),
+    confidence: dt.confidence ?? undefined
+  }))
+})
+
+const isDocumentTypeMode = computed(() => {
+  return splitResult.value?.document_types && Array.isArray(splitResult.value.document_types) && splitResult.value.document_types.length > 0
+})
 
 const splitResults = computed<SplitResult[]>(() => {
   console.log('[SplitConfigPanel] splitResults computed - splitResult.value:', splitResult.value)
@@ -552,7 +621,8 @@ const handleProcess = () => {
     categories: categoriesWithOrder,
     allowUncategorized: allowUncategorized.value,
     parserTier: parserTier.value,
-    splitterTier: splitterTier.value
+    splitterTier: splitterTier.value,
+    splitMode: splitMode.value
   }
   
   console.log('[SplitConfigPanel] Emitting process event with config:', config)
@@ -954,6 +1024,51 @@ onMounted(() => {
   gap: 1rem;
 }
 
+/* Split Mode Toggle */
+.split-mode-toggle {
+  display: flex;
+  background: #f3f4f6;
+  padding: 0.25rem;
+  border-radius: 0.5rem;
+  border: 1px solid #e5e7eb;
+  gap: 0.25rem;
+}
+
+.split-mode-toggle.disabled {
+  opacity: 0.5;
+}
+
+.split-mode-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: #6b7280;
+  background: transparent;
+  border: none;
+  border-radius: 0.375rem;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.split-mode-btn:hover:not(:disabled):not(.active) {
+  color: #374151;
+}
+
+.split-mode-btn.active {
+  background: white;
+  color: #111827;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.split-mode-btn:disabled {
+  cursor: not-allowed;
+}
+
 .option-content {
   flex: 1;
 }
@@ -1351,5 +1466,16 @@ input:disabled + .slider {
   font-size: 0.875rem;
   color: #6b7280;
   margin: 0;
+}
+
+/* Document Type Result Cards */
+.doc-type-result-card {
+  gap: 0.5rem;
+}
+
+.doc-type-page-range {
+  font-size: 0.8125rem;
+  color: #6b7280;
+  padding: 0 0.25rem;
 }
 </style>

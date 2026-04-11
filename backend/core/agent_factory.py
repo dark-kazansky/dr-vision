@@ -10,7 +10,9 @@ from typing import Optional, Dict, Any
 from agents import (
     BaseLLMAgent, BaseVLMAgent, BaseOCRAgent,
     POELLMAgent, LMStudioLLMAgent, OllamaLLMAgent, GoogleLLMAgent,
+    BedrockLLMAgent,
     POEVLMAgent, LMStudioVLMAgent, OllamaVLMAgent, GoogleVLMAgent,
+    BedrockVLMAgent,
     LMStudioOCRAgent, VLLMOCRAgent, VLMOCRAdapter
 )
 from config import Config
@@ -107,13 +109,33 @@ class AgentFactory:
             # Wrap in adapter
             return VLMOCRAdapter(vlm_agent=vlm_agent)
         
+        elif provider == 'bedrock' or provider == 'bedrock_runtime':
+            # Resolve model ARN from environment variables
+            bedrock_model_id = model_id
+            if model_id == 'claude-haiku':
+                bedrock_model_id = os.getenv('CLAUDE_HAIKU_ID', model_id)
+            elif model_id == 'claude-sonnet':
+                bedrock_model_id = os.getenv('CLAUDE_SONET_ID', model_id)
+            
+            # Create Bedrock VLM agent
+            vlm_agent = BedrockVLMAgent(
+                model_id=bedrock_model_id,
+                region=os.getenv('BEDROCK_REGION', 'ap-southeast-2'),
+                max_tokens=max_tokens,
+                temperature=temperature,
+                top_p=top_p
+            )
+            # Wrap in adapter
+            return VLMOCRAdapter(vlm_agent=vlm_agent)
+        
         else:
-            raise ValueError(f"Unsupported OCR provider: {provider}. Supported: lm_studio, vllm, google, poe, ollama")
+            raise ValueError(f"Unsupported OCR provider: {provider}. Supported: lm_studio, vllm, google, poe, ollama, bedrock")
     
     @staticmethod
     def create_llm_agent(
         model_id: str,
         provider: Optional[str] = None,
+        config: Optional[Config] = None,
         base_url: Optional[str] = None,
         api_key: Optional[str] = None,
         **kwargs
@@ -123,7 +145,8 @@ class AgentFactory:
         
         Args:
             model_id: Model identifier
-            provider: Provider name (poe, lmstudio, ollama)
+            provider: Provider name (poe, lmstudio, ollama, google)
+            config: Optional Config instance for provider resolution
             base_url: Base URL for local providers
             api_key: API key for cloud providers
             **kwargs: Additional parameters
@@ -132,16 +155,28 @@ class AgentFactory:
             BaseLLMAgent instance
             
         Raises:
-            ValueError: If provider is not supported
+            ValueError: If provider is not supported or model not found
         """
         if not provider:
-            # Auto-detect provider from model_id
-            if model_id in ['assistant', 'qwen3-max', 'gemini-3-pro', 'claude-opus-4.5']:
-                provider = 'poe'
-            elif model_id.startswith('gemini-'):
-                provider = 'google'
+            if config is not None:
+                # Look up provider from configuration
+                model_entry = config.models.get(model_id)
+                if model_entry is not None:
+                    provider = model_entry.get('provider')
+                else:
+                    available = config.get_available_models()
+                    raise ValueError(
+                        f"Model '{model_id}' not found in configuration. "
+                        f"Available models: {available}"
+                    )
             else:
-                provider = 'lmstudio'  # Default to LM Studio
+                # Fallback: auto-detect provider from model_id (legacy behavior)
+                if model_id in ['assistant', 'qwen3-max', 'gemini-3-pro', 'claude-opus-4.5']:
+                    provider = 'poe'
+                elif model_id.startswith('gemini-'):
+                    provider = 'google'
+                else:
+                    provider = 'lmstudio'  # Default to LM Studio
         
         provider = provider.lower()
         
@@ -173,6 +208,20 @@ class AgentFactory:
                 **kwargs
             )
         
+        elif provider == 'bedrock' or provider == 'bedrock_runtime':
+            # Resolve model ARN from environment variables
+            bedrock_model_id = model_id
+            if model_id == 'claude-haiku':
+                bedrock_model_id = os.getenv('CLAUDE_HAIKU_ID', model_id)
+            elif model_id == 'claude-sonnet':
+                bedrock_model_id = os.getenv('CLAUDE_SONET_ID', model_id)
+            
+            return BedrockLLMAgent(
+                model_id=bedrock_model_id,
+                region=os.getenv('BEDROCK_REGION', 'ap-southeast-2'),
+                **kwargs
+            )
+        
         else:
             raise ValueError(f"Unsupported LLM provider: {provider}")
     
@@ -180,6 +229,7 @@ class AgentFactory:
     def create_vlm_agent(
         model_id: str,
         provider: Optional[str] = None,
+        config: Optional[Config] = None,
         base_url: Optional[str] = None,
         api_key: Optional[str] = None,
         **kwargs
@@ -189,7 +239,8 @@ class AgentFactory:
         
         Args:
             model_id: Model identifier
-            provider: Provider name (poe, lmstudio, ollama)
+            provider: Provider name (poe, lmstudio, ollama, google, bedrock)
+            config: Optional Config instance for provider resolution
             base_url: Base URL for local providers
             api_key: API key for cloud providers
             **kwargs: Additional parameters
@@ -201,15 +252,21 @@ class AgentFactory:
             ValueError: If provider is not supported
         """
         if not provider:
-            # Auto-detect provider from model_id
-            if model_id in ['gemini-3-pro', 'claude-opus-4.5']:
-                provider = 'poe'
-            elif model_id.startswith('gemini-'):
-                provider = 'google'
-            elif model_id in ['llava', 'bakllava']:
-                provider = 'ollama'
-            else:
-                provider = 'lmstudio'
+            if config is not None:
+                model_entry = config.models.get(model_id)
+                if model_entry is not None:
+                    provider = model_entry.get('provider')
+            
+            if not provider:
+                # Auto-detect provider from model_id
+                if model_id in ['gemini-3-pro', 'claude-opus-4.5']:
+                    provider = 'poe'
+                elif model_id.startswith('gemini-'):
+                    provider = 'google'
+                elif model_id in ['llava', 'bakllava']:
+                    provider = 'ollama'
+                else:
+                    provider = 'lmstudio'
         
         provider = provider.lower()
         
@@ -238,6 +295,19 @@ class AgentFactory:
             return OllamaVLMAgent(
                 model_id=model_id,
                 base_url=base_url or os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434'),
+                **kwargs
+            )
+        
+        elif provider == 'bedrock' or provider == 'bedrock_runtime':
+            bedrock_model_id = model_id
+            if model_id == 'claude-haiku':
+                bedrock_model_id = os.getenv('CLAUDE_HAIKU_ID', model_id)
+            elif model_id == 'claude-sonnet':
+                bedrock_model_id = os.getenv('CLAUDE_SONET_ID', model_id)
+            
+            return BedrockVLMAgent(
+                model_id=bedrock_model_id,
+                region=os.getenv('BEDROCK_REGION', 'ap-southeast-2'),
                 **kwargs
             )
         
