@@ -85,3 +85,4 @@ Screenshot*.png
 *.pyo
 .kiro/*
 tests/*
+__pycache__/*
