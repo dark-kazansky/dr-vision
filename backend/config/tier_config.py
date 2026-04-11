@@ -23,6 +23,9 @@ Model Configuration Format:
 
 from typing import Dict, List, Union
 from enum import Enum
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 # Type alias for model configuration
@@ -60,11 +63,12 @@ class TierConfig:
     # Priority: Speed and accuracy balance
     
     PARSER_TIER_TO_MODEL: Dict[str, ModelSpec] = {
-        Tier.RAPID: {"model": "deepseek-ocr", "provider": "lmstudio"},                   
-        Tier.NORMAL: {"model": "gemini-2.5-flash-image", "provider": "google"},            
-        Tier.ADVANCE: {"model": "gemini-3-pro-image-preview", "provider": "google"},       
-        # Note: Google models use VLM agents for OCR (vision-based text extraction)
-        # LM Studio uses dedicated OCR models
+        Tier.RAPID: {"model": "lightonocr-2-1b", "provider": "lmstudio"},                   
+        Tier.NORMAL: {"model": "claude-haiku", "provider": "bedrock"},            
+        Tier.ADVANCE: {"model": "claude-sonnet", "provider": "bedrock"},       
+        # Rapid: Local LM Studio LightOnOCR model
+        # Normal: Claude Haiku via AWS Bedrock
+        # Advance: Claude Sonnet via AWS Bedrock
     }
     
     # =============================================================================
@@ -74,11 +78,9 @@ class TierConfig:
     # Priority: Accuracy and reasoning
     
     EXTRACTOR_TIER_TO_MODEL: Dict[str, ModelSpec] = {
-        Tier.RAPID: {"model": "gemini-2.5-flash-lite", "provider": "google"}, 
-        Tier.NORMAL: {"model": "gemini-2.5-flash", "provider": "google"},     
-        Tier.ADVANCE: {"model": "gemini-3-pro-preview", "provider": "google"},
-        # Example with Google Studio:
-        # Tier.ADVANCE: {"model": "gemini-1.5-pro", "provider": "google"},
+        Tier.RAPID: {"model": "lightonocr-2-1b", "provider": "lmstudio"}, 
+        Tier.NORMAL: {"model": "claude-haiku", "provider": "bedrock"},     
+        Tier.ADVANCE: {"model": "claude-sonnet", "provider": "bedrock"},
     }
     
     # =============================================================================
@@ -88,10 +90,10 @@ class TierConfig:
     # Priority: Classification accuracy
     
     CLASSIFIER_LLM_TIER_TO_MODEL: Dict[str, ModelSpec] = {
-        Tier.RAPID: {"model": "gemini-2.5-flash-lite", "provider": "google"},    
-        Tier.NORMAL: {"model": "gemini-2.5-flash", "provider": "google"},        
-        Tier.ADVANCE: {"model": "gemini-3-pro-preview", "provider": "google"},   
-        Tier.MULTIMODAL: {"model": "gemini-3.1-pro-preview", "provider": "google"}, 
+        Tier.RAPID: {"model": "lightonocr-2-1b", "provider": "lmstudio"},    
+        Tier.NORMAL: {"model": "claude-haiku", "provider": "bedrock"},        
+        Tier.ADVANCE: {"model": "claude-sonnet", "provider": "bedrock"},   
+        Tier.MULTIMODAL: {"model": "claude-sonnet", "provider": "bedrock"}, 
     }
     
     # =============================================================================
@@ -101,9 +103,9 @@ class TierConfig:
     # Priority: Vision and understanding
     
     SPLITTER_TIER_TO_MODEL: Dict[str, ModelSpec] = {
-        Tier.RAPID: {"model": "gemini-2.5-flash-lite", "provider": "google"},    
-        Tier.NORMAL: {"model": "gemini-2.5-flash", "provider": "google"},        
-        Tier.ADVANCE: {"model": "gemini-3-pro-preview", "provider": "google"},   
+        Tier.RAPID: {"model": "lightonocr-2-1b", "provider": "lmstudio"},    
+        Tier.NORMAL: {"model": "claude-haiku", "provider": "bedrock"},        
+        Tier.ADVANCE: {"model": "claude-sonnet", "provider": "bedrock"},   
     }
     
     # =============================================================================
@@ -146,6 +148,52 @@ class TierConfig:
             return (model_spec.get("model", ""), model_spec.get("provider"))
         else:
             return ("", None)
+
+    @classmethod
+    def _get_model_spec_with_fallback(
+        cls,
+        tier_map: Dict[str, ModelSpec],
+        tier: str,
+        feature_name: str,
+    ) -> ModelSpec:
+        """
+        Get model spec for a tier with fallback to Normal if the model doesn't exist in config.
+
+        Loads the Config to check whether the resolved model_id is defined in
+        settings.yaml.  If it isn't, logs a warning and returns the Normal-tier
+        spec instead.
+
+        Args:
+            tier_map: The tier-to-model mapping dict for a feature.
+            tier: The requested tier value.
+            feature_name: Human-readable feature name used in log messages.
+
+        Returns:
+            A valid ModelSpec (string or dict).
+        """
+        model_spec = tier_map.get(tier, tier_map[Tier.NORMAL])
+        model_id, _ = cls._resolve_model_spec(model_spec)
+
+        # Try to validate against settings.yaml
+        try:
+            from backend.config.manager import Config
+            config = Config.load()
+            available_models = config.get_available_models()
+
+            if model_id and model_id not in available_models:
+                fallback_spec = tier_map[Tier.NORMAL]
+                fallback_id, _ = cls._resolve_model_spec(fallback_spec)
+                logger.warning(
+                    "Tier '%s' for %s references non-existent model '%s'. "
+                    "Falling back to Normal tier model '%s'.",
+                    tier, feature_name, model_id, fallback_id,
+                )
+                return fallback_spec
+        except Exception:
+            # If config isn't available yet (e.g. during import), skip validation
+            pass
+
+        return model_spec
     
     @classmethod
     def get_parser_model(cls, tier: str) -> str:
@@ -155,7 +203,7 @@ class TierConfig:
         Returns:
             Model ID string (for backward compatibility)
         """
-        model_spec = cls.PARSER_TIER_TO_MODEL.get(tier, cls.PARSER_TIER_TO_MODEL[Tier.NORMAL])
+        model_spec = cls._get_model_spec_with_fallback(cls.PARSER_TIER_TO_MODEL, tier, "parser")
         model_id, _ = cls._resolve_model_spec(model_spec)
         return model_id
     
@@ -167,7 +215,7 @@ class TierConfig:
         Returns:
             Tuple of (model_id, provider) where provider may be None
         """
-        model_spec = cls.PARSER_TIER_TO_MODEL.get(tier, cls.PARSER_TIER_TO_MODEL[Tier.NORMAL])
+        model_spec = cls._get_model_spec_with_fallback(cls.PARSER_TIER_TO_MODEL, tier, "parser")
         return cls._resolve_model_spec(model_spec)
     
     @classmethod
@@ -178,7 +226,7 @@ class TierConfig:
         Returns:
             Model ID string (for backward compatibility)
         """
-        model_spec = cls.EXTRACTOR_TIER_TO_MODEL.get(tier, cls.EXTRACTOR_TIER_TO_MODEL[Tier.NORMAL])
+        model_spec = cls._get_model_spec_with_fallback(cls.EXTRACTOR_TIER_TO_MODEL, tier, "extractor")
         model_id, _ = cls._resolve_model_spec(model_spec)
         return model_id
     
@@ -190,7 +238,7 @@ class TierConfig:
         Returns:
             Tuple of (model_id, provider) where provider may be None
         """
-        model_spec = cls.EXTRACTOR_TIER_TO_MODEL.get(tier, cls.EXTRACTOR_TIER_TO_MODEL[Tier.NORMAL])
+        model_spec = cls._get_model_spec_with_fallback(cls.EXTRACTOR_TIER_TO_MODEL, tier, "extractor")
         return cls._resolve_model_spec(model_spec)
     
     @classmethod
@@ -201,7 +249,7 @@ class TierConfig:
         Returns:
             Model ID string (for backward compatibility)
         """
-        model_spec = cls.CLASSIFIER_LLM_TIER_TO_MODEL.get(tier, cls.CLASSIFIER_LLM_TIER_TO_MODEL[Tier.NORMAL])
+        model_spec = cls._get_model_spec_with_fallback(cls.CLASSIFIER_LLM_TIER_TO_MODEL, tier, "classifier")
         model_id, _ = cls._resolve_model_spec(model_spec)
         return model_id
     
@@ -213,7 +261,7 @@ class TierConfig:
         Returns:
             Tuple of (model_id, provider) where provider may be None
         """
-        model_spec = cls.CLASSIFIER_LLM_TIER_TO_MODEL.get(tier, cls.CLASSIFIER_LLM_TIER_TO_MODEL[Tier.NORMAL])
+        model_spec = cls._get_model_spec_with_fallback(cls.CLASSIFIER_LLM_TIER_TO_MODEL, tier, "classifier")
         return cls._resolve_model_spec(model_spec)
     
     @classmethod
@@ -224,7 +272,7 @@ class TierConfig:
         Returns:
             Model ID string (for backward compatibility)
         """
-        model_spec = cls.SPLITTER_TIER_TO_MODEL.get(tier, cls.SPLITTER_TIER_TO_MODEL[Tier.NORMAL])
+        model_spec = cls._get_model_spec_with_fallback(cls.SPLITTER_TIER_TO_MODEL, tier, "splitter")
         model_id, _ = cls._resolve_model_spec(model_spec)
         return model_id
     
@@ -236,7 +284,7 @@ class TierConfig:
         Returns:
             Tuple of (model_id, provider) where provider may be None
         """
-        model_spec = cls.SPLITTER_TIER_TO_MODEL.get(tier, cls.SPLITTER_TIER_TO_MODEL[Tier.NORMAL])
+        model_spec = cls._get_model_spec_with_fallback(cls.SPLITTER_TIER_TO_MODEL, tier, "splitter")
         return cls._resolve_model_spec(model_spec)
     
     @classmethod

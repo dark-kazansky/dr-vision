@@ -14,7 +14,7 @@ import secrets
 from pathlib import Path
 from typing import Optional, Set
 import requests
-from fastapi import UploadFile
+from fastapi import HTTPException, UploadFile
 
 
 def allowed_file(filename: str, allowed_extensions: Set[str]) -> bool:
@@ -129,6 +129,73 @@ def check_server_status(base_url: str, timeout: int = 5) -> dict:
             'url': base_url,
             'error': f'Unexpected error: {str(e)}'
         }
+
+
+def strip_code_blocks(content: str) -> str:
+    """
+    Remove markdown code fences from LLM response content.
+
+    Handles leading ```json or ``` fences and trailing ``` fences.
+    Returns the inner content stripped of surrounding whitespace.
+
+    Args:
+        content: Raw LLM response that may be wrapped in code fences
+
+    Returns:
+        Content with code fences removed and whitespace stripped
+
+    Examples:
+        >>> strip_code_blocks('```json\\n{"a": 1}\\n```')
+        '{"a": 1}'
+        >>> strip_code_blocks('```\\n{"a": 1}\\n```')
+        '{"a": 1}'
+        >>> strip_code_blocks('{"a": 1}')
+        '{"a": 1}'
+    """
+    if content.startswith('```'):
+        lines = content.split('\n')
+        if lines[0].startswith('```'):
+            lines = lines[1:]
+        if lines and lines[-1].strip() == '```':
+            lines = lines[:-1]
+        content = '\n'.join(lines).strip()
+    return content
+
+
+def validate_file_path(filename: str, base_directory: str) -> str:
+    """
+    Validate that a filename resolves to a path within the base directory.
+
+    Rejects path traversal sequences (..) and absolute paths to prevent
+    unauthorized file access outside the expected data directory.
+
+    Args:
+        filename: The filename to validate
+        base_directory: The directory the resolved path must stay within
+
+    Returns:
+        The resolved full path as a string
+
+    Raises:
+        HTTPException(400): If the filename contains traversal sequences,
+            is an absolute path, or resolves outside base_directory
+    """
+    # Reject absolute paths
+    if os.path.isabs(filename):
+        raise HTTPException(status_code=400, detail="Invalid filename")
+
+    # Reject path traversal sequences
+    if ".." in filename:
+        raise HTTPException(status_code=400, detail="Invalid filename")
+
+    # Resolve the full path and verify it stays within base_directory
+    base = os.path.realpath(base_directory)
+    full_path = os.path.realpath(os.path.join(base, filename))
+
+    if not full_path.startswith(base + os.sep) and full_path != base:
+        raise HTTPException(status_code=400, detail="Invalid filename")
+
+    return full_path
 
 
 async def secure_save_file(file: UploadFile, upload_folder: str) -> str:

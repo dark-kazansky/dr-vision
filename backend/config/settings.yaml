@@ -26,6 +26,13 @@ api_providers:
     # Can be overridden with environment variable: LM_STUDIO_BASE_URL
     base_url: "http://localhost:1234"
     timeout: 30
+  
+  bedrock:
+    # AWS Bedrock Runtime (uses boto3, no base_url needed)
+    # Uses BEDROCK_REGION env var (default: ap-southeast-2)
+    # AWS credentials from environment or IAM role
+    base_url: "https://bedrock-runtime.ap-southeast-2.amazonaws.com"
+    timeout: 120
 
 # =============================================================================
 # Model Configurations
@@ -136,6 +143,36 @@ models:
     max_tokens: 4096
     temperature: 0.2
     top_p: 0.9
+  
+  lightonocr-2-1b:
+    model_id: "lightonocr-2-1b"
+    provider: "lm_studio"
+    name: "LightOnOCR 2 1B"
+    max_tokens: 4096
+    temperature: 0.2
+    top_p: 0.9
+  
+  # ---------------------------------------------------------------------------
+  # AWS Bedrock Models
+  # ---------------------------------------------------------------------------
+  # Uses AWS credentials from environment (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)
+  # Model IDs are inference profile ARNs from environment variables
+  
+  claude-haiku:
+    model_id: "claude-haiku"
+    provider: "bedrock"
+    name: "Claude Haiku (Bedrock)"
+    max_tokens: 4096
+    temperature: 0.2
+    top_p: 0.9
+  
+  claude-sonnet:
+    model_id: "claude-sonnet"
+    provider: "bedrock"
+    name: "Claude Sonnet (Bedrock)"
+    max_tokens: 4096
+    temperature: 0.2
+    top_p: 0.9
 
 # Default model to use when none is specified
 default_model: "gemini-2.5-flash"
@@ -146,9 +183,9 @@ default_model: "gemini-2.5-flash"
 # Settings for the FastAPI web server.
 
 fastapi:
-  # Enable debug mode for development (shows detailed error messages)
-  # Set to false in production
-  debug: true
+  # Debug mode is disabled by default for production safety.
+  # To enable for development, set environment variable: FASTAPI_DEBUG=true
+  debug: false
   
   # Host address to bind the server to
   # "0.0.0.0" allows external connections, "127.0.0.1" for localhost only
@@ -217,29 +254,62 @@ split:
   retry_attempts: 3
 
 # =============================================================================
+# Rate Limiting Configuration
+# =============================================================================
+# Settings for per-client rate limiting on processing endpoints.
+
+rate_limit:
+  # Enable or disable rate limiting
+  enabled: true
+
+  # Sustained request rate per client IP (tokens refill at this rate)
+  requests_per_minute: 30
+
+  # Maximum burst capacity (bucket size) — allows short bursts above the
+  # sustained rate before throttling kicks in
+  burst_size: 10
+
+# =============================================================================
+# Background Tasks Configuration
+# =============================================================================
+# Settings for background processing of heavy documents (e.g. multi-page PDFs).
+
+background_tasks:
+  # Enable or disable background task processing
+  enabled: true
+
+  # Documents with more pages than this threshold are processed in the background;
+  # the client receives a job ID immediately and can poll for status/result.
+  threshold_pages: 5
+
+  # How long (in seconds) to keep completed/failed job results before cleanup
+  job_ttl_seconds: 3600
+
+# =============================================================================
 # Tier Configuration Reference
 # =============================================================================
 # This is a reference summary. Actual tier mappings are in tier_config.py
 #
 # Parser (OCR):
-#   Rapid:   deepseek-ocr (LM Studio - Local)
-#   Normal:  gemini-2.5-flash-image (Google Studio)
-#   Advance: gemini-3-pro-image-preview (Google Studio)
+#   Rapid:   lightonocr-2-1b (LM Studio - Local)
+#   Normal:  claude-haiku (AWS Bedrock)
+#   Advance: claude-sonnet (AWS Bedrock)
 #
 # Classifier LLM:
-#   Rapid:   gemini-2.5-flash-lite (Google Studio)
-#   Normal:  gemini-2.5-flash (Google Studio)
-#   Advance: gemini-3-pro-preview (Google Studio)
+#   Rapid:   lightonocr-2-1b (LM Studio - Local)
+#   Normal:  claude-haiku (AWS Bedrock)
+#   Advance: claude-sonnet (AWS Bedrock)
+#   Multimodal: claude-sonnet (AWS Bedrock - direct image input)
 #
 # Extractor:
-#   Rapid:   assistant (POE)
-#   Normal:  qwen3-max (POE)
-#   Advance: gemini-3-pro (POE)
+#   Rapid:   lightonocr-2-1b (LM Studio - Local)
+#   Normal:  claude-haiku (AWS Bedrock)
+#   Advance: claude-sonnet (AWS Bedrock)
 #
 # Schema Generator:
 #   All tiers: gemini-3-pro-preview (Google Studio)
 #
 # Splitter:
-#   Rapid:   gemini-3-flash (POE)
-#   Normal:  gemini-3-pro (POE)
-#   Advance: claude-opus-4.5 (POE)
+#   Rapid:   lightonocr-2-1b (LM Studio - Local)
+#   Normal:  claude-haiku (AWS Bedrock)
+#   Advance: claude-sonnet (AWS Bedrock)

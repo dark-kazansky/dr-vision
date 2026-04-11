@@ -159,20 +159,20 @@ export function useTierConfig() {
   const getFallbackConfig = (): TierConfig => {
     return {
       parser: {
-        'Rapid': 'assistant',
-        'Normal': 'gemini-3-flash',
-        'Advance': 'gemini-3-pro'
+        'Rapid': 'lightonocr-2-1b',
+        'Normal': 'claude-haiku',
+        'Advance': 'claude-sonnet'
       },
       extractor: {
-        'Rapid': 'assistant',
-        'Normal': 'qwen3-max',
-        'Advance': 'gemini-3-pro'
+        'Rapid': 'lightonocr-2-1b',
+        'Normal': 'claude-haiku',
+        'Advance': 'claude-sonnet'
       },
       classifier_llm: {
-        'Rapid': 'assistant',
-        'Normal': 'gemini-3-flash',
-        'Advance': 'gemini-3-pro',
-        'Multimodal': 'claude-opus-4.5'
+        'Rapid': 'lightonocr-2-1b',
+        'Normal': 'claude-haiku',
+        'Advance': 'claude-sonnet',
+        'Multimodal': 'claude-sonnet'
       },
       schema_generator: {
         'Rapid': 'assistant',
@@ -180,9 +180,9 @@ export function useTierConfig() {
         'Advance': 'claude-opus-4.5'
       },
       splitter: {
-        'Rapid': 'gemini-3-flash',
-        'Normal': 'gemini-3-pro',
-        'Advance': 'claude-opus-4.5'
+        'Rapid': 'lightonocr-2-1b',
+        'Normal': 'claude-haiku',
+        'Advance': 'claude-sonnet'
       },
       descriptions: {
         'Rapid': 'Fast processing with good accuracy',

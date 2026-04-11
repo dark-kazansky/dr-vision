@@ -4,6 +4,11 @@
  * Manages workflow state and execution for the Journey feature.
  */
 
+export interface Connection {
+  targetId: string
+  outputIndex?: number // For nodes with multiple outputs (e.g., condition nodes)
+}
+
 export interface WorkflowNode {
   id: string
   type: 'upload' | 'ocr' | 'parse' | 'classify' | 'extract' | 'split' | 'condition' | 'validate' | 'script'
@@ -15,7 +20,7 @@ export interface WorkflowNode {
   files?: File[]
   config?: any
   result?: any
-  connections?: string[] // IDs of connected nodes
+  connections?: Connection[] // Connections to other nodes with output index
   inactive?: boolean // Mark node as inactive (UI only, backend not implemented)
 }
 
@@ -30,6 +35,7 @@ export interface WorkflowResult {
 export function useJourney() {
   const config = useRuntimeConfig()
   const apiBaseUrl = config.public.apiBaseUrl as string
+  const { getParserModel } = useTierConfig()
   
   // State
   const nodes = useState<WorkflowNode[]>('journey-nodes', () => [])
@@ -70,12 +76,11 @@ export function useJourney() {
       config = { categories: [] }
     } else if (type === 'condition') {
       config = { 
-        conditions: [],
-        logic: 'AND',
-        truePath: [],
-        falsePath: []
+        conditions: [
+          { operator: 'equals', value: '' }
+        ]
       }
-      inactive = true // Backend not implemented yet
+      // Condition node is now functional with backend support
     } else if (type === 'validate') {
       config = { 
         rules: [],
@@ -174,55 +179,195 @@ export function useJourney() {
     workflowResults.value = []
     
     try {
-      let previousResult: any = null
-      let ocrResult: any = null // Track OCR/Parse results for reuse
+      // Build execution graph based on connections
+      const nodeResults = new Map<string, any>()
+      const ocrCache = new Map<string, any>() // Cache OCR results per file
       
-      for (const node of nodes.value) {
-        // Skip inactive nodes
-        if (node.inactive) {
-          node.status = 'inactive'
-          workflowResults.value.push({
-            nodeId: node.id,
-            nodeLabel: node.label,
-            status: 'error',
-            error: 'Node is inactive - backend implementation pending'
-          })
-          continue
-        }
+      // Process all files through the workflow
+      const files = uploadNode.files!
+      const allFileResults: any[] = []
+      
+      for (let fileIndex = 0; fileIndex < files.length; fileIndex++) {
+        const file = files[fileIndex]
+        console.log(`Processing file ${fileIndex + 1}/${files.length}: ${file.name}`)
         
-        node.status = 'processing'
+        // Reset node results for this file
+        nodeResults.clear()
         
-        try {
-          const result = await processNode(node, previousResult, uploadNode.files!, ocrResult)
-          node.status = 'completed'
-          node.result = result
-          
-          // Track OCR/Parse results for downstream nodes
-          if (node.type === 'ocr' || node.type === 'parse') {
-            ocrResult = result
+        // Execute nodes in order (assuming linear workflow for now)
+        for (const node of nodes.value) {
+          // Skip upload node (already processed)
+          if (node.type === 'upload') {
+            nodeResults.set(node.id, { files: [file.name], count: 1 })
+            continue
           }
           
-          workflowResults.value.push({
-            nodeId: node.id,
-            nodeLabel: node.label,
-            status: 'success',
-            data: result
-          })
+          // Skip inactive nodes
+          if (node.inactive) {
+            if (fileIndex === 0) { // Only add status once
+              node.status = 'inactive'
+              workflowResults.value.push({
+                nodeId: node.id,
+                nodeLabel: node.label,
+                status: 'error',
+                error: 'Node is inactive - backend implementation pending'
+              })
+            }
+            continue
+          }
           
-          previousResult = result
-        } catch (error: any) {
-          node.status = 'error'
-          workflowResults.value.push({
-            nodeId: node.id,
-            nodeLabel: node.label,
-            status: 'error',
-            error: error.message
-          })
-          throw error // Stop workflow on error
+          if (fileIndex === 0) {
+            node.status = 'processing'
+          }
+          
+          try {
+            // Get previous result (from connected node or last node)
+            const previousResult = getPreviousNodeResult(node, nodeResults)
+            
+            // Check if we have cached OCR result for this file
+            const cachedOcr = ocrCache.get(file.name)
+            
+            const result = await processNode(
+              node, 
+              previousResult, 
+              [file], // Process one file at a time
+              cachedOcr
+            )
+            
+            // Cache OCR/Parse results for reuse
+            if (node.type === 'ocr' || node.type === 'parse') {
+              ocrCache.set(file.name, result)
+            }
+            
+            nodeResults.set(node.id, result)
+            
+            // Store result for this file
+            if (fileIndex === 0) {
+              node.status = 'completed'
+              node.result = result
+            }
+            
+          } catch (error: any) {
+            if (fileIndex === 0) {
+              node.status = 'error'
+              workflowResults.value.push({
+                nodeId: node.id,
+                nodeLabel: node.label,
+                status: 'error',
+                error: error.message
+              })
+            }
+            throw error // Stop workflow on error
+          }
         }
+        
+        // Collect results for this file
+        allFileResults.push({
+          fileName: file.name,
+          results: Object.fromEntries(nodeResults)
+        })
       }
+      
+      // Concatenate results from all files
+      for (const node of nodes.value) {
+        if (node.type === 'upload' || node.inactive) continue
+        
+        const concatenatedResult = concatenateNodeResults(node, allFileResults)
+        
+        workflowResults.value.push({
+          nodeId: node.id,
+          nodeLabel: node.label,
+          status: 'success',
+          data: concatenatedResult
+        })
+      }
+      
     } finally {
       isProcessing.value = false
+    }
+  }
+  
+  /**
+   * Get previous node result based on connections
+   */
+  const getPreviousNodeResult = (node: WorkflowNode, nodeResults: Map<string, any>): any => {
+    // Find nodes that connect to this node
+    const connectedNode = nodes.value.find(n => 
+      n.connections?.some(conn => 
+        typeof conn === 'string' ? conn === node.id : conn.targetId === node.id
+      )
+    )
+    
+    if (connectedNode) {
+      return nodeResults.get(connectedNode.id)
+    }
+    
+    // Fallback: get last processed node result
+    const nodeIds = Array.from(nodeResults.keys())
+    if (nodeIds.length > 0) {
+      return nodeResults.get(nodeIds[nodeIds.length - 1])
+    }
+    
+    return null
+  }
+  
+  /**
+   * Concatenate results from multiple files for a node
+   */
+  const concatenateNodeResults = (node: WorkflowNode, allFileResults: any[]): any => {
+    if (allFileResults.length === 0) return null
+    if (allFileResults.length === 1) return allFileResults[0].results[node.id]
+    
+    const nodeType = node.type
+    const results = allFileResults.map(fr => fr.results[node.id]).filter(r => r)
+    
+    // Concatenate based on node type
+    if (nodeType === 'ocr' || nodeType === 'parse') {
+      // Combine text from all files
+      return {
+        success: true,
+        text: results.map((r, i) => `--- File: ${allFileResults[i].fileName} ---\n${r.text}`).join('\n\n'),
+        files: allFileResults.map(fr => fr.fileName),
+        file_count: allFileResults.length
+      }
+    } else if (nodeType === 'classify') {
+      // Combine classification results
+      return {
+        success: true,
+        results: results.flatMap(r => r.results || []),
+        file_count: allFileResults.length
+      }
+    } else if (nodeType === 'extract') {
+      // Combine extraction results
+      return {
+        success: true,
+        extraction: {
+          success: true,
+          structured_data: results.map((r, i) => ({
+            file: allFileResults[i].fileName,
+            data: r.extraction?.structured_data || r.structured_data
+          }))
+        },
+        file_count: allFileResults.length
+      }
+    } else if (nodeType === 'split') {
+      // Combine split results
+      return {
+        success: true,
+        chunks: results.flatMap(r => r.chunks || []),
+        unknown_chunks: results.flatMap(r => r.unknown_chunks || []),
+        file_count: allFileResults.length
+      }
+    } else if (nodeType === 'condition') {
+      // For condition, use first file result (or majority vote)
+      return results[0]
+    }
+    
+    // Default: return all results
+    return {
+      success: true,
+      results: results,
+      file_count: allFileResults.length
     }
   }
   
@@ -255,7 +400,7 @@ export function useJourney() {
         return await processSplitNode(node, files, previousResult, ocrResult)
       
       case 'condition':
-        throw new Error('Condition node backend not implemented yet')
+        return await processConditionNode(node, previousResult)
       
       case 'validate':
         throw new Error('Validate node backend not implemented yet')
@@ -282,12 +427,7 @@ export function useJourney() {
     formData.append('parse_formatting', 'false') // Raw text only
     
     // Get model_id based on tier from backend tier config
-    const tierConfig = {
-      'Rapid': 'deepseek-ocr',
-      'Normal': 'gemini-2.5-flash-image',
-      'Advance': 'gemini-3-pro-image-preview'
-    }
-    const modelId = tierConfig[node.tier as keyof typeof tierConfig] || 'gemini-2.5-flash-image'
+    const modelId = getParserModel(node.tier)
     formData.append('model_id', modelId)
     
     const response = await $fetch(`${apiBaseUrl}/parse`, {
@@ -312,12 +452,7 @@ export function useJourney() {
     formData.append('parse_formatting', 'true') // Parse to formatted text
     
     // Get model_id based on tier from backend tier config
-    const tierConfig = {
-      'Rapid': 'deepseek-ocr',
-      'Normal': 'gemini-2.5-flash-image',
-      'Advance': 'gemini-3-pro-image-preview'
-    }
-    const modelId = tierConfig[node.tier as keyof typeof tierConfig] || 'gemini-2.5-flash-image'
+    const modelId = getParserModel(node.tier)
     formData.append('model_id', modelId)
     
     const response = await $fetch(`${apiBaseUrl}/parse`, {
@@ -340,6 +475,37 @@ export function useJourney() {
     const file = files[0]
     if (!file) throw new Error('No file available')
     
+    // Check if we can reuse OCR result from previous node
+    if (ocrResult && (previousResult?.text || ocrResult.text)) {
+      console.log('Reusing OCR result for classify node')
+      
+      // Use text-based classification (no file upload needed)
+      const text = previousResult?.text || ocrResult.text
+      
+      // Add classification rules from config
+      if (!node.config?.rules || node.config.rules.length === 0) {
+        throw new Error('No classification rules defined. Please add rules in node settings.')
+      }
+      
+      // Call classifier directly with text (tier config will determine model)
+      const formData = new FormData()
+      formData.append('text', text)
+      formData.append('classification_rules', JSON.stringify(node.config.rules))
+      formData.append('tier', node.tier)  // Send tier, backend will use TierConfig
+      
+      try {
+        const response = await $fetch(`${apiBaseUrl}/classify-text`, {
+          method: 'POST',
+          body: formData
+        })
+        return response
+      } catch (error: any) {
+        console.warn('Text-based classification not available, falling back to file-based')
+        // Fall through to file-based classification
+      }
+    }
+    
+    // File-based classification (with OCR)
     const formData = new FormData()
     formData.append('file', file)
     formData.append('tier', node.tier)
@@ -351,23 +517,12 @@ export function useJourney() {
       throw new Error('No classification rules defined. Please add rules in node settings.')
     }
     
-    // Classify endpoint always requires parser_model_id (doesn't support OCR reuse yet)
-    const parserTierConfig = {
-      'Rapid': 'deepseek-ocr',
-      'Normal': 'gemini-2.5-flash-image',
-      'Advance': 'gemini-3-pro-image-preview'
-    }
-    const parserModelId = parserTierConfig[node.tier as keyof typeof parserTierConfig] || 'gemini-2.5-flash-image'
+    // Get parser model from tier config
+    const parserModelId = getParserModel(node.tier)
     formData.append('parser_model_id', parserModelId)
     
-    // Get classifier_model_id based on tier (for classification step)
-    const classifierTierConfig = {
-      'Rapid': 'gemini-2.5-flash-lite',
-      'Normal': 'gemini-2.5-flash',
-      'Advance': 'gemini-3-pro-preview'
-    }
-    const classifierModelId = classifierTierConfig[node.tier as keyof typeof classifierTierConfig] || 'gemini-2.5-flash'
-    formData.append('classifier_model_id', classifierModelId)
+    // Backend will use TierConfig to determine classifier model based on tier
+    // No need to send classifier_model_id explicitly
     
     const response = await $fetch(`${apiBaseUrl}/classify`, {
       method: 'POST',
@@ -389,6 +544,45 @@ export function useJourney() {
     const file = files[0]
     if (!file) throw new Error('No file available')
     
+    // Check if we can reuse OCR result from previous node
+    if (ocrResult && (previousResult?.text || ocrResult.text)) {
+      console.log('Reusing OCR result for extract node')
+      
+      const text = previousResult?.text || ocrResult.text
+      
+      // Add extraction schema from config
+      if (!node.config?.schema || !node.config.schema.fields || node.config.schema.fields.length === 0) {
+        throw new Error('No extraction schema defined. Please add schema fields or generate schema in node settings.')
+      }
+      
+      // Get extractor_model based on tier
+      const extractorTierConfig = {
+        'Rapid': 'gemini-2.5-flash-lite',
+        'Normal': 'gemini-2.5-flash',
+        'Advance': 'gemini-3-pro-preview'
+      }
+      const extractorModel = extractorTierConfig[node.tier as keyof typeof extractorTierConfig] || 'gemini-2.5-flash'
+      
+      // Call extract endpoint with text
+      const formData = new FormData()
+      formData.append('text', text)
+      formData.append('extraction_schema', JSON.stringify(node.config.schema.fields))
+      formData.append('extraction_target', node.config?.target || 'document')
+      formData.append('extractor_model_id', extractorModel)
+      
+      try {
+        const response = await $fetch(`${apiBaseUrl}/extract-text`, {
+          method: 'POST',
+          body: formData
+        })
+        return response
+      } catch (error: any) {
+        console.warn('Text-based extraction not available, falling back to file-based')
+        // Fall through to file-based extraction
+      }
+    }
+    
+    // File-based extraction (with OCR)
     const formData = new FormData()
     formData.append('file', file)
     formData.append('tier', node.tier)
@@ -397,12 +591,7 @@ export function useJourney() {
     formData.append('parse_formatting', 'true')
     
     // Parse endpoint doesn't support OCR reuse yet - always perform OCR
-    const parserTierConfig = {
-      'Rapid': 'deepseek-ocr',
-      'Normal': 'gemini-2.5-flash-image',
-      'Advance': 'gemini-3-pro-image-preview'
-    }
-    const modelId = parserTierConfig[node.tier as keyof typeof parserTierConfig] || 'gemini-2.5-flash-image'
+    const modelId = getParserModel(node.tier)
     formData.append('model_id', modelId)
     
     // Add extraction target
@@ -464,7 +653,7 @@ export function useJourney() {
         if (detail.includes('reciting from copyrighted material')) {
           throw new Error(
             'Document contains copyrighted material. ' +
-            'Try using "Rapid" tier (deepseek-ocr) instead of Normal/Advance tier (Google models).'
+            'Try using "Rapid" tier (lightonocr-2-1b) instead of Normal/Advance tier.'
           )
         }
         
@@ -503,6 +692,34 @@ export function useJourney() {
     formData.append('allow_uncategorized', 'true')
     
     const response = await $fetch(`${apiBaseUrl}/split`, {
+      method: 'POST',
+      body: formData
+    })
+    
+    return response
+  }
+  
+  /**
+   * Process condition node
+   */
+  const processConditionNode = async (
+    node: WorkflowNode,
+    previousResult: any
+  ): Promise<any> => {
+    if (!previousResult) {
+      throw new Error('Condition node requires a previous result to evaluate')
+    }
+    
+    if (!node.config?.conditions || node.config.conditions.length === 0) {
+      throw new Error('No conditions defined. Please add conditions in node settings.')
+    }
+    
+    const formData = new FormData()
+    formData.append('conditions', JSON.stringify(node.config.conditions))
+    formData.append('previous_result', JSON.stringify(previousResult))
+    formData.append('field_name', 'document_type') // Default field to evaluate
+    
+    const response = await $fetch(`${apiBaseUrl}/condition/evaluate`, {
       method: 'POST',
       body: formData
     })

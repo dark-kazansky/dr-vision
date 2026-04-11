@@ -12,6 +12,7 @@ Environment Variables:
     DEFAULT_MODEL_ID: Override default model selection
     UPLOAD_FOLDER: Override upload directory path
     MAX_FILE_SIZE_MB: Override maximum file size limit
+    FASTAPI_DEBUG: Override FastAPI debug mode (true/false)
     POE_API_KEY: Override POE API key for document splitting and classification
 """
 
@@ -48,7 +49,6 @@ class Config:
     """
     
     _instance: Optional['Config'] = None
-    _config_data: Dict[str, Any] = {}
     
     def __init__(self, config_data: Dict[str, Any]):
         """
@@ -60,7 +60,8 @@ class Config:
         self._config_data = config_data
     
     @classmethod
-    def load(cls, config_path: str = 'config/settings.yaml') -> 'Config':
+    def load(cls, config_path: str = 'config/settings.yaml',
+             force_reload: bool = False) -> 'Config':
         """
         Load configuration from YAML file with environment variable overrides.
         
@@ -69,6 +70,8 @@ class Config:
         
         Args:
             config_path: Path to YAML configuration file
+            force_reload: If True, reload configuration from file even if
+                          an instance already exists
             
         Returns:
             Config instance with loaded configuration
@@ -76,6 +79,10 @@ class Config:
         Raises:
             ConfigurationError: If file not found or YAML is invalid
         """
+        # Return cached instance if already loaded and not forcing reload
+        if cls._instance is not None and not force_reload:
+            return cls._instance
+        
         # Load YAML file
         config_file = Path(config_path)
         if not config_file.exists():
@@ -93,7 +100,7 @@ class Config:
         # Apply environment variable overrides
         cls._apply_env_overrides(config_data)
         
-        # Create new instance (allows reload)
+        # Create new instance and cache it
         cls._instance = cls(config_data)
         return cls._instance
     
@@ -107,6 +114,7 @@ class Config:
         - DEFAULT_MODEL_ID: Override default_model
         - UPLOAD_FOLDER: Override upload.folder
         - MAX_FILE_SIZE_MB: Override upload.max_size_mb
+        - FASTAPI_DEBUG: Override fastapi.debug (accepts true/1/yes)
         - POE_API_KEY: Override split.poe_api_key
         
         Args:
@@ -149,6 +157,13 @@ class Config:
                     f"Using default value from configuration file."
                 )
         
+        # Override FastAPI debug mode
+        fastapi_debug = os.environ.get('FASTAPI_DEBUG')
+        if fastapi_debug is not None:
+            if 'fastapi' not in config_data:
+                config_data['fastapi'] = {}
+            config_data['fastapi']['debug'] = fastapi_debug.lower() in ('true', '1', 'yes')
+
         # Override POE API key
         poe_api_key = os.environ.get('POE_API_KEY')
         if poe_api_key:

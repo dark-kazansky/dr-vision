@@ -281,6 +281,7 @@ export function useOCR() {
       formData.append('allow_uncategorized', config.allowUncategorized.toString())
       formData.append('parser_tier', config.parserTier || 'Normal')
       formData.append('splitter_tier', config.splitterTier || 'Normal')
+      formData.append('split_mode', config.splitMode || 'sections')
       
       // Make API request with abort signal
       const response = await $fetch<any>(`${apiBaseUrl}/split`, {

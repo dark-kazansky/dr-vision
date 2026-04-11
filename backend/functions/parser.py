@@ -121,6 +121,7 @@ class Parser:
                 error_type="dependency_error"
             )
         
+        pdf = None
         try:
             pdf = pdfium.PdfDocument(file_path)
             page_count = len(pdf)
@@ -193,6 +194,9 @@ class Parser:
                 error=f"PDF parsing failed: {str(e)}",
                 error_type="processing_error"
             )
+        finally:
+            if pdf is not None:
+                pdf.close()
     
     def _parse_text_file(self, file_path: str) -> ParseResult:
         """Parse plain text or markdown file."""

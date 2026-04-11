@@ -830,12 +830,8 @@ const extractionActiveTab = ref('build')
 const classifyActiveTab = ref('build')
 const splitActiveTab = ref('build')
 
-// Tier to model mapping
-const tierToModel: Record<string, string> = {
-  'Rapid': 'assistant',
-  'Normal': 'gemini-3-flash',
-  'Advance': 'gemini-3-pro'
-}
+// Use tier config from backend (with fallback)
+const { getParserModel } = useTierConfig()
 
 // Check health on mount
 onMounted(async () => {
@@ -865,7 +861,7 @@ const canProcess = computed(() => {
 })
 
 const selectedModel = computed(() => {
-  return tierToModel[selectedTier.value]
+  return getParserModel(selectedTier.value)
 })
 
 // Get the actual File object for the selected file

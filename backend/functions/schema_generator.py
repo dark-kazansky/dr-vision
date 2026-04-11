@@ -10,6 +10,7 @@ from dataclasses import dataclass
 
 from agents import BaseLLMAgent
 from core import SchemaField, FieldType
+from core.utils import strip_code_blocks
 
 
 @dataclass
@@ -108,13 +109,7 @@ Respond ONLY with valid JSON."""
         """Parse LLM response."""
         try:
             # Remove markdown code blocks
-            if content.startswith('```'):
-                lines = content.split('\n')
-                if lines[0].startswith('```'):
-                    lines = lines[1:]
-                if lines and lines[-1].strip() == '```':
-                    lines = lines[:-1]
-                content = '\n'.join(lines).strip()
+            content = strip_code_blocks(content)
             
             # Parse JSON
             data = json.loads(content)

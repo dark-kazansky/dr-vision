@@ -3,17 +3,38 @@
     <div class="journey-content">
       <!-- Workflow Canvas -->
       <div class="workflow-canvas">
+        <!-- Zoom Controls -->
+        <div class="zoom-controls">
+          <button class="zoom-btn" @click="zoomIn" title="Zoom In">
+            <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+            </svg>
+          </button>
+          <span class="zoom-level">{{ Math.round(zoomLevel * 100) }}%</span>
+          <button class="zoom-btn" @click="zoomOut" title="Zoom Out">
+            <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4" />
+            </svg>
+          </button>
+          <button class="zoom-btn zoom-fit-btn" @click="zoomToFit" title="Fit All Nodes">
+            <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+            </svg>
+          </button>
+        </div>
+        
         <div class="canvas-area" 
              ref="canvasArea"
              :class="{ 'panning': isPanning }"
-             @click="handleCanvasClick"
+             @click="handleCanvasClick($event)"
              @mousedown="handleCanvasMouseDown"
              @mousemove="handleCanvasMouseMove"
              @mouseup="handleCanvasMouseUp"
              @mouseleave="handleCanvasMouseUp"
+             @wheel="handleWheel"
              @contextmenu.prevent>
           <!-- Large canvas content area to ensure scrollable space -->
-          <div class="canvas-content">
+          <div class="canvas-content" :style="{ transform: `scale(${zoomLevel})`, transformOrigin: 'top left' }">
             <div v-if="nodes.length === 0" class="canvas-empty">
               <svg width="48" height="48" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
@@ -33,16 +54,16 @@
             </defs>
             
             <!-- Existing connections -->
-            <g v-for="node in nodes" :key="`connections-${node.id}`">
+            <g v-for="node in nodes" :key="`connections-${node.id}-${node.x}-${node.y}`">
               <path
-                v-for="targetId in node.connections || []"
-                :key="`${node.id}-${targetId}`"
-                :d="getConnectionPath(node.id, targetId)"
-                :stroke="selectedConnection?.fromId === node.id && selectedConnection?.toId === targetId ? '#ff8c5a' : '#9ca3af'"
-                :stroke-width="selectedConnection?.fromId === node.id && selectedConnection?.toId === targetId ? '3' : '2'"
+                v-for="(connection, connIndex) in node.connections || []"
+                :key="`${node.id}-${connection.targetId || connection}-${connIndex}`"
+                :d="getConnectionPath(node.id, typeof connection === 'string' ? connection : connection.targetId, typeof connection === 'object' ? connection.outputIndex : undefined)"
+                :stroke="selectedConnection?.fromId === node.id && selectedConnection?.toId === (typeof connection === 'string' ? connection : connection.targetId) ? '#ff8c5a' : '#9ca3af'"
+                :stroke-width="selectedConnection?.fromId === node.id && selectedConnection?.toId === (typeof connection === 'string' ? connection : connection.targetId) ? '3' : '2'"
                 fill="none"
                 class="connection-line"
-                @click="handleConnectionClick(node.id, targetId, $event)"
+                @click="handleConnectionClick(node.id, typeof connection === 'string' ? connection : connection.targetId, $event)"
               />
             </g>
             
@@ -70,14 +91,15 @@
                    'node-dragging': draggedNode === node.id
                  }
                ]"
-               :style="{ top: `${node.y}px`, left: `${node.x}px` }">
+               :style="{ top: `${node.y}px`, left: `${node.x}px` }"
+               @click.stop>
             
             <!-- Input connection point (left side) -->
             <div 
               v-if="node.type !== 'upload'"
               class="connection-point input-point"
               :class="{ 
-                'connecting': connectingFrom && connectingFrom !== node.id,
+                'connecting': connectingFrom && connectingFrom.nodeId !== node.id,
                 'nearby': nearbyInputNode === node.id
               }"
               @mouseup="handleInputMouseUp($event, node.id)"
@@ -90,19 +112,43 @@
               <div class="node-icon">
                 <component :is="getNodeIcon(node.type)" />
               </div>
-              <span class="node-title">{{ node.label }}</span>
+              <span 
+                v-if="editingNodeId !== node.id"
+                class="node-title" 
+                @dblclick="startRenaming(node.id)"
+                :title="'Double-click to rename'"
+              >
+                {{ node.label }}
+              </span>
+              <input
+                v-else
+                ref="renameInput"
+                :value="editingNodeLabel"
+                @input="editingNodeLabel = ($event.target as HTMLInputElement).value"
+                class="node-title-input"
+                @blur="finishRenaming(node.id)"
+                @keydown.enter="finishRenaming(node.id)"
+                @keydown.esc="cancelRenaming(node.id)"
+                @mousedown.stop
+                @click.stop
+              />
               <button class="node-remove" @click="removeNode(node.id)" :disabled="isProcessing">
                 <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
-            <div class="node-body">
+            <div class="node-body" :style="node.type === 'condition' ? { minHeight: `${getConditionNodeBodyHeight(node)}px` } : {}">
               <div v-if="node.type === 'upload'" class="node-config">
                 <input type="file" :ref="`fileInput-${node.id}`" @change="handleFileSelect($event, node.id)" multiple accept=".png,.jpg,.jpeg,.pdf,.txt,.md,.docx" style="display: none" />
                 <button class="config-btn" @click="triggerFileInput(node.id)" :disabled="isProcessing">
                   {{ node.files?.length ? `${node.files.length} file(s)` : 'Select Files' }}
                 </button>
+              </div>
+              <div v-else-if="node.type === 'condition'" class="node-config">
+                <div class="condition-summary">
+                  <span class="condition-count">{{ (node.config?.conditions || []).length }} Condition{{ (node.config?.conditions || []).length !== 1 ? 's' : '' }}</span>
+                </div>
               </div>
               <div v-else class="node-config">
                 <select v-model="node.tier" class="config-select" :disabled="isProcessing">
@@ -120,10 +166,38 @@
               <span v-else-if="node.status === 'inactive'" class="status-badge status-inactive">⚠ Inactive</span>
             </div>
             
-            <!-- Output connection point (right side) -->
+            <!-- Output connection points (right side) -->
+            <!-- For condition nodes, show multiple outputs -->
+            <template v-if="node.type === 'condition'">
+              <div 
+                v-for="(condition, index) in (node.config?.conditions || [])"
+                :key="`output-${index}`"
+                class="connection-point output-point"
+                :class="{ 'connecting': connectingFrom?.nodeId === node.id && connectingFrom?.outputIndex === index }"
+                :style="{ top: `${getConditionOutputPosition(node, index)}%` }"
+                @mousedown="handleOutputMouseDown($event, node.id, index)"
+                @click="handleOutputClick($event, node.id, index)"
+                :title="`Output ${index + 1}: ${condition.operator} ${condition.value || condition.valueMin + '-' + condition.valueMax}`">
+                <div class="connection-dot"></div>
+                <span class="output-label">{{ index + 1 }}</span>
+              </div>
+              <!-- Else output (when no conditions match) -->
+              <div 
+                class="connection-point output-point"
+                :class="{ 'connecting': connectingFrom?.nodeId === node.id && connectingFrom?.outputIndex === (node.config?.conditions || []).length }"
+                :style="{ top: `${getConditionOutputPosition(node, (node.config?.conditions || []).length)}%` }"
+                @mousedown="handleOutputMouseDown($event, node.id, (node.config?.conditions || []).length)"
+                @click="handleOutputClick($event, node.id, (node.config?.conditions || []).length)"
+                title="Output: Else (no match)">
+                <div class="connection-dot"></div>
+                <span class="output-label">Else</span>
+              </div>
+            </template>
+            <!-- For other nodes, show single output -->
             <div 
+              v-else
               class="connection-point output-point"
-              :class="{ 'connecting': connectingFrom === node.id }"
+              :class="{ 'connecting': connectingFrom?.nodeId === node.id }"
               @mousedown="handleOutputMouseDown($event, node.id)"
               @click="handleOutputClick($event, node.id)"
               title="Output">
@@ -183,7 +257,7 @@
               </svg>
               <span>Split</span>
             </button>
-            <button class="node-btn node-btn-inactive" disabled title="Coming soon - Backend implementation pending">
+            <button class="node-btn" @click="addNodeInViewport('condition')" :disabled="isProcessing">
               <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
@@ -206,7 +280,7 @@
 
         <!-- Uploaded Files Section -->
         <div v-if="selectedNode && getSelectedNodeObject" class="panel-section node-settings-section">
-          <h3>Node Settings: {{ getSelectedNodeObject.label }}</h3>
+          <h3 class="node-settings-title">NODE SETTINGS: {{ getSelectedNodeObject.label.toUpperCase() }}</h3>
           
           <!-- Upload Node Settings -->
           <div v-if="getSelectedNodeObject.type === 'upload'" class="node-config-content">
@@ -472,58 +546,68 @@
             </div>
           </div>
           
-          <!-- Condition Node Settings (Inactive) -->
+          <!-- Condition Node Settings -->
           <div v-else-if="getSelectedNodeObject.type === 'condition'" class="node-config-content">
-            <div class="inactive-notice">
-              <svg width="48" height="48" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <h4>Coming Soon</h4>
-              <p>Condition node is not yet implemented in the backend. You can add it to your workflow, but it won't execute.</p>
-            </div>
             <div class="config-group">
-              <label class="config-label">Conditions</label>
-              <div class="conditions-list">
-                <div v-for="(condition, index) in getSelectedNodeObject.config?.conditions || []" :key="index" class="condition-item">
-                  <input 
-                    v-model="condition.field" 
-                    placeholder="Field name"
-                    class="condition-field-input"
-                    disabled
-                  />
-                  <select v-model="condition.operator" class="condition-operator-select" disabled>
-                    <option value="equals">Equals</option>
-                    <option value="not_equals">Not Equals</option>
-                    <option value="greater_than">Greater Than</option>
-                    <option value="less_than">Less Than</option>
-                    <option value="contains">Contains</option>
-                  </select>
-                  <input 
-                    v-model="condition.value" 
-                    placeholder="Value"
-                    class="condition-value-input"
-                    disabled
-                  />
-                  <button class="condition-remove-btn" @click="removeCondition(index)" disabled>
-                    <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-              </div>
-              <button class="add-condition-btn" @click="addCondition" disabled>
-                <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-                </svg>
-                Add Condition
-              </button>
-            </div>
-            <div class="config-group">
-              <label class="config-label">Logic</label>
-              <select v-model="getSelectedNodeObject.config.logic" class="config-select" disabled>
-                <option value="AND">AND (all conditions must match)</option>
-                <option value="OR">OR (any condition must match)</option>
-              </select>
+              <table class="conditions-table">
+                <thead>
+                  <tr>
+                    <th class="order-cell"></th>
+                    <th class="condition-header">Condition</th>
+                    <th class="value-header">Value</th>
+                    <th class="delete-cell"></th>
+                  </tr>
+                </thead>
+                <tbody class="conditions-table-body">
+                  <tr v-for="(condition, index) in getSelectedNodeObject.config?.conditions || []" :key="index" class="condition-table-row">
+                    <td class="order-cell">
+                      <span class="order-number">{{ index + 1 }}</span>
+                    </td>
+                    <td class="table-cell">
+                      <select 
+                        v-model="condition.operator" 
+                        class="condition-operator-select-table"
+                        :disabled="isProcessing">
+                        <option value="equals">Equals</option>
+                        <option value="not_equals">Not Equals</option>
+                        <option value="greater_than">Greater Than</option>
+                        <option value="less_than">Less Than</option>
+                        <option value="contains">Contains</option>
+                        <option value="between">Between</option>
+                      </select>
+                    </td>
+                    <td class="table-cell">
+                      <div v-if="condition.operator === 'between'" class="condition-between-inputs-table">
+                        <input 
+                          v-model="condition.valueMin" 
+                          placeholder="Min"
+                          class="condition-value-input-table"
+                          :disabled="isProcessing"
+                        />
+                        <span class="between-separator-table">to</span>
+                        <input 
+                          v-model="condition.valueMax" 
+                          placeholder="Max"
+                          class="condition-value-input-table"
+                          :disabled="isProcessing"
+                        />
+                      </div>
+                      <input 
+                        v-else
+                        v-model="condition.value" 
+                        placeholder="Enter value"
+                        class="condition-value-input-table"
+                        :disabled="isProcessing"
+                      />
+                    </td>
+                    <td class="delete-cell">
+                      <button class="delete-btn-x" @click="removeCondition(index)" :disabled="isProcessing || (getSelectedNodeObject.config?.conditions || []).length <= 1">
+                        ×
+                      </button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           </div>
           
@@ -632,6 +716,16 @@
               <p>No additional configuration needed for this node type.</p>
             </div>
           </div>
+        </div>
+
+        <!-- Add Condition Button Section (only visible for condition nodes) -->
+        <div v-if="selectedNode && getSelectedNodeObject?.type === 'condition'" class="panel-section add-condition-section">
+          <button class="add-condition-btn" @click="addCondition" :disabled="isProcessing">
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+            </svg>
+            Add Condition
+          </button>
         </div>
 
         <div v-if="workflowResults.length > 0" class="panel-section results-section-panel" style="display: none;">
@@ -766,7 +860,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick, h } from 'vue'
 import { useJourney } from '~/composables/useJourney'
 import { useOCR } from '~/composables/useOCR'
 
@@ -801,7 +895,7 @@ const addNodeInViewport = (type: WorkflowNode['type']) => {
 const canvasArea = ref<HTMLElement | null>(null)
 const draggedNode = ref<string | null>(null)
 const dragOffset = ref({ x: 0, y: 0 })
-const connectingFrom = ref<string | null>(null)
+const connectingFrom = ref<{ nodeId: string; outputIndex?: number } | null>(null)
 const selectedNode = ref<string | null>(null)
 const isDraggingConnection = ref(false)
 const dragConnectionEnd = ref({ x: 0, y: 0 })
@@ -814,6 +908,10 @@ const selectedConnection = ref<{ fromId: string; toId: string } | null>(null)
 const isPanning = ref(false)
 const hasPanned = ref(false)
 const panStart = ref({ x: 0, y: 0 })
+const zoomLevel = ref(1)
+const editingNodeId = ref<string | null>(null)
+const editingNodeLabel = ref('')
+const renameInput = ref<HTMLInputElement | null>(null)
 
 const uploadNodes = computed(() => nodes.value.filter(n => n.type === 'upload'))
 const totalUploadedFiles = computed(() => {
@@ -900,8 +998,44 @@ const handleFileSelect = async (event: Event, nodeId: string) => {
 }
 
 const getNodeIcon = (type: string) => {
-  // Return component name for dynamic icon rendering
-  return type
+  const icons: Record<string, any> = {
+    upload: h('svg', { width: 20, height: 20, fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [
+      h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12' })
+    ]),
+    parse: h('svg', { width: 20, height: 20, fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [
+      h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' })
+    ]),
+    ocr: h('svg', { width: 20, height: 20, fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [
+      h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M15 12a3 3 0 11-6 0 3 3 0 016 0z' }),
+      h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z' })
+    ]),
+    classify: h('svg', { width: 20, height: 20, fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [
+      h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z' }),
+      h('circle', { cx: '7', cy: '7', r: '0.5', fill: 'currentColor' })
+    ]),
+    extract: h('svg', { width: 20, height: 20, fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [
+      h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' }),
+      h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M14 2v4a2 2 0 002 2h4' })
+    ]),
+    split: h('svg', { width: 20, height: 20, fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [
+      h('circle', { cx: '6', cy: '6', r: '3', 'stroke-width': '2' }),
+      h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M8.12 8.12L12 12' }),
+      h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M20 4L8.12 15.88' }),
+      h('circle', { cx: '6', cy: '18', r: '3', 'stroke-width': '2' }),
+      h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M14.8 14.8L20 20' })
+    ]),
+    condition: h('svg', { width: 20, height: 20, fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [
+      h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z' })
+    ]),
+    validate: h('svg', { width: 20, height: 20, fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [
+      h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' })
+    ]),
+    script: h('svg', { width: 20, height: 20, fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [
+      h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4' })
+    ])
+  }
+  
+  return icons[type] || icons.parse
 }
 
 const handleExecuteWorkflow = async () => {
@@ -1007,6 +1141,9 @@ const handleCanvasMouseMove = (event: MouseEvent) => {
     // Update node position
     node.x = Math.max(20, mouseX - dragOffset.value.x)
     node.y = Math.max(20, mouseY - dragOffset.value.y)
+    
+    // Update dimensions cache for this node
+    updateNodeDimensions(draggedNode.value)
   }
   
   // Handle connection dragging
@@ -1027,12 +1164,14 @@ const handleCanvasMouseMove = (event: MouseEvent) => {
     let closestDistance = snapDistance
     
     for (const node of nodes.value) {
-      if (node.type === 'upload' || node.id === connectingFrom.value) continue
+      if (node.type === 'upload' || node.id === connectingFrom.value.nodeId) continue
+      
+      // Get cached dimensions or use defaults
+      const nodeDims = nodeDimensionsCache.value.get(node.id) || { width: 220, height: 140 }
       
       // Calculate input point position (left side, middle)
-      // Node height is approximately 140px, so middle is at 70px
       const inputX = node.x
-      const inputY = node.y + 70
+      const inputY = node.y + (nodeDims.height / 2)
       
       const distance = Math.sqrt(
         Math.pow(mouseX - inputX, 2) + Math.pow(mouseY - inputY, 2)
@@ -1050,9 +1189,10 @@ const handleCanvasMouseMove = (event: MouseEvent) => {
     if (closestNode) {
       const targetNode = nodes.value.find(n => n.id === closestNode)
       if (targetNode) {
+        const targetDims = nodeDimensionsCache.value.get(closestNode) || { width: 220, height: 140 }
         dragConnectionEnd.value = {
           x: targetNode.x,
-          y: targetNode.y + 70 // Match the input point position
+          y: targetNode.y + (targetDims.height / 2) // Match the input point position
         }
       }
     }
@@ -1074,7 +1214,7 @@ const handleCanvasMouseUp = () => {
   if (isDraggingConnection.value) {
     // If near an input node, create connection
     if (nearbyInputNode.value && connectingFrom.value) {
-      const fromNode = nodes.value.find(n => n.id === connectingFrom.value)
+      const fromNode = nodes.value.find(n => n.id === connectingFrom.value.nodeId)
       const toNode = nodes.value.find(n => n.id === nearbyInputNode.value)
       
       if (fromNode && toNode && fromNode.id !== toNode.id) {
@@ -1082,8 +1222,24 @@ const handleCanvasMouseUp = () => {
           fromNode.connections = []
         }
         
-        if (!fromNode.connections.includes(toNode.id)) {
-          fromNode.connections.push(toNode.id)
+        // Check if connection already exists
+        const existingConnection = fromNode.connections.find(conn => {
+          const targetId = typeof conn === 'string' ? conn : conn.targetId
+          const outputIdx = typeof conn === 'object' ? conn.outputIndex : undefined
+          return targetId === toNode.id && outputIdx === connectingFrom.value!.outputIndex
+        })
+        
+        if (!existingConnection) {
+          // Add new connection with output index
+          if (connectingFrom.value.outputIndex !== undefined) {
+            fromNode.connections.push({ targetId: toNode.id, outputIndex: connectingFrom.value.outputIndex })
+          } else {
+            fromNode.connections.push({ targetId: toNode.id })
+          }
+          // Force dimension update after connection is made
+          nextTick(() => {
+            updateNodeDimensions()
+          })
         }
       }
     }
@@ -1096,10 +1252,10 @@ const handleCanvasMouseUp = () => {
 }
 
 // Node connections
-const handleOutputMouseDown = (event: MouseEvent, nodeId: string) => {
+const handleOutputMouseDown = (event: MouseEvent, nodeId: string, outputIndex?: number) => {
   if (isProcessing.value) return
   
-  connectingFrom.value = nodeId
+  connectingFrom.value = { nodeId, outputIndex }
   isDraggingConnection.value = true
   
   event.preventDefault()
@@ -1109,7 +1265,7 @@ const handleOutputMouseDown = (event: MouseEvent, nodeId: string) => {
 const handleInputMouseUp = (event: MouseEvent, nodeId: string) => {
   if (isProcessing.value || !connectingFrom.value || !isDraggingConnection.value) return
   
-  const fromNode = nodes.value.find(n => n.id === connectingFrom.value)
+  const fromNode = nodes.value.find(n => n.id === connectingFrom.value!.nodeId)
   const toNode = nodes.value.find(n => n.id === nodeId)
   
   if (!fromNode || !toNode || fromNode.id === toNode.id) {
@@ -1123,8 +1279,20 @@ const handleInputMouseUp = (event: MouseEvent, nodeId: string) => {
     fromNode.connections = []
   }
   
-  if (!fromNode.connections.includes(nodeId)) {
-    fromNode.connections.push(nodeId)
+  // Check if connection already exists
+  const existingConnection = fromNode.connections.find(conn => {
+    const targetId = typeof conn === 'string' ? conn : conn.targetId
+    const outputIdx = typeof conn === 'object' ? conn.outputIndex : undefined
+    return targetId === nodeId && outputIdx === connectingFrom.value!.outputIndex
+  })
+  
+  if (!existingConnection) {
+    // Add new connection with output index
+    if (connectingFrom.value.outputIndex !== undefined) {
+      fromNode.connections.push({ targetId: nodeId, outputIndex: connectingFrom.value.outputIndex })
+    } else {
+      fromNode.connections.push({ targetId: nodeId })
+    }
   }
   
   connectingFrom.value = null
@@ -1134,14 +1302,14 @@ const handleInputMouseUp = (event: MouseEvent, nodeId: string) => {
   event.stopPropagation()
 }
 
-const handleOutputClick = (event: MouseEvent, nodeId: string) => {
+const handleOutputClick = (event: MouseEvent, nodeId: string, outputIndex?: number) => {
   if (isProcessing.value || isDraggingConnection.value) return
   
   // Toggle connection mode
-  if (connectingFrom.value === nodeId) {
+  if (connectingFrom.value?.nodeId === nodeId && connectingFrom.value?.outputIndex === outputIndex) {
     connectingFrom.value = null
   } else {
-    connectingFrom.value = nodeId
+    connectingFrom.value = { nodeId, outputIndex }
   }
   
   event.preventDefault()
@@ -1151,7 +1319,7 @@ const handleOutputClick = (event: MouseEvent, nodeId: string) => {
 const handleInputClick = (event: MouseEvent, nodeId: string) => {
   if (isProcessing.value || !connectingFrom.value || isDraggingConnection.value) return
   
-  const fromNode = nodes.value.find(n => n.id === connectingFrom.value)
+  const fromNode = nodes.value.find(n => n.id === connectingFrom.value!.nodeId)
   const toNode = nodes.value.find(n => n.id === nodeId)
   
   if (!fromNode || !toNode || fromNode.id === toNode.id) {
@@ -1164,8 +1332,20 @@ const handleInputClick = (event: MouseEvent, nodeId: string) => {
     fromNode.connections = []
   }
   
-  if (!fromNode.connections.includes(nodeId)) {
-    fromNode.connections.push(nodeId)
+  // Check if connection already exists
+  const existingConnection = fromNode.connections.find(conn => {
+    const targetId = typeof conn === 'string' ? conn : conn.targetId
+    const outputIdx = typeof conn === 'object' ? conn.outputIndex : undefined
+    return targetId === nodeId && outputIdx === connectingFrom.value!.outputIndex
+  })
+  
+  if (!existingConnection) {
+    // Add new connection with output index
+    if (connectingFrom.value.outputIndex !== undefined) {
+      fromNode.connections.push({ targetId: nodeId, outputIndex: connectingFrom.value.outputIndex })
+    } else {
+      fromNode.connections.push({ targetId: nodeId })
+    }
   }
   
   connectingFrom.value = null
@@ -1176,17 +1356,33 @@ const handleInputClick = (event: MouseEvent, nodeId: string) => {
 
 const isConnected = (fromId: string, toId: string): boolean => {
   const fromNode = nodes.value.find(n => n.id === fromId)
-  return fromNode?.connections?.includes(toId) || false
+  if (!fromNode?.connections) return false
+  return fromNode.connections.some(conn => {
+    const targetId = typeof conn === 'string' ? conn : conn.targetId
+    return targetId === toId
+  })
 }
 
 const getDragConnectionPath = (): string => {
   if (!connectingFrom.value || !isDraggingConnection.value) return ''
   
-  const fromNode = nodes.value.find(n => n.id === connectingFrom.value)
+  const fromNode = nodes.value.find(n => n.id === connectingFrom.value!.nodeId)
   if (!fromNode) return ''
   
-  const fromX = fromNode.x + 220 // Right side of node (updated width)
-  const fromY = fromNode.y + 70 // Middle of node (updated height)
+  // Get cached dimensions or use defaults
+  const fromDims = nodeDimensionsCache.value.get(connectingFrom.value.nodeId) || { width: 220, height: 140 }
+  
+  const fromX = fromNode.x + fromDims.width // Right edge of node
+  
+  // Calculate Y position based on output index for condition nodes
+  let fromY: number
+  if (fromNode.type === 'condition' && connectingFrom.value.outputIndex !== undefined) {
+    const outputPosition = getConditionOutputPosition(fromNode, connectingFrom.value.outputIndex)
+    fromY = fromNode.y + (fromDims.height * outputPosition / 100)
+  } else {
+    fromY = fromNode.y + (fromDims.height / 2) // Vertical center of node
+  }
+  
   const toX = dragConnectionEnd.value.x
   const toY = dragConnectionEnd.value.y
   
@@ -1195,16 +1391,109 @@ const getDragConnectionPath = (): string => {
   return `M ${fromX} ${fromY} C ${midX} ${fromY}, ${midX} ${toY}, ${toX} ${toY}`
 }
 
-const getConnectionPath = (fromId: string, toId: string): string => {
+// Cache for node dimensions to avoid repeated DOM queries
+const nodeDimensionsCache = ref<Map<string, { width: number; height: number }>>(new Map())
+
+// Update node dimensions cache with retry mechanism
+const updateNodeDimensions = (nodeId?: string) => {
+  const updateDims = () => {
+    const allNodes = document.querySelectorAll('.workflow-node')
+    let updated = 0
+    
+    allNodes.forEach((el) => {
+      const htmlEl = el as HTMLElement
+      const style = htmlEl.getAttribute('style') || ''
+      // Extract position to match with node data
+      const topMatch = style.match(/top:\s*(\d+(?:\.\d+)?)px/)
+      const leftMatch = style.match(/left:\s*(\d+(?:\.\d+)?)px/)
+      if (topMatch && leftMatch) {
+        const top = parseFloat(topMatch[1])
+        const left = parseFloat(leftMatch[1])
+        const node = nodes.value.find(n => Math.abs(n.y - top) < 1 && Math.abs(n.x - left) < 1)
+        if (node && (!nodeId || node.id === nodeId)) {
+          const width = htmlEl.offsetWidth
+          const height = htmlEl.offsetHeight
+          // Only update if dimensions are valid (not 0)
+          if (width > 0 && height > 0) {
+            const cached = nodeDimensionsCache.value.get(node.id)
+            // Update if different or not cached
+            if (!cached || cached.width !== width || cached.height !== height) {
+              nodeDimensionsCache.value.set(node.id, { width, height })
+              updated++
+            }
+          }
+        }
+      }
+    })
+    
+    return updated
+  }
+  
+  // Update immediately
+  nextTick(() => {
+    updateDims()
+    // Update again after a short delay to catch any late renders
+    setTimeout(() => {
+      updateDims()
+    }, 50)
+    // One more update after a longer delay for complex nodes
+    setTimeout(() => {
+      updateDims()
+    }, 200)
+  })
+}
+
+// Watch nodes for changes and update dimensions
+watch(() => nodes.value.length, () => {
+  updateNodeDimensions()
+}, { immediate: true })
+
+// Watch for node position changes (for dragging)
+watch(() => nodes.value.map(n => `${n.id}-${n.x}-${n.y}`).join(','), () => {
+  updateNodeDimensions()
+})
+
+// Watch for node selection changes (config panels might change height)
+watch(selectedNode, () => {
+  updateNodeDimensions()
+})
+
+// Deep watch for node config changes that might affect height
+watch(() => nodes.value.map(n => JSON.stringify(n.config)).join(','), () => {
+  updateNodeDimensions()
+})
+
+// Watch zoom level changes
+watch(zoomLevel, () => {
+  nextTick(() => {
+    updateNodeDimensions()
+  })
+})
+
+const getConnectionPath = (fromId: string, toId: string, outputIndex?: number): string => {
   const fromNode = nodes.value.find(n => n.id === fromId)
   const toNode = nodes.value.find(n => n.id === toId)
   
   if (!fromNode || !toNode) return ''
   
-  const fromX = fromNode.x + 220 // Right side of node (updated width)
-  const fromY = fromNode.y + 70 // Middle of node (updated height)
-  const toX = toNode.x // Left side of node
-  const toY = toNode.y + 70 // Middle of node (updated height)
+  // Get cached dimensions or use defaults
+  const fromDims = nodeDimensionsCache.value.get(fromId) || { width: 220, height: 140 }
+  const toDims = nodeDimensionsCache.value.get(toId) || { width: 220, height: 140 }
+  
+  // Connection points
+  const fromX = fromNode.x + fromDims.width // Right edge of from node
+  
+  // Calculate Y position based on output index for condition nodes
+  let fromY: number
+  if (fromNode.type === 'condition' && outputIndex !== undefined) {
+    const outputPosition = getConditionOutputPosition(fromNode, outputIndex)
+    fromY = fromNode.y + (fromDims.height * outputPosition / 100)
+  } else {
+    fromY = fromNode.y + (fromDims.height / 2) // Vertical center of from node
+  }
+  
+  const toX = toNode.x // Left edge of to node
+  const toY = toNode.y + (toDims.height / 2) // Vertical center of to node
   
   const midX = (fromX + toX) / 2
   
@@ -1303,13 +1592,13 @@ const addCondition = () => {
   if (!node || node.type !== 'condition') return
   
   if (!node.config) {
-    node.config = { conditions: [], logic: 'AND' }
+    node.config = { conditions: [] }
   }
   if (!node.config.conditions) {
     node.config.conditions = []
   }
   
-  node.config.conditions.push({ field: '', operator: 'equals', value: '' })
+  node.config.conditions.push({ operator: 'equals', value: '', valueMin: '', valueMax: '' })
 }
 
 const removeCondition = (index: number) => {
@@ -1565,6 +1854,12 @@ const handleKeyUp = (event: KeyboardEvent) => {
 
 // Handle canvas mouse down for panning
 const handleCanvasMouseDown = (event: MouseEvent) => {
+  // If currently editing a node name, finish the rename first
+  if (editingNodeId.value) {
+    finishRenaming(editingNodeId.value)
+    // Don't return - allow the rest of the function to execute
+  }
+  
   const canvas = canvasArea.value
   if (!canvas) return
   
@@ -1600,21 +1895,186 @@ const handleCanvasMouseDown = (event: MouseEvent) => {
 const deleteConnection = (fromId: string, toId: string) => {
   const fromNode = nodes.value.find(n => n.id === fromId)
   if (fromNode && fromNode.connections) {
-    fromNode.connections = fromNode.connections.filter(id => id !== toId)
+    fromNode.connections = fromNode.connections.filter(conn => {
+      const targetId = typeof conn === 'string' ? conn : conn.targetId
+      return targetId !== toId
+    })
   }
   selectedConnection.value = null
 }
 
 // Deselect connection when clicking canvas
-const handleCanvasClick = () => {
+const handleCanvasClick = (event: MouseEvent) => {
   // Don't handle click if we just finished panning
   if (hasPanned.value) {
     return
   }
+  
+  // If currently editing a node name, finish the rename and save
+  if (editingNodeId.value) {
+    finishRenaming(editingNodeId.value)
+    // Don't deselect immediately - finishRenaming will handle it
+    return
+  }
+  
+  // Deselect connection and node when clicking on canvas
   selectedConnection.value = null
+  selectedNode.value = null
 }
 
 // Setup keyboard listener and center canvas
+// Calculate output position for condition nodes
+const getConditionOutputPosition = (node: any, index: number) => {
+  const conditions = node.config?.conditions || []
+  const totalOutputs = conditions.length + 1 // +1 for else
+  
+  // Add padding to avoid overlap with header and status
+  const topPadding = 15 // percentage from top to avoid header overlap
+  const bottomPadding = 15 // percentage from bottom to avoid status overlap
+  const usableSpace = 100 - topPadding - bottomPadding
+  
+  const spacing = usableSpace / (totalOutputs + 1)
+  return topPadding + spacing * (index + 1)
+}
+
+// Calculate minimum height for condition node body to accommodate output dots
+const getConditionNodeBodyHeight = (node: any) => {
+  const conditions = node.config?.conditions || []
+  const totalOutputs = conditions.length + 1 // +1 for else
+  // Base height + additional height per output (to ensure proper spacing)
+  const baseHeight = 60 // increased base to account for header and status
+  const heightPerOutput = 35 // spacing between each output dot
+  return Math.max(baseHeight, totalOutputs * heightPerOutput + 40) // +40 for top/bottom padding
+}
+
+// Node renaming functions
+const startRenaming = (nodeId: string) => {
+  // If already editing another node, finish that first with the current editingNodeLabel value
+  if (editingNodeId.value && editingNodeId.value !== nodeId) {
+    const currentEditingNode = nodes.value.find(n => n.id === editingNodeId.value)
+    if (currentEditingNode) {
+      const newLabel = editingNodeLabel.value.trim()
+      if (newLabel && newLabel !== currentEditingNode.label) {
+        currentEditingNode.label = newLabel
+      }
+    }
+  }
+  
+  const node = nodes.value.find(n => n.id === nodeId)
+  if (!node) return
+  
+  // Set the editing state with the NEW node's label
+  editingNodeId.value = nodeId
+  editingNodeLabel.value = node.label
+  
+  // Focus the input after it's rendered
+  nextTick(() => {
+    const input = document.querySelector('.node-title-input') as HTMLInputElement
+    if (input) {
+      input.focus()
+      input.select()
+    }
+  })
+}
+
+const finishRenaming = (nodeId: string) => {
+  const node = nodes.value.find(n => n.id === nodeId)
+  if (!node) return
+  
+  // Trim and validate the new label
+  const newLabel = editingNodeLabel.value.trim()
+  if (newLabel && newLabel !== node.label) {
+    node.label = newLabel
+  }
+  
+  // Clear editing state
+  editingNodeId.value = null
+  editingNodeLabel.value = ''
+  
+  // Deselect the node
+  selectedNode.value = null
+}
+
+const cancelRenaming = (nodeId: string) => {
+  // Just clear the editing state without saving
+  editingNodeId.value = null
+  editingNodeLabel.value = ''
+}
+
+// Zoom functions
+const zoomIn = () => {
+  zoomLevel.value = Math.min(zoomLevel.value + 0.1, 2) // Max 200%
+  updateNodeDimensions()
+}
+
+const zoomOut = () => {
+  zoomLevel.value = Math.max(zoomLevel.value - 0.1, 0.5) // Min 50%
+  updateNodeDimensions()
+}
+
+const zoomToFit = () => {
+  if (nodes.value.length === 0) return
+  
+  const canvas = canvasArea.value
+  if (!canvas) return
+  
+  // Calculate bounding box of all nodes
+  let minX = Infinity
+  let minY = Infinity
+  let maxX = -Infinity
+  let maxY = -Infinity
+  
+  nodes.value.forEach(node => {
+    const dims = nodeDimensionsCache.value.get(node.id) || { width: 240, height: 140 }
+    minX = Math.min(minX, node.x)
+    minY = Math.min(minY, node.y)
+    maxX = Math.max(maxX, node.x + dims.width)
+    maxY = Math.max(maxY, node.y + dims.height)
+  })
+  
+  // Add padding
+  const padding = 50
+  minX -= padding
+  minY -= padding
+  maxX += padding
+  maxY += padding
+  
+  // Calculate required zoom level
+  const contentWidth = maxX - minX
+  const contentHeight = maxY - minY
+  const canvasWidth = canvas.clientWidth
+  const canvasHeight = canvas.clientHeight
+  
+  const zoomX = canvasWidth / contentWidth
+  const zoomY = canvasHeight / contentHeight
+  const newZoom = Math.min(zoomX, zoomY, 1) // Don't zoom in beyond 100%
+  
+  zoomLevel.value = Math.max(newZoom, 0.5) // Min 50%
+  
+  // Center the content
+  nextTick(() => {
+    const scaledMinX = minX * zoomLevel.value
+    const scaledMinY = minY * zoomLevel.value
+    const scaledWidth = contentWidth * zoomLevel.value
+    const scaledHeight = contentHeight * zoomLevel.value
+    
+    canvas.scrollLeft = scaledMinX - (canvasWidth - scaledWidth) / 2
+    canvas.scrollTop = scaledMinY - (canvasHeight - scaledHeight) / 2
+    
+    updateNodeDimensions()
+  })
+}
+
+const handleWheel = (event: WheelEvent) => {
+  // Ctrl/Cmd + Wheel for zoom
+  if (event.ctrlKey || event.metaKey) {
+    event.preventDefault()
+    const delta = -event.deltaY / 1000
+    zoomLevel.value = Math.max(0.5, Math.min(2, zoomLevel.value + delta))
+    updateNodeDimensions()
+  }
+}
+
 onMounted(() => {
   window.addEventListener('keydown', handleKeyDown)
   window.addEventListener('keyup', handleKeyUp)
@@ -1628,13 +2088,37 @@ onMounted(() => {
       // So we scroll to 50% to center it
       canvas.scrollLeft = (canvas.scrollWidth - canvas.clientWidth) / 2
       canvas.scrollTop = (canvas.scrollHeight - canvas.clientHeight) / 2
+      
+      // Initial dimension update
+      updateNodeDimensions()
     })
+    
+    // Setup MutationObserver to watch for DOM changes that affect node dimensions
+    const observer = new MutationObserver(() => {
+      updateNodeDimensions()
+    })
+    
+    observer.observe(canvas, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['style', 'class']
+    })
+    
+    // Store observer for cleanup
+    ;(canvas as any)._dimensionObserver = observer
   }
 })
 
 onUnmounted(() => {
   window.removeEventListener('keydown', handleKeyDown)
   window.removeEventListener('keyup', handleKeyUp)
+  
+  // Cleanup MutationObserver
+  const canvas = canvasArea.value
+  if (canvas && (canvas as any)._dimensionObserver) {
+    ;(canvas as any)._dimensionObserver.disconnect()
+  }
 })
 </script>
 
@@ -1660,6 +2144,62 @@ onUnmounted(() => {
   background: white;
   border-right: 1px solid #e5e7eb;
   overflow: hidden;
+  position: relative;
+}
+
+/* Zoom Controls */
+.zoom-controls {
+  position: absolute;
+  bottom: 20px;
+  right: 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 8px 12px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  z-index: 1000;
+  pointer-events: auto;
+}
+
+.zoom-btn {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  cursor: pointer;
+  color: #64748b;
+  transition: all 0.2s;
+}
+
+.zoom-btn:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  color: #334155;
+}
+
+.zoom-btn:active {
+  transform: scale(0.95);
+}
+
+.zoom-fit-btn {
+  border-left: 1px solid #e2e8f0;
+  margin-left: 4px;
+  padding-left: 4px;
+}
+
+.zoom-level {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #334155;
+  min-width: 48px;
+  text-align: center;
 }
 
 .canvas-header {
@@ -1739,29 +2279,50 @@ onUnmounted(() => {
 
 .workflow-node {
   position: absolute;
-  width: 220px;
+  min-width: 200px;
+  max-width: 280px;
+  width: auto;
   background: white;
-  border: 2px solid #e5e7eb;
-  border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  transition: box-shadow 0.3s, border-color 0.3s;
+  border: 2px solid #e2e8f0;
+  border-radius: 16px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  transition: box-shadow 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
   z-index: 2;
+  overflow: hidden;
+  will-change: transform;
+}
+
+.workflow-node:hover:not(.node-dragging) {
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -2px rgba(0, 0, 0, 0.3);
+  transform: translateY(-2px);
 }
 
 .workflow-node.node-selected {
   border-color: #3b82f6;
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3), 0 10px 15px -3px rgba(0, 0, 0, 0.4);
+  transform: translateY(-2px);
 }
 
 .workflow-node.node-dragging {
   cursor: grabbing;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.4);
   z-index: 10;
+  transition: none;
 }
 
 .workflow-node.node-active {
   border-color: #3b82f6;
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3), 0 10px 15px -3px rgba(0, 0, 0, 0.4);
+  animation: pulse-node 2s ease-in-out infinite;
+}
+
+@keyframes pulse-node {
+  0%, 100% {
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3), 0 10px 15px -3px rgba(0, 0, 0, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(59, 130, 246, 0.2), 0 10px 15px -3px rgba(0, 0, 0, 0.4);
+  }
 }
 
 .workflow-node.node-complete {
@@ -1773,31 +2334,57 @@ onUnmounted(() => {
 }
 
 .workflow-node.node-inactive {
-  opacity: 0.6;
-  border-color: #9ca3af;
+  opacity: 0.5;
+  border-color: #475569;
   border-style: dashed;
+  filter: grayscale(0.5);
 }
 
-.node-condition {
-  border-color: #f59e0b;
+/* Node type specific icon colors */
+.node-upload .node-icon {
+  background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
 }
 
-.node-validate {
-  border-color: #10b981;
+.node-parse .node-icon {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
 }
 
-.node-script {
-  border-color: #8b5cf6;
+.node-ocr .node-icon {
+  background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);
+}
+
+.node-classify .node-icon {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+}
+
+.node-extract .node-icon {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+}
+
+.node-split .node-icon {
+  background: linear-gradient(135deg, #ec4899 0%, #db2777 100%);
+}
+
+.node-condition .node-icon {
+  background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+}
+
+.node-validate .node-icon {
+  background: linear-gradient(135deg, #14b8a6 0%, #0d9488 100%);
+}
+
+.node-script .node-icon {
+  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
 }
 
 .node-header {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.5rem 0.75rem;
-  background: #f9fafb;
-  border-bottom: 1px solid #e5e7eb;
-  border-radius: 6px 6px 0 0;
+  padding: 0.625rem 0.75rem;
+  background: transparent;
+  border-bottom: none;
+  border-radius: 16px 16px 0 0;
   cursor: grab;
   user-select: none;
 }
@@ -1807,97 +2394,183 @@ onUnmounted(() => {
 }
 
 .node-icon {
-  width: 18px;
-  height: 18px;
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
+  border-radius: 10px;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.node-icon svg {
+  color: white;
+  width: 16px;
+  height: 16px;
+  stroke: white;
+  fill: none;
 }
 
 .node-title {
   flex: 1;
-  font-weight: 500;
-  color: #1f2937;
+  font-weight: 600;
+  color: #1e293b;
   font-size: 0.8rem;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  cursor: text;
+  user-select: none;
+}
+
+.node-title:hover {
+  color: #0f172a;
+}
+
+.node-title-input {
+  flex: 1;
+  font-weight: 600;
+  color: #1e293b;
+  font-size: 0.8rem;
+  letter-spacing: 0.01em;
+  min-width: 0;
+  padding: 2px 6px;
+  border: 2px solid #3b82f6;
+  border-radius: 4px;
+  background: white;
+  outline: none;
+  font-family: inherit;
+}
+
+.node-title-input:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
 .node-remove {
   padding: 0.25rem;
-  background: none;
+  background: rgba(0, 0, 0, 0.05);
   border: none;
+  border-radius: 6px;
   cursor: pointer;
-  color: #6b7280;
-  transition: color 0.2s;
+  color: #64748b;
+  transition: all 0.2s;
 }
 
 .node-remove:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.1);
   color: #ef4444;
 }
 
 .node-body {
-  padding: 0.75rem;
+  padding: 0 0.75rem 0.625rem 0.75rem;
+  display: flex;
+  align-items: center;
+  min-height: 36px;
 }
 
 .node-config {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  flex: 1;
+  padding-right: 30px; /* Space for output dots */
 }
 
 .config-btn, .config-select {
-  padding: 0.4rem;
-  border: 1px solid #d1d5db;
-  border-radius: 4px;
-  font-size: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  background: #f8fafc;
+  color: #334155;
+  transition: all 0.2s;
 }
 
 .config-btn {
-  background: #f3f4f6;
   cursor: pointer;
-  transition: background 0.2s;
 }
 
 .config-btn:hover:not(:disabled) {
-  background: #e5e7eb;
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+}
+
+.config-select {
+  cursor: pointer;
+}
+
+.config-select:hover:not(:disabled) {
+  border-color: #cbd5e1;
+}
+
+.condition-summary {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.375rem 0.625rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  text-align: left;
+  width: fit-content;
+  margin: 0;
+}
+
+.condition-count {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #334155;
+  white-space: nowrap;
 }
 
 .node-status {
   padding: 0.5rem 0.75rem;
-  border-top: 1px solid #e5e7eb;
+  border-top: 1px solid #e2e8f0;
 }
 
 .status-badge {
   display: inline-block;
-  padding: 0.2rem 0.6rem;
-  border-radius: 10px;
-  font-size: 0.7rem;
-  font-weight: 500;
+  padding: 0.2rem 0.625rem;
+  border-radius: 12px;
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
 }
 
 .status-pending {
-  background: #f3f4f6;
-  color: #6b7280;
+  background: #f1f5f9;
+  color: #64748b;
 }
 
 .status-processing {
   background: #dbeafe;
-  color: #1e40af;
+  color: #2563eb;
 }
 
 .status-completed {
   background: #d1fae5;
-  color: #065f46;
+  color: #059669;
 }
 
 .status-error {
   background: #fee2e2;
-  color: #991b1b;
+  color: #dc2626;
+}
+
+.status-inactive {
+  background: #f1f5f9;
+  color: #94a3b8;
 }
 
 .connection-point {
   position: absolute;
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1907,10 +2580,10 @@ onUnmounted(() => {
 }
 
 .connection-dot {
-  width: 12px;
-  height: 12px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
-  background: #9ca3af;
+  background: #64748b;
   border: 2px solid white;
   transition: all 0.2s;
 }
@@ -1924,36 +2597,54 @@ onUnmounted(() => {
 }
 
 .connection-point:hover .connection-dot {
-  opacity: 0.8;
+  transform: scale(1.3);
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.2);
 }
 
 .connection-point.connecting .connection-dot {
   animation: pulse-connection 1s ease-in-out infinite;
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.3);
 }
 
 .connection-point.nearby .connection-dot {
-  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.3);
+  transform: scale(1.4);
+  box-shadow: 0 0 0 6px rgba(59, 130, 246, 0.4);
 }
 
 @keyframes pulse-connection {
   0%, 100% { 
-    opacity: 1;
+    transform: scale(1);
   }
   50% { 
-    opacity: 0.5;
+    transform: scale(1.2);
   }
 }
 
 .input-point {
-  left: -12px;
+  left: -10px;
   top: 50%;
   transform: translateY(-50%);
 }
 
 .output-point {
-  right: -12px;
+  right: -10px;
   top: 50%;
   transform: translateY(-50%);
+}
+
+.output-label {
+  position: absolute;
+  right: 100%;
+  margin-right: 8px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #64748b;
+  white-space: nowrap;
+  pointer-events: none;
+  background: white;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid #e2e8f0;
 }
 
 .node-connector {
@@ -1964,14 +2655,16 @@ onUnmounted(() => {
   width: 360px;
   background: white;
   border-left: 1px solid #e5e7eb;
-  overflow-y: auto;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
+  height: 100%;
 }
 
 .panel-section {
-  padding: 1.5rem;
+  padding: 0.75rem;
   border-bottom: 1px solid #e5e7eb;
+  flex-shrink: 0;
 }
 
 .panel-section:last-child {
@@ -1983,8 +2676,8 @@ onUnmounted(() => {
 }
 
 .add-nodes-section h3 {
-  margin: 0 0 1rem 0;
-  font-size: 0.875rem;
+  margin: 0 0 0.5rem 0;
+  font-size: 0.75rem;
   font-weight: 600;
   color: #1f2937;
   text-transform: uppercase;
@@ -1994,23 +2687,23 @@ onUnmounted(() => {
 .node-buttons {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
-  gap: 0.75rem;
-  margin-bottom: 1rem;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
 }
 
 .node-btn {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.5rem;
-  padding: 1rem;
+  gap: 0.25rem;
+  padding: 0.5rem;
   background: white;
   border: 1px solid #e5e7eb;
-  border-radius: 8px;
+  border-radius: 6px;
   cursor: pointer;
   transition: all 0.2s;
   color: #374151;
-  font-size: 0.875rem;
+  font-size: 0.75rem;
   font-weight: 500;
 }
 
@@ -2018,8 +2711,8 @@ onUnmounted(() => {
   background: #f9fafb;
   border-color: #3b82f6;
   color: #3b82f6;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .node-btn:disabled {
@@ -2029,6 +2722,8 @@ onUnmounted(() => {
 
 .node-btn svg {
   flex-shrink: 0;
+  width: 18px;
+  height: 18px;
 }
 
 /* Section Header with Reset Button */
@@ -2036,7 +2731,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 1rem;
+  margin-bottom: 0.5rem;
 }
 
 .section-header h3 {
@@ -2084,28 +2779,42 @@ onUnmounted(() => {
 }
 
 .node-settings-section h3 {
-  margin: 0 0 1rem 0;
+  margin: 0 0 0.5rem 0;
   font-size: 0.875rem;
   font-weight: 600;
   color: #1f2937;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   flex-shrink: 0;
+  padding: 0.375rem 0.75rem 0;
+  background: white;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.node-settings-title {
+  margin: 0 0 1rem 0 !important;
+  font-size: 0.75rem !important;
+  font-weight: 700 !important;
+  color: #111827 !important;
+  letter-spacing: 0.05em !important;
 }
 
 .node-config-content {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 0.5rem;
   flex: 1;
   overflow-y: auto;
   min-height: 0;
+  padding: 0 0.75rem 0.75rem;
 }
 
 .config-group {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.25rem;
 }
 
 .config-label {
@@ -2483,7 +3192,8 @@ onUnmounted(() => {
 
 .add-rule-btn,
 .add-field-btn,
-.add-category-btn {
+.add-category-btn,
+.add-condition-btn {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2500,7 +3210,8 @@ onUnmounted(() => {
 
 .add-rule-btn:hover:not(:disabled),
 .add-field-btn:hover:not(:disabled),
-.add-category-btn:hover:not(:disabled) {
+.add-category-btn:hover:not(:disabled),
+.add-condition-btn:hover:not(:disabled) {
   background: #f9fafb;
   border-color: #3b82f6;
   color: #3b82f6;
@@ -2633,6 +3344,44 @@ onUnmounted(() => {
   min-height: 0;
 }
 
+.add-condition-section {
+  background: white;
+  padding: 1rem 0.75rem;
+  border-top: none;
+}
+
+.node-settings-section:has(.node-config-content .conditions-table) {
+  border-bottom: none;
+}
+
+.add-condition-section .add-condition-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.625rem;
+  background: white;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: #374151;
+}
+
+.add-condition-section .add-condition-btn:hover:not(:disabled) {
+  background: #f9fafb;
+  border-color: #3b82f6;
+  color: #3b82f6;
+}
+
+.add-condition-section .add-condition-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .workflow-summary-section {
   margin-top: auto;
   background: white;
@@ -2676,7 +3425,7 @@ onUnmounted(() => {
 }
 
 .panel-section h3 {
-  margin: 0 0 1rem 0;
+  margin: 0 0 0.5rem 0;
   font-size: 1rem;
   font-weight: 600;
   color: #1f2937;
@@ -2685,7 +3434,7 @@ onUnmounted(() => {
 .workflow-summary {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0.5rem;
 }
 
 .summary-item {
@@ -3089,6 +3838,345 @@ onUnmounted(() => {
   align-items: center;
 }
 
+/* Table layout for conditions */
+.conditions-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0 0.75rem;
+  margin: 0;
+  background: white;
+  border: none;
+}
+
+.conditions-table thead th {
+  background: white;
+  border-bottom: 1px solid #e5e7eb;
+  padding: 0.75rem 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #111827;
+  text-align: left;
+}
+
+.condition-header,
+.value-header {
+  font-weight: 600 !important;
+  color: #111827 !important;
+}
+
+.conditions-table tbody tr {
+  transition: background 0.15s;
+}
+
+.conditions-table tbody tr:last-child {
+  border-bottom: none;
+}
+
+.conditions-table tbody tr:hover {
+  background: #fafbfc;
+}
+
+.conditions-table td {
+  padding: 0.75rem 0.5rem;
+  vertical-align: middle;
+}
+
+.order-cell {
+  text-align: center;
+  width: 40px;
+  padding: 0.75rem 0.5rem !important;
+  font-weight: 600;
+  color: #111827;
+  font-size: 0.875rem;
+}
+
+.order-number {
+  display: inline-block;
+  font-weight: 600;
+  color: #111827;
+}
+
+.delete-cell {
+  text-align: center;
+  width: 40px;
+  padding: 0.75rem 0.5rem !important;
+}
+
+.delete-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid #e74c3c;
+  background: #fff;
+  color: #e74c3c;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  transition: all 0.2s;
+}
+
+.delete-btn:hover:not(:disabled) {
+  background: #ffecec;
+}
+
+.delete-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.delete-btn-x {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: transparent;
+  color: #6b7280;
+  cursor: pointer;
+  font-size: 20px;
+  line-height: 1;
+  transition: all 0.2s;
+  padding: 0;
+}
+
+.delete-btn-x:hover:not(:disabled) {
+  color: #ef4444;
+}
+
+.delete-btn-x:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.table-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.table-cell-with-action {
+  position: relative;
+  padding-right: 3rem;
+}
+
+.condition-operator-select-table {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  background: white;
+  color: #111827;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: left;
+}
+
+.condition-operator-select-table:hover:not(:disabled) {
+  border-color: #d1d5db;
+  background: #fafbfc;
+}
+
+.condition-operator-select-table:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.condition-value-input-table {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  background: white;
+  color: #111827;
+  transition: all 0.2s;
+}
+
+.condition-value-input-table:hover:not(:disabled) {
+  border-color: #d1d5db;
+}
+
+.condition-value-input-table:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.condition-between-inputs-table {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.between-separator-table {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  font-weight: 500;
+  flex-shrink: 0;
+  padding: 0 0.25rem;
+}
+
+.add-condition-section {
+  padding: 2rem 0.75rem 1rem;
+  background: white;
+  display: flex;
+  justify-content: center;
+}
+
+/* Grid layout for condition items with 2 main columns */
+.condition-item-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 1rem;
+  padding: 1rem;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  margin-bottom: 0.75rem;
+}
+
+.condition-type-column {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding-right: 0.75rem;
+  border-right: 2px solid #e5e7eb;
+  min-width: 140px;
+}
+
+.condition-operator-dropdown {
+  padding: 0.625rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  background: white;
+  color: #334155;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.condition-operator-dropdown:hover:not(:disabled) {
+  border-color: #3b82f6;
+}
+
+.condition-operator-dropdown:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.condition-operator-dropdown:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.condition-value-column {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  position: relative;
+}
+
+.condition-field-input-grid,
+.condition-value-input-grid {
+  padding: 0.625rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  background: white;
+  width: 100%;
+}
+
+.condition-between-inputs {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.between-separator {
+  font-size: 0.875rem;
+  color: #64748b;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.condition-remove-btn-grid {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fee2e2;
+  color: #dc2626;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.condition-remove-btn-grid:hover:not(:disabled) {
+  background: #fecaca;
+}
+
+.condition-remove-btn-grid:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Old 2-column layout for condition items */
+.condition-item-2col {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  margin-bottom: 0.5rem;
+}
+
+.condition-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.condition-row.condition-between {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+
+.condition-field-input-full,
+.condition-value-input-full,
+.condition-operator-select-full {
+  flex: 1;
+  padding: 0.5rem;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  font-size: 0.875rem;
+  background: white;
+}
+
+.condition-value-input-half {
+  padding: 0.5rem;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  font-size: 0.875rem;
+  background: white;
+}
+
 .condition-field-input,
 .condition-value-input {
   padding: 0.5rem;
@@ -3108,6 +4196,7 @@ onUnmounted(() => {
 .condition-remove-btn {
   width: 32px;
   height: 32px;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3128,28 +4217,7 @@ onUnmounted(() => {
   cursor: not-allowed;
 }
 
-.add-condition-btn {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 0.75rem;
-  background: #f3f4f6;
-  color: #374151;
-  border: 1px solid #d1d5db;
-  border-radius: 4px;
-  font-size: 0.875rem;
-  cursor: pointer;
-  transition: all 0.2s;
-}
 
-.add-condition-btn:hover:not(:disabled) {
-  background: #e5e7eb;
-}
-
-.add-condition-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
 
 /* Validation Node Styles */
 .validation-rules-list {
