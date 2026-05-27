@@ -3,20 +3,22 @@
     <!-- Build Tab Content -->
     <div v-if="props.activeTab === 'build'" class="panel-content">
     
-    <!-- Parser Tiers Section -->
-    <TierSelector
-      v-model="selectedParserTier"
-      label="Parser Tiers"
+    <!-- Parser Model Selector -->
+    <ModelSelector
+      v-if="props.providers && props.providers.length > 0"
+      v-model="selectedParserModelId"
+      :providers="props.providers"
       :disabled="isProcessing"
-      :show-multimodal="false"
+      label="Parser Model"
     />
     
-    <!-- Classifier Tiers Section -->
-    <TierSelector
-      v-model="selectedClassifierTier"
-      label="Classifier Tiers"
+    <!-- Classifier Model Selector -->
+    <ModelSelector
+      v-if="props.providers && props.providers.length > 0"
+      v-model="selectedClassifierModelId"
+      :providers="props.providers"
       :disabled="isProcessing"
-      :show-multimodal="true"
+      label="Classifier Model"
     />
     
     <!-- Parsing Configuration Section (merged with Classification Rules) -->
@@ -545,12 +547,21 @@
 </template>
 
 <script setup lang="ts">
-import TierSelector from './TierSelector.vue'
+import ModelSelector from './ModelSelector.vue'
 import { documentTypes, getTopDocumentTypes, getRemainingDocumentTypeGroups } from '~/utils/documentTypes'
 import type { DocumentType } from '~/utils/documentTypes'
 
+interface Provider {
+  id: string
+  name: string
+  type: string
+  configured: boolean
+  models: { model_id: string; name: string; provider: string }[]
+}
+
 interface Props {
   availableModels: string[]
+  providers?: Provider[]
   isProcessing: boolean
   canProcess: boolean
   activeTab: string
@@ -576,11 +587,8 @@ interface Emits {
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
-// Use tier config composable
-const { getClassifierParserModel, getClassifierLLMModel } = useTierConfig()
-
-const selectedClassifierTier = ref('Normal')
-const selectedParserTier = ref('Normal')
+const selectedParserModelId = ref('')
+const selectedClassifierModelId = ref('')
 const maxPages = ref(5)
 const processAllFiles = ref(false)
 const errorMessage = ref('')
@@ -704,13 +712,13 @@ const fieldErrors = computed(() => props.fieldErrors || null)
 const handleProcess = () => {
   errorMessage.value = ''
   
-  // Get parser and classifier models from classifier tier using composable
-  const parserModel = getClassifierParserModel(selectedClassifierTier.value)
-  const classifierModel = getClassifierLLMModel(selectedClassifierTier.value)
-  const isMultimodal = selectedClassifierTier.value === 'Multimodal'
+  if (!selectedParserModelId.value) {
+    errorMessage.value = 'Please select a parser model'
+    return
+  }
   
-  if (!parserModel || !classifierModel) {
-    errorMessage.value = 'Please select a classifier tier'
+  if (!selectedClassifierModelId.value) {
+    errorMessage.value = 'Please select a classifier model'
     return
   }
   
@@ -732,13 +740,13 @@ const handleProcess = () => {
   }
   
   emit('process', {
-    parserModelId: parserModel,
-    classifierModelId: classifierModel,
-    tier: selectedClassifierTier.value,
+    parserModelId: selectedParserModelId.value,
+    classifierModelId: selectedClassifierModelId.value,
+    tier: 'Normal',
     maxPages: maxPages.value,
     classificationRules: validRules,
-    isMultimodal: isMultimodal,
-    processAllFiles: processAllFiles.value
+    isMultimodal: false,
+    processAllFiles: processAllFiles.value,
   })
 }
 

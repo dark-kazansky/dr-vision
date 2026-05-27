@@ -2,18 +2,22 @@
   <div class="split-config-panel">
     <!-- Build Tab Content -->
     <div v-if="props.activeTab === 'build'" class="panel-content">
-      <!-- Parser Tier Selection Section -->
-      <TierSelector
-        v-model="parserTier"
-        label="Parser Tier"
+      <!-- Parser Model Selector -->
+      <ModelSelector
+        v-if="props.providers && props.providers.length > 0"
+        v-model="selectedParserModelId"
+        :providers="props.providers"
         :disabled="isProcessing"
+        label="Parser Model"
       />
       
-      <!-- Splitter Tier Selection Section -->
-      <TierSelector
-        v-model="splitterTier"
-        label="Splitter Tier"
+      <!-- Splitter Model Selector -->
+      <ModelSelector
+        v-if="props.providers && props.providers.length > 0"
+        v-model="selectedSplitterModelId"
+        :providers="props.providers"
         :disabled="isProcessing"
+        label="Splitter Model"
       />
       
       <!-- Combined Config Card -->
@@ -368,10 +372,19 @@
 import { getTopChunkCategories, getRemainingChunkCategoryGroups } from '~/utils/chunkCategories'
 import type { ChunkCategory } from '~/utils/chunkCategories'
 import { formatPageRanges } from '~/utils/formatPageRanges'
-import TierSelector from './TierSelector.vue'
+import ModelSelector from './ModelSelector.vue'
+
+interface Provider {
+  id: string
+  name: string
+  type: string
+  configured: boolean
+  models: { model_id: string; name: string; provider: string }[]
+}
 
 interface Props {
   availableModels: string[]
+  providers?: Provider[]
   isProcessing: boolean
   canProcess: boolean
   activeTab: string
@@ -387,6 +400,8 @@ interface Emits {
     parserTier: string
     splitterTier: string
     splitMode: string
+    parserModelId?: string
+    splitterModelId?: string
   }): void
   (e: 'update:activeTab', value: string): void
   (e: 'cancel'): void
@@ -400,8 +415,8 @@ const viewMode = ref<'table' | 'code'>('table')
 const showMoreTemplates = ref(false)
 const allowUncategorized = ref(false)
 const splitMode = ref<'sections' | 'document_type'>('sections')
-const parserTier = ref<'Rapid' | 'Normal' | 'Advance'>('Normal')
-const splitterTier = ref<'Rapid' | 'Normal' | 'Advance'>('Normal')
+const selectedParserModelId = ref('')
+const selectedSplitterModelId = ref('')
 
 interface Category {
   name: string
@@ -620,9 +635,11 @@ const handleProcess = () => {
   const config = {
     categories: categoriesWithOrder,
     allowUncategorized: allowUncategorized.value,
-    parserTier: parserTier.value,
-    splitterTier: splitterTier.value,
-    splitMode: splitMode.value
+    parserTier: 'Normal',
+    splitterTier: 'Normal',
+    splitMode: splitMode.value,
+    parserModelId: selectedParserModelId.value || undefined,
+    splitterModelId: selectedSplitterModelId.value || undefined,
   }
   
   console.log('[SplitConfigPanel] Emitting process event with config:', config)

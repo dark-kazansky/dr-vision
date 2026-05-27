@@ -756,7 +756,7 @@ const handleGenerateSchema = async () => {
   try {
     // Get API base URL from runtime config
     const config = useRuntimeConfig()
-    const apiBaseUrl = config.public.apiBaseUrl || 'http://localhost:8000'
+    const apiBaseUrl = config.public.apiBaseUrl as string || 'http://localhost:8882'
     
     // Create FormData for the request
     const formData = new FormData()

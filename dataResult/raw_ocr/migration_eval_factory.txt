@@ -1,0 +1,45 @@
+--- Page 1 ---
+Migration Eval FE Factory
+Tags MSB_Note
+Danh sách API theo luồng hành trình FE
+Khi vừa qua màn này, call tới API POST /api/agents:
+Cụ thể sẽ update các thông tin sau:
+gateway_url: url để call lấy câu trả lời agent
+retrieval_url: url call lấy retrieval context từ knowledge retrieval
+Khi chọn xong Tri thức (knowledge base) thì sẽ call tới api POST
+/api/synthetic/v1/generate-testset
+API sẽ trả testset_id khi chạy gen xong
+Migration Eval FE Factory 1
+
+--- Page 2 ---
+Sử dụng api GET /api/testsets/v1/{testset_id}/testcases để lấy list testcase
+để hiển thị.
+Cho phép user sửa Câu trả lời, mỗi khi bấm Lưu nháp hay sang trang mới thì
+sẽ gọi api /api/testsets/v1/testcases/{testcase_id} để update các testcase
+đã được chỉnh sửa
+Khi người dùng bấm duyệt, và click chạy kiểm định, call api
+/api/testsets/v1/{testset_id}/versions/from-selection để tạo version mới của
+testset từ list testcase được chọn.
+Sau đó call tiếp api POST /api/runs/v1 để tạo 1 luồng chạy kiểm định 
+Call tiếp api POST /api/runs/v1/{run_id}/execute để chạy luồng mới khởi tạo
+Migration Eval FE Factory 2
+
+--- Page 3 ---
+Sau khi khởi chạy kiểm định, có thể call api GET
+/api/runs/v1/{run_id}/statistics để lấy các thông tin process 
+Nếu user click Dừng, call api POST /api/runs/v1/{run_id}/terminate để dừng
+luồng hiện tại
+Migration Eval FE Factory 3
+
+--- Page 4 ---
+Nếu chạy xong run, call api GET /api/runs/v1/{run_id}/statistics để lấy các
+thông tin tổng hợp như trên hình
+Nếu user click tải kết quả, thì call api GET /api/runs/v1/{run_id}/export để tải
+file excel về
+call api GET /api/runs/v1 để lấy thông tin các lịch sử chạy kiểm định
+Migration Eval FE Factory 4
+
+--- Page 5 ---
+call api GET /api/runs/v1/{run_id}/results để lấy chi tiết kết quả từng
+testcase
+Migration Eval FE Factory 5

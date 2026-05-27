@@ -3,18 +3,22 @@
     <!-- Build Tab Content -->
     <div v-if="props.activeTab === 'build'" class="panel-content">
     
-    <!-- Parser Tiers Section -->
-    <TierSelector
-      v-model="selectedParserTier"
-      label="Parser Tiers"
+    <!-- Model Selector (replaces Provider + Tier) -->
+    <ModelSelector
+      v-if="props.providers && props.providers.length > 0"
+      v-model="selectedModelId"
+      :providers="props.providers"
       :disabled="isProcessing"
+      label="Parser Model"
     />
     
-    <!-- Extractor Tiers Section -->
-    <TierSelector
-      v-model="selectedExtractorTier"
-      label="Extractor Tiers"
+    <!-- Extractor Model Selector -->
+    <ModelSelector
+      v-if="props.providers && props.providers.length > 0"
+      v-model="selectedExtractorModelId"
+      :providers="props.providers"
       :disabled="isProcessing"
+      label="Extractor Model"
     />
     
     <div class="config-section">
@@ -171,10 +175,19 @@
 import type { ExtractionConfig, ExtractionTarget, SchemaField } from '~/types/extraction'
 import ExtractionTargetSelector from './ExtractionTargetSelector.vue'
 import SchemaBuilder from './SchemaBuilder.vue'
-import TierSelector from './TierSelector.vue'
+import ModelSelector from './ModelSelector.vue'
+
+interface Provider {
+  id: string
+  name: string
+  type: string
+  configured: boolean
+  models: { model_id: string; name: string; provider: string }[]
+}
 
 interface Props {
   availableModels: string[]
+  providers?: Provider[]
   isProcessing: boolean
   canProcess: boolean
   activeTab: string
@@ -189,6 +202,8 @@ interface Emits {
     tier: string
     processAllPages: boolean
     processAllFiles: boolean
+    extractorModel?: string
+    extractorTier?: string
     extractionConfig?: ExtractionConfig
   }): void
   (e: 'update:activeTab', value: string): void
@@ -199,11 +214,10 @@ const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
 // Use composables
-const { getParserModel, getExtractorModel } = useTierConfig()
 const { info } = useNotification()
 
-const selectedParserTier = ref('Normal')
-const selectedExtractorTier = ref('Normal')
+const selectedModelId = ref('')
+const selectedExtractorModelId = ref('')
 const processAllPages = ref(false)
 const processAllFiles = ref(false)
 const errorMessage = ref('')
@@ -360,19 +374,13 @@ const highlightedJsonResult = computed(() => {
 const handleProcess = () => {
   errorMessage.value = ''
   
-  // Get parser model from parser tier using composable
-  const parserModel = getParserModel(selectedParserTier.value)
-  
-  // Get extractor model from extractor tier using composable
-  const extractorModel = getExtractorModel(selectedExtractorTier.value)
-  
-  if (!parserModel) {
-    errorMessage.value = 'Please select a parser tier'
+  if (!selectedModelId.value) {
+    errorMessage.value = 'Please select a parser model'
     return
   }
   
-  if (!extractorModel) {
-    errorMessage.value = 'Please select an extractor tier'
+  if (!selectedExtractorModelId.value) {
+    errorMessage.value = 'Please select an extractor model'
     return
   }
   
@@ -398,10 +406,10 @@ const handleProcess = () => {
     : undefined
   
   emit('process', {
-    modelId: parserModel,
-    tier: selectedParserTier.value,
-    extractorModel: extractorModel,
-    extractorTier: selectedExtractorTier.value,
+    modelId: selectedModelId.value,
+    tier: 'Normal',
+    extractorModel: selectedExtractorModelId.value,
+    extractorTier: 'Normal',
     processAllPages: processAllPages.value,
     processAllFiles: processAllFiles.value,
     extractionConfig

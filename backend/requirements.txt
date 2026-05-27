@@ -8,6 +8,7 @@ uvicorn[standard]==0.27.0
 
 # Data Validation
 pydantic>=2.5.3
+pydantic-settings>=2.1.0
 
 # Configuration
 pyyaml==6.0.1
@@ -36,6 +37,9 @@ boto3>=1.34.0
 # CORS Support (included with FastAPI but listed for clarity)
 # python-multipart is required for file uploads
 python-multipart==0.0.6
+
+# PostgreSQL (async)
+asyncpg>=0.29.0
 
 # Development Dependencies (optional)
 # pytest==7.4.4

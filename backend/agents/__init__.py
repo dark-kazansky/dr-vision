@@ -32,6 +32,9 @@ from agents.vllm_ocr_agent import VLLMOCRAgent
 # Adapters
 from agents.vlm_ocr_adapter import VLMOCRAdapter
 
+# Factory
+from agents.factory import AgentFactory
+
 __all__ = [
     # Base classes
     'BaseLLMAgent',
@@ -58,4 +61,7 @@ __all__ = [
     
     # Adapters
     'VLMOCRAdapter',
+
+    # Factory
+    'AgentFactory',
 ]

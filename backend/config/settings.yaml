@@ -14,19 +14,19 @@ api_providers:
     # Uses GOOGLE_STUDIO_API_KEY environment variable
     base_url: "https://generativelanguage.googleapis.com"
     timeout: 60
-  
+
   poe_api:
     # POE API for LLM-based processing
     # Uses POE_API_KEY environment variable
     base_url: "https://api.poe.com/v1"
     timeout: 120
-  
+
   lm_studio:
     # LM Studio API server for local models
     # Can be overridden with environment variable: LM_STUDIO_BASE_URL
     base_url: "http://localhost:1234"
     timeout: 30
-  
+
   bedrock:
     # AWS Bedrock Runtime (uses boto3, no base_url needed)
     # Uses BEDROCK_REGION env var (default: ap-southeast-2)
@@ -45,7 +45,7 @@ models:
   # Google Studio Models (Gemini API)
   # ---------------------------------------------------------------------------
   # Primary provider for OCR (VLM), Classification (LLM), Schema Generation
-  
+
   gemini-2.5-flash-lite:
     model_id: "gemini-2.5-flash-lite"
     provider: "google_studio"
@@ -53,7 +53,7 @@ models:
     max_tokens: 4096
     temperature: 0.2
     top_p: 0.9
-  
+
   gemini-2.5-flash:
     model_id: "gemini-2.5-flash"
     provider: "google_studio"
@@ -61,7 +61,7 @@ models:
     max_tokens: 4096
     temperature: 0.2
     top_p: 0.9
-  
+
   gemini-2.5-flash-image:
     model_id: "gemini-2.5-flash-image"
     provider: "google_studio"
@@ -69,7 +69,7 @@ models:
     max_tokens: 4096
     temperature: 0.2
     top_p: 0.9
-  
+
   gemini-3-pro-preview:
     model_id: "gemini-3-pro-preview"
     provider: "google_studio"
@@ -77,7 +77,7 @@ models:
     max_tokens: 4096
     temperature: 0.2
     top_p: 0.9
-  
+
   gemini-3-pro-image-preview:
     model_id: "gemini-3-pro-image-preview"
     provider: "google_studio"
@@ -85,12 +85,12 @@ models:
     max_tokens: 4096
     temperature: 0.2
     top_p: 0.9
-  
+
   # ---------------------------------------------------------------------------
   # POE API Models
   # ---------------------------------------------------------------------------
   # Secondary provider for Extraction, Splitting, and fallback operations
-  
+
   assistant:
     model_id: "assistant"
     provider: "poe_api"
@@ -98,7 +98,7 @@ models:
     max_tokens: 4096
     temperature: 0.2
     top_p: 0.9
-  
+
   gemini-3-flash:
     model_id: "gemini-3-flash"
     provider: "poe_api"
@@ -106,7 +106,7 @@ models:
     max_tokens: 4096
     temperature: 0.2
     top_p: 0.9
-  
+
   gemini-3-pro:
     model_id: "gemini-3-pro"
     provider: "poe_api"
@@ -114,7 +114,7 @@ models:
     max_tokens: 4096
     temperature: 0.2
     top_p: 0.9
-  
+
   qwen3-max:
     model_id: "qwen3-max"
     provider: "poe_api"
@@ -122,7 +122,7 @@ models:
     max_tokens: 4096
     temperature: 0.2
     top_p: 0.9
-  
+
   claude-opus-4.5:
     model_id: "claude-opus-4.5"
     provider: "poe_api"
@@ -130,12 +130,12 @@ models:
     max_tokens: 4096
     temperature: 0.2
     top_p: 0.9
-  
+
   # ---------------------------------------------------------------------------
   # LM Studio Models (Local)
   # ---------------------------------------------------------------------------
   # Local provider for offline OCR processing
-  
+
   deepseek-ocr:
     model_id: "deepseek-ocr"
     provider: "lm_studio"
@@ -143,7 +143,7 @@ models:
     max_tokens: 4096
     temperature: 0.2
     top_p: 0.9
-  
+
   lightonocr-2-1b:
     model_id: "lightonocr-2-1b"
     provider: "lm_studio"
@@ -151,13 +151,13 @@ models:
     max_tokens: 4096
     temperature: 0.2
     top_p: 0.9
-  
+
   # ---------------------------------------------------------------------------
   # AWS Bedrock Models
   # ---------------------------------------------------------------------------
   # Uses AWS credentials from environment (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)
   # Model IDs are inference profile ARNs from environment variables
-  
+
   claude-haiku:
     model_id: "claude-haiku"
     provider: "bedrock"
@@ -165,7 +165,7 @@ models:
     max_tokens: 4096
     temperature: 0.2
     top_p: 0.9
-  
+
   claude-sonnet:
     model_id: "claude-sonnet"
     provider: "bedrock"
@@ -186,21 +186,21 @@ fastapi:
   # Debug mode is disabled by default for production safety.
   # To enable for development, set environment variable: FASTAPI_DEBUG=true
   debug: false
-  
+
   # Host address to bind the server to
   # "0.0.0.0" allows external connections, "127.0.0.1" for localhost only
   host: "0.0.0.0"
-  
+
   # Port number for the server
-  port: 8082
-  
+  port: 8882
+
   # CORS (Cross-Origin Resource Sharing) allowed origins
   # List of URLs that can make requests to this API
   cors_origins:
-    - "http://localhost:3000"  # Nuxt.js development server
-    - "http://localhost:5001"  # Alternative frontend port
-    - "http://aimsb.theworkpc.com:3000"  # Production frontend
-    - "http://aimsb.theworkpc.com"  # Production frontend (port 80)
+    - "http://localhost:3000" # Nuxt.js development server
+    - "http://localhost:5001" # Alternative frontend port
+    - "http://aimsb.theworkpc.com:3000" # Production frontend
+    - "http://aimsb.theworkpc.com" # Production frontend (port 80)
 
 # =============================================================================
 # File Upload Configuration
@@ -210,10 +210,10 @@ fastapi:
 upload:
   # Directory where uploaded files are temporarily stored
   folder: "uploads"
-  
+
   # Maximum file size in megabytes
   max_size_mb: 10
-  
+
   # Allowed file extensions for upload
   allowed_extensions:
     - png
@@ -231,7 +231,7 @@ pdf:
   # Higher values produce better quality but slower processing
   # Recommended: 150-300 for most documents
   render_dpi: 200
-  
+
   # Whether to process all pages by default when not specified
   default_process_all_pages: false
 
@@ -243,13 +243,13 @@ pdf:
 split:
   # Model for splitting (uses POE API)
   model: "claude-opus-4.5"
-  
+
   # Maximum number of categories allowed
   max_categories: 50
-  
+
   # Request timeout in seconds
   timeout: 120
-  
+
   # Number of retry attempts for network errors
   retry_attempts: 3
 
@@ -284,6 +284,26 @@ background_tasks:
 
   # How long (in seconds) to keep completed/failed job results before cleanup
   job_ttl_seconds: 3600
+
+# =============================================================================
+# Job Queue Configuration
+# =============================================================================
+# Settings for the async job queue that processes workflow executions.
+
+job_queue:
+  # Maximum number of jobs that can run concurrently.
+  # Higher values = more throughput but more resource usage (CPU, RAM, API calls).
+  # Recommended: 2-4 for single server, scale with available AI API rate limits.
+  max_concurrent: 2
+
+  # Default timeout per job in seconds. Jobs exceeding this are marked as failed.
+  default_timeout: 300
+
+  # Default max retries per failed node within a job.
+  default_max_retries: 3
+
+  # Base delay (seconds) for exponential backoff between retries.
+  retry_delay_base: 1.0
 
 # =============================================================================
 # Tier Configuration Reference

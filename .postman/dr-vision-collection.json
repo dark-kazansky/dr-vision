@@ -1,0 +1,889 @@
+{
+  "info": {
+    "name": "Dr.Vision API",
+    "_postman_id": "dr-vision-api-collection",
+    "description": "Complete API collection for Dr.Vision OCR Web UI backend",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000"
+    }
+  ],
+  "item": [
+    {
+      "name": "System",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/health"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Has status field', () => { const j = pm.response.json(); pm.expect(j).to.have.property('status'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Check Models",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/models/check"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Response is JSON', () => pm.response.to.be.json);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Tier Config",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/tier-config"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Response is JSON', () => pm.response.to.be.json);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Test Logging",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/test-logging"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Job Queue Config",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/system/config/job-queue"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Has max_concurrent', () => { const j = pm.response.json(); pm.expect(j).to.have.property('max_concurrent'); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Providers",
+      "item": [
+        {
+          "name": "List Providers",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/providers"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Has providers array', () => { const j = pm.response.json(); pm.expect(j.providers).to.be.an('array'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Provider Detail",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/providers/{{provider_id}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Has provider id', () => { const j = pm.response.json(); pm.expect(j.id).to.equal(pm.variables.get('provider_id')); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Test Provider Connection",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/providers/{{provider_id}}/test"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Has success field', () => { const j = pm.response.json(); pm.expect(j).to.have.property('success'); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Uploads",
+      "item": [
+        {
+          "name": "Upload File",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/uploads",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": ""
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Has upload_id', () => { const j = pm.response.json(); if(j.upload_id) pm.environment.set('upload_id', j.upload_id); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Uploads",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/uploads?limit=50&offset=0",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "uploads"],
+              "query": [
+                {"key": "limit", "value": "50"},
+                {"key": "offset", "value": "0"}
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Has uploads array', () => { const j = pm.response.json(); pm.expect(j.uploads).to.be.an('array'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Upload by ID",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/uploads/{{upload_id}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 or 404', () => pm.expect(pm.response.code).to.be.oneOf([200, 404]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Download Upload",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/uploads/{{upload_id}}/download"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 or 404', () => pm.expect(pm.response.code).to.be.oneOf([200, 404]));",
+                  "if(pm.response.code === 200) { pm.test('Has Content-Disposition', () => pm.response.to.have.header('Content-Disposition')); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete Upload",
+          "request": {
+            "method": "DELETE",
+            "url": "{{base_url}}/api/v1/uploads/{{upload_id}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 or 404', () => pm.expect(pm.response.code).to.be.oneOf([200, 404]));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Data Store",
+      "item": [
+        {
+          "name": "List Data Store",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/data-store?limit=100&offset=0",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "data-store"],
+              "query": [
+                {"key": "limit", "value": "100"},
+                {"key": "offset", "value": "0"}
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Has entries array', () => { const j = pm.response.json(); pm.expect(j.entries).to.be.an('array'); });",
+                  "pm.test('Has total count', () => { const j = pm.response.json(); pm.expect(j).to.have.property('total'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Data Store by Tag",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/data-store?tag=Parse&limit=50&offset=0",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "data-store"],
+              "query": [
+                {"key": "tag", "value": "Parse"},
+                {"key": "limit", "value": "50"},
+                {"key": "offset", "value": "0"}
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('All entries have correct tag', () => { const j = pm.response.json(); j.entries.forEach(e => pm.expect(e.action_tag).to.equal('Parse')); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Data Store Entry",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/data-store",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"filename\": \"test.pdf\", \"action_tag\": \"Parse\", \"result_data\": {\"success\": true, \"text\": \"OCR result text here\"}, \"model_used\": \"gemini-2.5-flash\"}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Has id', () => { const j = pm.response.json(); pm.expect(j).to.have.property('id'); if(j.id) pm.environment.set('data_store_entry_id', j.id); });",
+                  "pm.test('Has correct tag', () => { const j = pm.response.json(); pm.expect(j.action_tag).to.equal('Parse'); });",
+                  "pm.test('Has created_at', () => { const j = pm.response.json(); pm.expect(j).to.have.property('created_at'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Data Store Entry (Classify)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/data-store",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"filename\": \"multi-doc.pdf\", \"action_tag\": \"Classify\", \"result_data\": {\"success\": true, \"results\": [{\"category\": \"Invoice\", \"confidence\": 0.95, \"pages\": [1,2]}, {\"category\": \"Receipt\", \"confidence\": 0.87, \"pages\": [3]}]}, \"model_used\": \"bedrock-claude\"}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Tag is Classify', () => { const j = pm.response.json(); pm.expect(j.action_tag).to.equal('Classify'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Data Store Entry (Extract)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/data-store",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"filename\": \"invoice-001.pdf\", \"action_tag\": \"Extract\", \"result_data\": {\"success\": true, \"invoice_number\": \"INV-2026-001\", \"total_amount\": 1500000, \"vendor\": \"ABC Corp\"}, \"model_used\": \"gemini-2.5-flash\"}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Tag is Extract', () => { const j = pm.response.json(); pm.expect(j.action_tag).to.equal('Extract'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Data Store Entry (Split)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/data-store",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"filename\": \"batch-scan.pdf\", \"action_tag\": \"Split\", \"result_data\": {\"success\": true, \"categories\": [{\"name\": \"Invoice\", \"pages\": \"1-3\"}, {\"name\": \"Contract\", \"pages\": \"4-8\"}]}, \"model_used\": \"gemini-2.5-flash\"}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Tag is Split', () => { const j = pm.response.json(); pm.expect(j.action_tag).to.equal('Split'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Data Store Entry (Workflow)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/data-store",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"filename\": \"workflow-result.pdf\", \"action_tag\": \"WF\", \"result_data\": {\"workflow_name\": \"Invoice Pipeline\", \"nodes\": [{\"type\": \"ocr\", \"label\": \"OCR\", \"result\": {\"text\": \"...\"}}]}}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Tag is WF', () => { const j = pm.response.json(); pm.expect(j.action_tag).to.equal('WF'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Data Store Entry (Invalid Tag)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/data-store",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"filename\": \"test.pdf\", \"action_tag\": \"InvalidTag\", \"result_data\": {\"text\": \"test\"}}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Has error detail', () => { const j = pm.response.json(); pm.expect(j.detail).to.include('Invalid action_tag'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Data Store Entry by ID",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/data-store/{{data_store_entry_id}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Has correct id', () => { const j = pm.response.json(); pm.expect(j.id).to.equal(pm.environment.get('data_store_entry_id')); });",
+                  "pm.test('Has result_data', () => { const j = pm.response.json(); pm.expect(j).to.have.property('result_data'); });",
+                  "pm.test('Has filename', () => { const j = pm.response.json(); pm.expect(j).to.have.property('filename'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Data Store Entry (Not Found)",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/data-store/00000000-0000-0000-0000-000000000000"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 404', () => pm.response.to.have.status(404));",
+                  "pm.test('Has not found detail', () => { const j = pm.response.json(); pm.expect(j.detail).to.include('not found'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete Data Store Entry",
+          "request": {
+            "method": "DELETE",
+            "url": "{{base_url}}/api/v1/data-store/{{data_store_entry_id}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Deleted flag true', () => { const j = pm.response.json(); pm.expect(j.deleted).to.be.true; });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete Data Store Entry (Not Found)",
+          "request": {
+            "method": "DELETE",
+            "url": "{{base_url}}/api/v1/data-store/00000000-0000-0000-0000-000000000000"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 404', () => pm.response.to.have.status(404));",
+                  "pm.test('Has not found detail', () => { const j = pm.response.json(); pm.expect(j.detail).to.include('not found'); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Jobs",
+      "item": [
+        {
+          "name": "List Jobs",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/jobs?limit=50&offset=0",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "jobs"],
+              "query": [
+                {"key": "limit", "value": "50"},
+                {"key": "offset", "value": "0"}
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Has jobs array', () => { const j = pm.response.json(); pm.expect(j.jobs).to.be.an('array'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Job Status (legacy)",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/job/{{job_id}}/status"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 or 404', () => pm.expect(pm.response.code).to.be.oneOf([200, 404]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Job Detail",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/jobs/{{job_id}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 or 404', () => pm.expect(pm.response.code).to.be.oneOf([200, 404]));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Workflows",
+      "item": [
+        {
+          "name": "List Workflows",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/workflows?limit=50&offset=0",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "workflows"],
+              "query": [
+                {"key": "limit", "value": "50"},
+                {"key": "offset", "value": "0"}
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Has workflows array', () => { const j = pm.response.json(); pm.expect(j.workflows).to.be.an('array'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Workflow",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/workflows",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\": \"Test Workflow\", \"description\": \"A test workflow\", \"steps\": [{\"type\": \"parse\", \"tier\": \"Normal\"}]}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "pm.test('Has workflow_id', () => { const j = pm.response.json(); if(j.workflow_id) pm.environment.set('workflow_id', j.workflow_id); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Workflow",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/workflows/{{workflow_id}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 or 404', () => pm.expect(pm.response.code).to.be.oneOf([200, 404]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete Workflow",
+          "request": {
+            "method": "DELETE",
+            "url": "{{base_url}}/api/v1/workflows/{{workflow_id}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 204 or 404', () => pm.expect(pm.response.code).to.be.oneOf([204, 404]));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Banking",
+      "item": [
+        {
+          "name": "Get Templates",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/banking/templates"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Has templates', () => { const j = pm.response.json(); pm.expect(j.success).to.be.true; pm.expect(j.templates).to.be.an('array'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Statements",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/banking/statements?limit=50&offset=0",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "banking", "statements"],
+              "query": [
+                {"key": "limit", "value": "50"},
+                {"key": "offset", "value": "0"}
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 or 503', () => pm.expect(pm.response.code).to.be.oneOf([200, 503]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Banking Stats",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/banking/stats"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 or 503', () => pm.expect(pm.response.code).to.be.oneOf([200, 503]));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Saved Files",
+      "item": [
+        {
+          "name": "List Saved Files",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/list-saved-files"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Response is JSON', () => pm.response.to.be.json);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "API Explorer",
+      "item": [
+        {
+          "name": "Get Endpoints",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api-explorer/endpoints"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Has endpoints', () => { const j = pm.response.json(); pm.expect(j.success).to.be.true; pm.expect(j.endpoints).to.be.an('array'); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Execution State",
+      "item": [
+        {
+          "name": "Get Execution State",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/jobs/{{job_id}}/state"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 or 404', () => pm.expect(pm.response.code).to.be.oneOf([200, 404]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get All Node Outputs",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/jobs/{{job_id}}/state/nodes"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Has node_outputs', () => { const j = pm.response.json(); pm.expect(j).to.have.property('node_outputs'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Execution Context",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/jobs/{{job_id}}/state/context"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Has context', () => { const j = pm.response.json(); pm.expect(j).to.have.property('context'); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

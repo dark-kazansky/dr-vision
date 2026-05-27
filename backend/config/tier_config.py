@@ -21,9 +21,11 @@ Model Configuration Format:
 - Dict with provider: {"model": "model_id", "provider": "google"} - Explicit provider
 """
 
+from __future__ import annotations
 from typing import Dict, List, Union
 from enum import Enum
 import logging
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -63,49 +65,28 @@ class TierConfig:
     # Priority: Speed and accuracy balance
     
     PARSER_TIER_TO_MODEL: Dict[str, ModelSpec] = {
-        Tier.RAPID: {"model": "lightonocr-2-1b", "provider": "lmstudio"},                   
-        Tier.NORMAL: {"model": "claude-haiku", "provider": "bedrock"},            
-        Tier.ADVANCE: {"model": "claude-sonnet", "provider": "bedrock"},       
-        # Rapid: Local LM Studio LightOnOCR model
-        # Normal: Claude Haiku via AWS Bedrock
-        # Advance: Claude Sonnet via AWS Bedrock
-    }
-    
-    # =============================================================================
-    # EXTRACTOR TIER MAPPINGS
-    # =============================================================================
-    # Used for: Structured data extraction
-    # Priority: Accuracy and reasoning
-    
-    EXTRACTOR_TIER_TO_MODEL: Dict[str, ModelSpec] = {
-        Tier.RAPID: {"model": "lightonocr-2-1b", "provider": "lmstudio"}, 
-        Tier.NORMAL: {"model": "claude-haiku", "provider": "bedrock"},     
+        Tier.RAPID: {"model": "lightonocr-2-1b", "provider": "lm_studio"},
+        Tier.NORMAL: {"model": "claude-haiku", "provider": "bedrock"},
         Tier.ADVANCE: {"model": "claude-sonnet", "provider": "bedrock"},
     }
-    
-    # =============================================================================
-    # CLASSIFIER LLM TIER MAPPINGS
-    # =============================================================================
-    # Used for: Classification step (determining document type)
-    # Priority: Classification accuracy
-    
-    CLASSIFIER_LLM_TIER_TO_MODEL: Dict[str, ModelSpec] = {
-        Tier.RAPID: {"model": "lightonocr-2-1b", "provider": "lmstudio"},    
-        Tier.NORMAL: {"model": "claude-haiku", "provider": "bedrock"},        
-        Tier.ADVANCE: {"model": "claude-sonnet", "provider": "bedrock"},   
-        Tier.MULTIMODAL: {"model": "claude-sonnet", "provider": "bedrock"}, 
+
+    EXTRACTOR_TIER_TO_MODEL: Dict[str, ModelSpec] = {
+        Tier.RAPID: {"model": "lightonocr-2-1b", "provider": "lm_studio"},
+        Tier.NORMAL: {"model": "claude-haiku", "provider": "bedrock"},
+        Tier.ADVANCE: {"model": "claude-sonnet", "provider": "bedrock"},
     }
-    
-    # =============================================================================
-    # SPLITTER TIER MAPPINGS
-    # =============================================================================
-    # Used for: Document splitting and categorization
-    # Priority: Vision and understanding
-    
+
+    CLASSIFIER_LLM_TIER_TO_MODEL: Dict[str, ModelSpec] = {
+        Tier.RAPID: {"model": "lightonocr-2-1b", "provider": "lm_studio"},
+        Tier.NORMAL: {"model": "claude-haiku", "provider": "bedrock"},
+        Tier.ADVANCE: {"model": "claude-sonnet", "provider": "bedrock"},
+        Tier.MULTIMODAL: {"model": "claude-sonnet", "provider": "bedrock"},
+    }
+
     SPLITTER_TIER_TO_MODEL: Dict[str, ModelSpec] = {
-        Tier.RAPID: {"model": "lightonocr-2-1b", "provider": "lmstudio"},    
-        Tier.NORMAL: {"model": "claude-haiku", "provider": "bedrock"},        
-        Tier.ADVANCE: {"model": "claude-sonnet", "provider": "bedrock"},   
+        Tier.RAPID: {"model": "lightonocr-2-1b", "provider": "lm_studio"},
+        Tier.NORMAL: {"model": "claude-haiku", "provider": "bedrock"},
+        Tier.ADVANCE: {"model": "claude-sonnet", "provider": "bedrock"},
     }
     
     # =============================================================================
@@ -130,7 +111,33 @@ class TierConfig:
     # =============================================================================
     # HELPER METHODS
     # =============================================================================
-    
+
+    @classmethod
+    def load_overrides(cls) -> None:
+        """Load persisted tier overrides from disk (if exists)."""
+        import json
+        override_path = os.path.join(os.path.dirname(__file__), "tier_overrides.json")
+        if not os.path.exists(override_path):
+            return
+        try:
+            with open(override_path, "r") as f:
+                data = json.load(f)
+            feature_map = {
+                "parser": cls.PARSER_TIER_TO_MODEL,
+                "extractor": cls.EXTRACTOR_TIER_TO_MODEL,
+                "classifier_llm": cls.CLASSIFIER_LLM_TIER_TO_MODEL,
+                "splitter": cls.SPLITTER_TIER_TO_MODEL,
+            }
+            for feature, tiers in data.items():
+                if feature in feature_map:
+                    for tier, spec in tiers.items():
+                        feature_map[feature][tier] = spec
+            import logging
+            logging.getLogger(__name__).info("Loaded tier overrides from %s", override_path)
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning("Failed to load tier overrides: %s", e)
+
     @classmethod
     def _resolve_model_spec(cls, model_spec: ModelSpec) -> tuple[str, str | None]:
         """
@@ -329,6 +336,10 @@ class TierConfig:
             "colors": cls.TIER_COLORS,
             "tiers": cls.get_all_tiers(),
         }
+
+
+# Load persisted overrides on module import
+TierConfig.load_overrides()
 
 
 # =============================================================================

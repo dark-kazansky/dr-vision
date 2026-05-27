@@ -1,0 +1,8 @@
+{
+  "note": "Postman MCP server was not connected. Import the collection from .postman/dr-vision-collection.json manually, then update the IDs below.",
+  "workspaceId": "",
+  "collectionId": "",
+  "environmentId": "",
+  "collectionFile": ".postman/dr-vision-collection.json",
+  "environmentFile": ".postman/dr-vision-environment.json"
+}

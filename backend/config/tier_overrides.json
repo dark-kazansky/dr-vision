@@ -1,0 +1,62 @@
+{
+  "parser": {
+    "Rapid": {
+      "model": "lightonocr-2-1b",
+      "provider": "lm_studio"
+    },
+    "Normal": {
+      "model": "claude-haiku",
+      "provider": "bedrock"
+    },
+    "Advance": {
+      "model": "claude-sonnet",
+      "provider": "bedrock"
+    }
+  },
+  "extractor": {
+    "Rapid": {
+      "model": "gemini-2.5-flash-lite",
+      "provider": "google_studio"
+    },
+    "Normal": {
+      "model": "gemini-2.5-flash-image",
+      "provider": "google_studio"
+    },
+    "Advance": {
+      "model": "gemini-3-pro-image-preview",
+      "provider": "google_studio"
+    }
+  },
+  "classifier_llm": {
+    "Rapid": {
+      "model": "lightonocr-2-1b",
+      "provider": "lm_studio"
+    },
+    "Normal": {
+      "model": "claude-haiku",
+      "provider": "bedrock"
+    },
+    "Advance": {
+      "model": "claude-sonnet",
+      "provider": "bedrock"
+    },
+    "Multimodal": {
+      "model": "claude-sonnet",
+      "provider": "bedrock"
+    }
+  },
+  "splitter": {
+    "Rapid": {
+      "model": "lightonocr-2-1b",
+      "provider": "lm_studio"
+    },
+    "Normal": {
+      "model": "claude-haiku",
+      "provider": "bedrock"
+    },
+    "Advance": {
+      "model": "claude-sonnet",
+      "provider": "bedrock"
+    }
+  }
+}

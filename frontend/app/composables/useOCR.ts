@@ -30,6 +30,7 @@ export interface OCRConfig {
   tier: 'Rapid' | 'Normal' | 'Advance'
   processAllPages: boolean
   modelId: string
+  provider?: string
   extractorModel?: string
   extractorTier?: string
   extractionConfig?: any
@@ -55,7 +56,7 @@ export function useOCR() {
   let abortController: AbortController | null = null
   
   /**
-   * Upload files to the file list
+   * Upload files to MinIO via backend API and add to local state
    */
   const uploadFiles = async (newFiles: File[]) => {
     const duplicates: string[] = []
@@ -76,15 +77,39 @@ export function useOCR() {
       }
     }
     
-    // Add only unique files
-    const fileItems: FileItem[] = uniqueFiles.map(file => ({
-      id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      name: file.name,
-      type: file.name.toLowerCase().endsWith('.pdf') ? 'pdf' : 'image',
-      size: file.size,
-      status: 'pending' as const,
-      uploadedAt: new Date()
-    }))
+    // Upload each unique file to backend (MinIO)
+    const fileItems: FileItem[] = []
+    for (const file of uniqueFiles) {
+      try {
+        const formData = new FormData()
+        formData.append('file', file)
+        
+        const response = await $fetch<{ upload_id: string; filename: string; size_bytes: number; mime_type: string; uploaded_at: string }>(`${apiBaseUrl}/api/v1/uploads`, {
+          method: 'POST',
+          body: formData,
+        })
+        
+        fileItems.push({
+          id: response.upload_id,
+          name: response.filename,
+          type: file.name.toLowerCase().endsWith('.pdf') ? 'pdf' : 'image',
+          size: response.size_bytes || file.size,
+          status: 'pending' as const,
+          uploadedAt: new Date(response.uploaded_at),
+        })
+      } catch (error) {
+        console.error(`Failed to upload ${file.name}:`, error)
+        // Still add to local state as fallback with temp ID
+        fileItems.push({
+          id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          name: file.name,
+          type: file.name.toLowerCase().endsWith('.pdf') ? 'pdf' : 'image',
+          size: file.size,
+          status: 'pending' as const,
+          uploadedAt: new Date(),
+        })
+      }
+    }
     
     files.value = [...files.value, ...fileItems]
     
@@ -92,6 +117,35 @@ export function useOCR() {
     return {
       added: uniqueFiles.length,
       duplicates: duplicates
+    }
+  }
+
+  /**
+   * Load previously uploaded files from backend
+   */
+  const loadUploads = async () => {
+    try {
+      const response = await $fetch<{ uploads: Array<{ upload_id: string; filename: string; size_bytes: number; mime_type: string; uploaded_at: string }> }>(`${apiBaseUrl}/api/v1/uploads`)
+      
+      if (response.uploads && response.uploads.length > 0) {
+        const loadedFiles: FileItem[] = response.uploads.map(upload => ({
+          id: upload.upload_id,
+          name: upload.filename,
+          type: (upload.mime_type === 'application/pdf' || upload.filename.toLowerCase().endsWith('.pdf')) ? 'pdf' as const : 'image' as const,
+          size: upload.size_bytes || 0,
+          status: 'pending' as const,
+          uploadedAt: new Date(upload.uploaded_at),
+        }))
+        
+        // Merge with existing files (avoid duplicates by ID)
+        const existingIds = new Set(files.value.map(f => f.id))
+        const newFiles = loadedFiles.filter(f => !existingIds.has(f.id))
+        if (newFiles.length > 0) {
+          files.value = [...newFiles, ...files.value]
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load uploads:', error)
     }
   }
   
@@ -120,6 +174,9 @@ export function useOCR() {
       formData.append('model_id', config.modelId)
       formData.append('process_all_pages', config.processAllPages.toString())
       formData.append('tier', config.tier)
+      if (config.provider) {
+        formData.append('provider', config.provider)
+      }
       
       // Add extraction parameters if provided
       if (config.extractionConfig) {
@@ -210,6 +267,9 @@ export function useOCR() {
       formData.append('max_pages', config.maxPages.toString())
       formData.append('classification_rules', JSON.stringify(config.classificationRules))
       formData.append('is_multimodal', config.isMultimodal.toString())
+      if (config.provider) {
+        formData.append('provider', config.provider)
+      }
       
       // Make API request with abort signal
       const response = await $fetch<any>(`${apiBaseUrl}/classify`, {
@@ -282,6 +342,9 @@ export function useOCR() {
       formData.append('parser_tier', config.parserTier || 'Normal')
       formData.append('splitter_tier', config.splitterTier || 'Normal')
       formData.append('split_mode', config.splitMode || 'sections')
+      if (config.provider) {
+        formData.append('provider', config.provider)
+      }
       
       // Make API request with abort signal
       const response = await $fetch<any>(`${apiBaseUrl}/split`, {
@@ -328,14 +391,22 @@ export function useOCR() {
   }
   
   /**
-   * Remove a file from the list
+   * Remove a file from the list and delete from backend
    */
-  const removeFile = (fileId: string) => {
+  const removeFile = async (fileId: string) => {
     files.value = files.value.filter(f => f.id !== fileId)
     
     // Clear results if this was the active file
     if (results.value?.filename === files.value.find(f => f.id === fileId)?.name) {
       results.value = null
+    }
+    
+    // Delete from backend (fire and forget)
+    try {
+      await $fetch(`${apiBaseUrl}/api/v1/uploads/${fileId}`, { method: 'DELETE' })
+    } catch (error) {
+      // Silently ignore — file may have been a local-only upload
+      console.warn('Failed to delete upload from backend:', error)
     }
   }
   
@@ -380,6 +451,7 @@ export function useOCR() {
     
     // Methods
     uploadFiles,
+    loadUploads,
     processFile,
     classifyFile,
     splitFile,

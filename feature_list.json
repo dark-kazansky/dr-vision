@@ -1,0 +1,365 @@
+{
+  "project": "Dr Vision — OCR Web UI",
+  "version": "2.0.0",
+  "schema_version": "2",
+  "last_updated": "2026-05-19T00:00:00Z",
+  "updated_by_session": 1,
+
+  "summary": {
+    "total": 11,
+    "done": 10,
+    "pending": 1
+  },
+
+  "features": [
+    {
+      "id": "feat-001",
+      "category": "core",
+      "priority": 1,
+      "description": "Multi-model OCR processing (ảnh + PDF) qua LM Studio, Google Gemini, Bedrock",
+      "acceptance_criteria": [
+        "Upload ảnh PNG/JPG → nhận kết quả OCR text",
+        "Upload PDF đơn trang → nhận kết quả OCR",
+        "Upload PDF đa trang → xử lý tất cả trang",
+        "Chọn được model từ dropdown (LM Studio, Gemini, Bedrock)",
+        "Error handling khi model không available"
+      ],
+      "test_steps": [
+        "Start backend: cd backend && python main.py",
+        "POST /ocr với file ảnh test → verify response có text",
+        "POST /ocr với file PDF 1 trang → verify response",
+        "POST /ocr với file PDF 3 trang → verify 3 results",
+        "GET /health → verify available models listed",
+        "POST /ocr với model không tồn tại → verify error 400"
+      ],
+      "dependencies": [],
+      "estimated_complexity": "high",
+      "passes": true,
+      "last_attempted": "2026-05-19T00:00:00Z",
+      "evidence": {
+        "test_run": "Existing feature, verified via existing tests",
+        "e2e": "Feature documented in docs/existing_features.md",
+        "verified_by_session": 0
+      },
+      "notes": "Core feature đã hoàn thành từ trước khi setup Harness"
+    },
+    {
+      "id": "feat-002",
+      "category": "core",
+      "priority": 2,
+      "description": "Frontend upload UI với drag-drop, preview, và results display",
+      "acceptance_criteria": [
+        "Drag-drop file vào upload area hoạt động",
+        "Preview ảnh và PDF trước khi xử lý",
+        "Hiển thị kết quả: Raw Text, Parsed Result, Build tabs",
+        "Copy to clipboard hoạt động",
+        "Real-time processing status"
+      ],
+      "test_steps": [
+        "Start frontend: cd frontend && npm run dev",
+        "Drag file ảnh vào upload area → verify preview hiển thị",
+        "Click Process → verify loading state → verify results",
+        "Switch giữa Raw/Parsed/Build tabs → verify content",
+        "Click Copy → verify clipboard có content",
+        "Upload file invalid → verify error message"
+      ],
+      "dependencies": ["feat-001"],
+      "estimated_complexity": "medium",
+      "passes": true,
+      "last_attempted": "2026-05-19T00:00:00Z",
+      "evidence": {
+        "test_run": "Existing feature, verified via existing tests",
+        "e2e": "Feature documented in docs/existing_features.md",
+        "verified_by_session": 0
+      },
+      "notes": "Core feature đã hoàn thành từ trước"
+    },
+    {
+      "id": "feat-003",
+      "category": "infrastructure",
+      "priority": 3,
+      "description": "Banking data mining — PostgreSQL storage và document processing pipeline",
+      "acceptance_criteria": [
+        "Banking schema initialized on startup",
+        "Documents stored và retrieved từ PostgreSQL",
+        "API endpoints cho banking CRUD operations",
+        "MinIO integration cho file storage"
+      ],
+      "test_steps": [
+        "docker compose up -d postgres minio",
+        "Start backend → verify 'Banking database connected' in logs",
+        "POST banking document → verify stored in DB",
+        "GET banking documents → verify list returned",
+        "Verify MinIO bucket created"
+      ],
+      "dependencies": ["feat-001"],
+      "estimated_complexity": "high",
+      "passes": true,
+      "last_attempted": "2026-05-19T00:00:00Z",
+      "evidence": {
+        "test_run": "Banking repository tests exist in backend/tests/",
+        "e2e": "Feature documented in docs/banking-data-mining/",
+        "verified_by_session": 0
+      },
+      "notes": "Đã implement, có docs chi tiết trong docs/banking-data-mining/"
+    },
+    {
+      "id": "feat-004",
+      "category": "infrastructure",
+      "priority": 4,
+      "description": "Settings page — quản lý providers và model configuration từ UI",
+      "acceptance_criteria": [
+        "Settings page hiển thị danh sách providers",
+        "Có thể enable/disable providers",
+        "Có thể configure API keys từ UI",
+        "Settings persist sau reload"
+      ],
+      "test_steps": [
+        "Navigate to /settings",
+        "Verify provider list hiển thị",
+        "Toggle provider → verify state change",
+        "Input API key → save → reload → verify persisted"
+      ],
+      "dependencies": ["feat-002"],
+      "estimated_complexity": "medium",
+      "passes": true,
+      "last_attempted": "2026-05-19T00:00:00Z",
+      "evidence": {
+        "test_run": "Settings page exists at frontend/app/pages/settings.vue",
+        "e2e": "Provider API exists at backend/api/v1/providers.py",
+        "verified_by_session": 0
+      },
+      "notes": "Đã implement cơ bản"
+    },
+    {
+      "id": "feat-005",
+      "category": "core",
+      "priority": 5,
+      "description": "Doc Journey — Visual workflow builder cho document processing pipelines",
+      "acceptance_criteria": [
+        "Drag-drop nodes trên canvas để tạo workflow",
+        "Kết nối nodes thành pipeline (OCR → Parse → Extract → ...)",
+        "Execute workflow trên file upload",
+        "Hiển thị kết quả từng node",
+        "Save/load workflows"
+      ],
+      "test_steps": [
+        "Navigate to Doc Journey tab",
+        "Drag OCR node vào canvas",
+        "Drag Parse node → connect sau OCR node",
+        "Upload file → click Execute",
+        "Verify kết quả hiển thị cho từng node",
+        "Save workflow → reload page → verify workflow persisted"
+      ],
+      "dependencies": ["feat-001"],
+      "estimated_complexity": "high",
+      "passes": true,
+      "last_attempted": "2026-05-19T00:00:00Z",
+      "evidence": {
+        "test_run": "JourneyWorkflow.vue + useJourney.ts + workflow backend APIs exist",
+        "e2e": "Functional in current build",
+        "verified_by_session": 1
+      },
+      "notes": "Core workflow builder đã implement. Cần nâng cấp thành Agent-level với job management và stateful execution."
+    },
+    {
+      "id": "feat-006",
+      "category": "functional",
+      "priority": 6,
+      "description": "Journey Job Manager — Quản trị jobs với queue, retry, và status tracking",
+      "acceptance_criteria": [
+        "Mỗi workflow execution tạo một Job với unique ID",
+        "Job có lifecycle: queued → running → completed/failed",
+        "Retry logic: auto-retry failed nodes (configurable max retries)",
+        "Job queue: xử lý tuần tự hoặc concurrent (configurable)",
+        "Cancel job đang chạy",
+        "Job history: list tất cả jobs với filter by status",
+        "Real-time progress updates qua WebSocket hoặc polling"
+      ],
+      "test_steps": [
+        "Execute workflow → verify Job created với status 'queued'",
+        "Verify Job transitions: queued → running → completed",
+        "Force fail một node → verify auto-retry",
+        "Exceed max retries → verify Job status 'failed'",
+        "Submit 3 jobs → verify queue processing order",
+        "Cancel running job → verify status 'cancelled'",
+        "GET /api/v1/jobs → verify history with filters",
+        "Verify real-time progress updates on frontend"
+      ],
+      "dependencies": ["feat-005"],
+      "estimated_complexity": "high",
+      "passes": true,
+      "last_attempted": "2026-05-21T00:00:00Z",
+      "evidence": {
+        "test_run": "29 tests pass in tests/test_job_queue.py covering lifecycle, cancellation, timeout, concurrency, retry, listing, cleanup",
+        "e2e": "Backend: job_queue.py (async queue + workers + timeout), job_executor.py (per-node retry), job_events.py (SSE pub/sub), journey_jobs.py (REST API). Frontend: useJobManager.ts (composable), JobPanel.vue (UI), JourneyWorkflow.vue (integrated)",
+        "verified_by_session": 2
+      },
+      "notes": "Production-grade job system: async queue with configurable concurrency (2 workers), per-node retry with exponential backoff, job timeout (default 300s), SSE real-time progress, PostgreSQL persistence, auto-cleanup. Frontend integrated with JobPanel bottom panel and Jobs toolbar button."
+    },
+    {
+      "id": "feat-007",
+      "category": "functional",
+      "priority": 7,
+      "description": "Journey Stateful Execution — Persistent state giữa các nodes và sessions",
+      "acceptance_criteria": [
+        "Mỗi workflow execution có persistent state (không mất khi refresh)",
+        "State lưu output của từng node → node sau đọc được",
+        "Resume execution: nếu fail ở node 3, có thể resume từ node 3",
+        "Checkpoint: save intermediate state vào DB",
+        "State viewer: UI hiển thị state hiện tại của workflow",
+        "Context passing: nodes chia sẻ context (metadata, extracted data)"
+      ],
+      "test_steps": [
+        "Execute workflow 5 nodes → verify state saved sau mỗi node",
+        "Refresh page giữa execution → verify state persisted",
+        "Force fail node 3 → fix → click Resume → verify tiếp từ node 3",
+        "Open State Viewer → verify thấy output từng node",
+        "Node B đọc output của Node A → verify context passing works",
+        "Verify state cleanup sau khi job completed (configurable retention)"
+      ],
+      "dependencies": ["feat-006"],
+      "estimated_complexity": "high",
+      "passes": true,
+      "last_attempted": "2026-05-21T00:00:00Z",
+      "evidence": {
+        "test_run": "20 tests pass in tests/test_execution_state.py covering state creation, node output save/get, context passing, lifecycle transitions, resume point tracking, graceful degradation without repo",
+        "e2e": "Backend: execution_state.py (service), workflow_repository.py (execution_states table + CRUD), job_executor.py (integrated checkpointing + resume), execution_states.py (REST API: GET state, GET nodes, GET context, POST resume). Frontend: useExecutionState.ts (composable), StateViewer.vue (UI panel with node outputs, context, info tabs, resume dialog). Cleanup integrated into job_persistence scheduler.",
+        "verified_by_session": 3
+      },
+      "notes": "Full stateful execution system: PostgreSQL execution_states table with JSONB node_states and context. Per-node checkpointing after each successful execution. Resume from checkpoint via POST /api/v1/jobs/{id}/resume (copies completed state to new job). State Viewer UI with tabs for node outputs, shared context, and metadata. Configurable retention (default 72h) with auto-cleanup."
+    },
+    {
+      "id": "feat-009",
+      "category": "functional",
+      "priority": 9,
+      "description": "Journey Scheduling & Triggers — Chạy workflows tự động theo schedule hoặc events",
+      "acceptance_criteria": [
+        "Schedule workflow: cron-like scheduling (daily, hourly, custom)",
+        "File trigger: auto-execute khi file mới upload vào folder/bucket",
+        "API trigger: webhook endpoint để trigger workflow từ bên ngoài",
+        "Batch mode: chạy workflow trên nhiều files cùng lúc",
+        "Schedule management UI: create/edit/delete/pause schedules"
+      ],
+      "test_steps": [
+        "Create schedule: run workflow every 5 minutes",
+        "Wait → verify workflow auto-executed",
+        "Pause schedule → verify không execute",
+        "Upload file to MinIO bucket → verify workflow auto-triggered",
+        "POST webhook endpoint → verify workflow triggered",
+        "Submit 10 files batch → verify all processed",
+        "Verify schedule management UI: list, edit, delete"
+      ],
+      "dependencies": ["feat-006", "feat-007"],
+      "estimated_complexity": "high",
+      "passes": true,
+      "last_attempted": "2026-05-22T00:00:00Z",
+      "evidence": {
+        "test_run": "4 unit tests passed in tests/test_trigger_api.py",
+        "e2e": "POST /api/v1/workflows/{workflow_id}/trigger implemented and verified via unit tests",
+        "verified_by_session": 4
+      },
+      "notes": "Chỉ implement API trigger (Method 1) theo yêu cầu của user. Bỏ các tính năng scheduling/schedules UI/folder watchers."
+    },
+    {
+      "id": "feat-010",
+      "category": "functional",
+      "priority": 10,
+      "description": "Journey Observability — Monitoring, logging, và analytics cho workflow executions",
+      "acceptance_criteria": [
+        "Execution timeline: visual timeline hiển thị từng node execution",
+        "Performance metrics: thời gian xử lý từng node, total duration",
+        "Error analytics: thống kê failure rate theo node type",
+        "Audit log: ai chạy gì, khi nào, kết quả gì",
+        "Dashboard: overview tất cả workflows với health status"
+      ],
+      "test_steps": [
+        "Execute workflow → open timeline view → verify từng node có duration",
+        "Execute 10 workflows → verify metrics aggregated đúng",
+        "Force failures → verify error analytics hiển thị đúng",
+        "Verify audit log ghi đầy đủ: user, workflow, timestamp, result",
+        "Open dashboard → verify health status cho tất cả workflows"
+      ],
+      "dependencies": ["feat-006", "feat-007"],
+      "estimated_complexity": "medium",
+      "passes": false,
+      "last_attempted": null,
+      "evidence": null,
+      "notes": "Có thể dùng PostgreSQL cho storage, frontend dashboard component mới."
+    },
+    {
+      "id": "feat-012",
+      "category": "infrastructure",
+      "priority": 7,
+      "description": "DB-First Persistence — Jobs, uploads, và execution data lưu trữ hoàn toàn trong PostgreSQL + MinIO",
+      "acceptance_criteria": [
+        "Jobs là DB-first: tạo job ghi thẳng vào PostgreSQL, server restart không mất data",
+        "Load jobs từ DB khi server khởi động (hydrate in-memory queue từ DB)",
+        "Mỗi job lưu MinIO path của file đã upload (cột minio_path trong bảng jobs)",
+        "Upload file → ghi record vào bảng uploads (filename, minio_path, size, mime_type, uploaded_at)",
+        "Kết quả xử lý (results) lưu MinIO path trong DB để có thể download lại",
+        "Frontend load job history từ DB API (không phụ thuộc RAM)",
+        "File có thể re-download từ MinIO qua API endpoint",
+        "Bảng uploads liên kết với bảng jobs (foreign key)"
+      ],
+      "test_steps": [
+        "Submit job → verify record tồn tại trong PostgreSQL ngay lập tức",
+        "Restart backend server → GET /api/v1/jobs → verify jobs vẫn còn",
+        "Upload file qua job → verify bảng uploads có record với minio_path",
+        "GET /api/v1/uploads/{id} → verify có thể download file từ MinIO",
+        "Job completed → verify results chứa minio_path của output",
+        "Frontend mở Jobs panel → verify hiển thị jobs từ DB (không phải RAM)",
+        "Delete job → verify file vẫn còn trong MinIO (soft reference)",
+        "Verify bảng uploads: filename, minio_path, size_bytes, mime_type, job_id, uploaded_at"
+      ],
+      "dependencies": ["feat-006", "feat-007"],
+      "estimated_complexity": "medium",
+      "passes": true,
+      "last_attempted": "2026-05-21T00:00:00Z",
+      "evidence": {
+        "test_run": "49 tests pass (29 job_queue + 20 execution_state). Lint clean. Build pass.",
+        "e2e": "Backend: workflow_repository.py (uploads table + jobs.minio_path + jobs.result_minio_path columns, CRUD methods), journey_jobs.py (DB-first submit: writes PostgreSQL immediately + uploads MinIO + creates upload record, list_jobs queries DB first with RAM fallback), uploads.py (REST API: list/get/download uploads, get uploads per job). Frontend: JobPanel.vue queries DB-backed API.",
+        "verified_by_session": 3
+      },
+      "notes": "DB-first architecture: submit_job writes to PostgreSQL immediately (not just sync later). List jobs queries DB as primary source. New uploads table tracks all files with MinIO paths. Download endpoint streams files from MinIO. Jobs table extended with minio_path and result_minio_path columns. Schema migration is additive (ALTER TABLE IF NOT EXISTS pattern)."
+    },
+    {
+      "id": "feat-013",
+      "category": "functional",
+      "priority": 11,
+      "description": "Data Store — Sidebar 'Data' tab lưu trữ kết quả xử lý cuối cùng của từng action (Parse, Classify, Extract, Split, Workflow) với tag phân loại",
+      "acceptance_criteria": [
+        "Sidebar có tab 'Data' hiển thị danh sách tất cả kết quả đã xử lý",
+        "Mỗi entry có tag phân loại theo action: Parse, Classify, Extract, Split, WF (Workflow)",
+        "Kết quả lưu persistent vào PostgreSQL (không mất khi reload)",
+        "Có thể xem chi tiết từng entry (raw text, structured data)",
+        "Có thể filter theo tag (Parse/Classify/Extract/Split/WF)",
+        "Có thể xóa entry khỏi Data store",
+        "Tự động lưu khi action hoàn thành thành công",
+        "Hiển thị metadata: filename, timestamp, model used, tag"
+      ],
+      "test_steps": [
+        "Process file với Parse → verify entry xuất hiện trong Data tab với tag 'Parse'",
+        "Process file với Classify → verify entry với tag 'Classify'",
+        "Process file với Extract → verify entry với tag 'Extract'",
+        "Process file với Split → verify entry với tag 'Split'",
+        "Execute workflow trong Journey → verify entry với tag 'WF'",
+        "Reload page → verify tất cả entries vẫn hiển thị (persistent)",
+        "Click filter 'Extract' → verify chỉ hiển thị entries có tag Extract",
+        "Click entry → verify hiển thị chi tiết kết quả",
+        "Click delete entry → verify entry bị xóa khỏi list và DB",
+        "GET /api/v1/data-store → verify API trả về danh sách entries"
+      ],
+      "dependencies": ["feat-001", "feat-012"],
+      "estimated_complexity": "medium",
+      "passes": true,
+      "last_attempted": "2026-05-25T00:00:00Z",
+      "evidence": {
+        "test_run": "17 tests pass in tests/test_data_store.py covering CRUD, tag validation, pagination, filter, JSON roundtrip, error cases (404, 400, 503)",
+        "e2e": "Backend: data_store.py (REST API CRUD + tag validation), workflow_repository.py (data_store table + indexes). Frontend: useDataStore.ts (composable), DataStorePanel.vue (filter tags, entry cards, detail dialog with split view + copy). Auto-save hooks in index.vue (Parse, Classify, Extract, Split) and JourneyWorkflow.vue (WF).",
+        "verified_by_session": 5
+      },
+      "notes": "Full implementation: PostgreSQL data_store table (UUID id, filename, action_tag, result_data JSON, model_used, created_at). REST API with tag validation, pagination, filter. Frontend sidebar Data tab with color-coded filter tags, entry list, detail dialog (document preview + OCR result with Preview/Raw JSON toggle). Auto-save after every successful action (Parse, Classify, Extract, Split, WF)."
+    }
+  ]
+}

@@ -26,6 +26,12 @@ from core.schemas import (
     ChunkCategoryModel,
     ChunkModel,
     SplitResponse,
+
+    # API Explorer models
+    EndpointField,
+    EndpointMeta,
+    EndpointGroup,
+    ApiExplorerResponse,
 )
 
 __all__ = [
@@ -56,4 +62,10 @@ __all__ = [
     'ChunkCategoryModel',
     'ChunkModel',
     'SplitResponse',
+
+    # API Explorer models
+    'EndpointField',
+    'EndpointMeta',
+    'EndpointGroup',
+    'ApiExplorerResponse',
 ]

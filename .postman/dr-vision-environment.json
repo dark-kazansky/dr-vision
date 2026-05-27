@@ -1,0 +1,49 @@
+{
+  "id": "dr-vision-local-env",
+  "name": "Dr.Vision Local",
+  "values": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "upload_id",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "job_id",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "workflow_id",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "statement_id",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "provider_id",
+      "value": "google_studio",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "data_store_entry_id",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    }
+  ],
+  "_postman_variable_scope": "environment"
+}

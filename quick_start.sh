@@ -48,15 +48,15 @@ cd ..
 echo "⏳ Waiting for backend to start..."
 sleep 5
 
-# Check if backend started successfully (port 8082)
-if ! lsof -i :8082 >/dev/null 2>&1; then
+# Check if backend started successfully (port 8000)
+if ! lsof -i :8000 >/dev/null 2>&1; then
     echo "❌ Backend failed to start"
     echo "   Check backend/main.py for errors"
     kill $BACKEND_PID 2>/dev/null
     exit 1
 fi
 
-echo "✅ Backend started on http://localhost:8082"
+echo "✅ Backend started on http://localhost:8000"
 
 # Start frontend
 echo ""
@@ -86,8 +86,8 @@ echo "=================================="
 echo ""
 echo "🌐 Open your browser to: http://localhost:3000"
 echo ""
-echo "📚 API Documentation: http://localhost:8082/docs"
-echo "🏥 Health Check: http://localhost:8082/health"
+echo "📚 API Documentation: http://localhost:8000/docs"
+echo "🏥 Health Check: http://localhost:8000/health"
 echo ""
 echo "Press Ctrl+C to stop both servers"
 echo ""

@@ -86,3 +86,8 @@ Screenshot*.png
 .kiro/*
 tests/*
 __pycache__/*
+
+# Harness artifacts (evidence logs, not source code)
+artifacts/logs/*.log
+artifacts/screenshots/*.png
+.dev-server.pid

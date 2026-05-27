@@ -32,6 +32,15 @@ export interface WorkflowResult {
   error?: string
 }
 
+export interface ExecutionRun {
+  id: string
+  timestamp: Date
+  status: 'success' | 'error' | 'partial'
+  fileName: string
+  duration: number // milliseconds
+  results: WorkflowResult[]
+}
+
 export function useJourney() {
   const config = useRuntimeConfig()
   const apiBaseUrl = config.public.apiBaseUrl as string
@@ -41,6 +50,7 @@ export function useJourney() {
   const nodes = useState<WorkflowNode[]>('journey-nodes', () => [])
   const isProcessing = useState<boolean>('journey-processing', () => false)
   const workflowResults = useState<WorkflowResult[]>('journey-results', () => [])
+  const executionHistory = useState<ExecutionRun[]>('journey-execution-history', () => [])
   
   /**
    * Add a node to the workflow
@@ -178,6 +188,10 @@ export function useJourney() {
     isProcessing.value = true
     workflowResults.value = []
     
+    const startTime = Date.now()
+    const fileNames = uploadNode.files!.map(f => f.name).join(', ')
+    let runStatus: 'success' | 'error' | 'partial' = 'success'
+    
     try {
       // Build execution graph based on connections
       const nodeResults = new Map<string, any>()
@@ -282,8 +296,22 @@ export function useJourney() {
         })
       }
       
+    } catch (error) {
+      runStatus = workflowResults.value.length > 0 ? 'partial' : 'error'
+      throw error
     } finally {
       isProcessing.value = false
+      
+      // Record execution run in history
+      const run: ExecutionRun = {
+        id: `run-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
+        timestamp: new Date(),
+        status: runStatus,
+        fileName: fileNames,
+        duration: Date.now() - startTime,
+        results: [...workflowResults.value]
+      }
+      executionHistory.value.unshift(run)
     }
   }
   
@@ -731,6 +759,7 @@ export function useJourney() {
     nodes,
     isProcessing,
     workflowResults,
+    executionHistory,
     addNode,
     removeNode,
     clearWorkflow,

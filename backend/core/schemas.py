@@ -315,3 +315,43 @@ class SplitResponse(BaseModel):
     filename: Optional[str] = Field(None, description="Name of the file that was processed")
     error: Optional[str] = Field(None, description="Error message if split failed")
     error_type: Optional[str] = Field(None, description="Type of error that occurred")
+
+
+# --- API Explorer schemas ---
+
+class EndpointField(BaseModel):
+    """Metadata for a single input field in an API Explorer endpoint."""
+    name: str = Field(..., description="Field name used as the form/query parameter key")
+    type: str = Field(..., description="UI input type: file, text, textarea, select, checkbox, number")
+    required: bool = Field(False, description="Whether this field is required")
+    label: str = Field("", description="Human-readable label for the field")
+    placeholder: Optional[str] = Field(None, description="Placeholder text for text/textarea inputs")
+    accept: Optional[str] = Field(None, description="Accepted MIME types or extensions for file inputs")
+    default: Optional[Any] = Field(None, description="Default value for the field")
+    options: Optional[List[str]] = Field(None, description="Selectable options for select inputs")
+    path_param: Optional[bool] = Field(None, description="True when this field maps to a URL path parameter")
+
+
+class EndpointMeta(BaseModel):
+    """Metadata for a single API endpoint shown in the API Explorer."""
+    id: str = Field(..., description="Unique endpoint identifier")
+    group: str = Field(..., description="Display group name")
+    method: str = Field(..., description="HTTP method: GET or POST")
+    path: str = Field(..., description="URL path for the endpoint")
+    summary: str = Field(..., description="Short description of what the endpoint does")
+    description: str = Field("", description="Detailed description")
+    fields: List[EndpointField] = Field(default_factory=list, description="Input fields for this endpoint")
+
+
+class EndpointGroup(BaseModel):
+    """A named group of endpoints in the API Explorer."""
+    name: str = Field(..., description="Group display name")
+    endpoints: List[EndpointMeta] = Field(..., description="Endpoints in this group")
+
+
+class ApiExplorerResponse(BaseModel):
+    """Response model for GET /api-explorer/endpoints."""
+    success: bool = Field(..., description="Whether the request succeeded")
+    total: int = Field(..., description="Total number of endpoints")
+    groups: List[EndpointGroup] = Field(..., description="Endpoints grouped by category")
+    endpoints: List[EndpointMeta] = Field(..., description="Flat list of all endpoints")

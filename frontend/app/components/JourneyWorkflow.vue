@@ -1,5 +1,84 @@
 <template>
   <div class="journey-container">
+    <!-- Top Toolbar Bar -->
+    <div class="journey-toolbar">
+      <div class="toolbar-left">
+        <button class="back-btn-inline" @click="emit('back')" title="Quay lại Dashboard">
+          <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+          </svg>
+        </button>
+        <div class="workflow-name-area">
+          <input
+            v-if="isEditingName"
+            ref="nameInputRef"
+            v-model="workflowNameValue"
+            class="workflow-name-input"
+            @blur="finishEditingName"
+            @keydown.enter="finishEditingName"
+            @keydown.esc="cancelEditingName"
+          />
+          <span v-else class="workflow-name-display">{{ workflowNameValue }}</span>
+          <button class="edit-name-btn" @click="startEditingName" title="Đổi tên workflow">
+            <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+            </svg>
+          </button>
+        </div>
+      </div>
+      <div class="toolbar-right">
+        <button 
+          v-if="executionHistory.length > 0"
+          class="toolbar-action-btn" 
+          @click="showResultsModal = true"
+          title="View execution history">
+          <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          History ({{ executionHistory.length }})
+        </button>
+        <button class="toolbar-save-btn" @click="handleSaveWorkflow" :disabled="nodes.length === 0 || isSaving">
+          <svg v-if="!isSaving" width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+          </svg>
+          <svg v-else class="spinner" width="16" height="16" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none" opacity="0.25"/>
+            <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" opacity="0.75"/>
+          </svg>
+          {{ isSaving ? 'Saving...' : 'Save' }}
+        </button>
+        <button class="toolbar-execute-btn" @click="handleExecuteWorkflow" :disabled="!canExecute || isProcessing || isJobSubmitting">
+          <svg v-if="!isProcessing && !isJobSubmitting" width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <svg v-else class="spinner" width="16" height="16" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none" opacity="0.25"/>
+            <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" opacity="0.75"/>
+          </svg>
+          {{ isProcessing || isJobSubmitting ? 'Submitting...' : 'Execute' }}
+        </button>
+        <button 
+          class="toolbar-action-btn"
+          :class="{ active: jobPanelOpen }"
+          @click="jobPanelOpen = !jobPanelOpen"
+          title="Toggle job progress panel"
+        >
+          <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+          </svg>
+          Jobs
+          <span v-if="isJobRunning" class="job-indicator" />
+        </button>
+        <button class="toolbar-deploy-btn" title="Deploy workflow">
+          <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+          </svg>
+          Deploy
+        </button>
+      </div>
+    </div>
+
     <div class="journey-content">
       <!-- Workflow Canvas -->
       <div class="workflow-canvas">
@@ -19,6 +98,11 @@
           <button class="zoom-btn zoom-fit-btn" @click="zoomToFit" title="Fit All Nodes">
             <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+            </svg>
+          </button>
+          <button class="zoom-btn zoom-layout-btn" @click="autoLayoutNodes" title="Auto Layout (sắp xếp theo level)">
+            <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h10M4 18h6" />
             </svg>
           </button>
         </div>
@@ -762,38 +846,28 @@
           </div>
         </div>
 
-        <div class="panel-section execute-section">
-          <div class="execute-buttons">
-            <button 
-              v-if="workflowResults.length > 0"
-              class="view-results-btn" 
-              @click="showResultsModal = true"
-              title="View workflow results">
-              <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-            </button>
-            <button class="execute-btn" @click="handleExecuteWorkflow" :disabled="!canExecute || isProcessing">
-              <svg v-if="!isProcessing" width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <svg v-else class="spinner" width="16" height="16" viewBox="0 0 24 24">
-                <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none" opacity="0.25"/>
-                <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" opacity="0.75"/>
-              </svg>
-              {{ isProcessing ? 'Processing...' : 'Execute Workflow' }}
-            </button>
-          </div>
+      </div>
+    </div>
+
+    <!-- Confirm Dialog -->
+    <div v-if="showConfirmDialog" class="confirm-overlay" @click="handleConfirm(false)">
+      <div class="confirm-dialog" @click.stop>
+        <p class="confirm-message">{{ confirmMessage }}</p>
+        <div class="confirm-actions">
+          <button class="confirm-btn confirm-cancel" @click="handleConfirm(false)">Cancel</button>
+          <button class="confirm-btn confirm-ok" @click="handleConfirm(true)">OK</button>
         </div>
       </div>
     </div>
 
-    <!-- Results Modal -->
+    <!-- Job Progress Panel (bottom panel) -->
+    <JobPanel />
+
+    <!-- Execution History Modal -->
     <div v-if="showResultsModal" class="results-modal-overlay" @click="closeResultsModal">
       <div class="results-modal" @click.stop>
         <div class="modal-header">
-          <h2>Workflow Results</h2>
+          <h2>Execution History</h2>
           <button class="modal-close-btn" @click="closeResultsModal">
             <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -802,47 +876,77 @@
         </div>
         
         <div class="modal-body">
-          <div v-if="workflowResults.length === 0" class="no-results">
-            <p>No results available</p>
+          <div v-if="executionHistory.length === 0" class="no-results">
+            <p>No executions yet</p>
           </div>
           
-          <div v-else class="results-timeline">
-            <div v-for="(result, index) in workflowResults" :key="result.nodeId" class="result-card">
-              <div class="result-card-header">
-                <div class="result-step">
-                  <span class="step-number">{{ index + 1 }}</span>
-                  <span class="step-name">{{ result.nodeLabel }}</span>
+          <div v-else class="execution-history-list">
+            <div 
+              v-for="run in executionHistory" 
+              :key="run.id" 
+              class="execution-run-item"
+              :class="{ 'run-expanded': expandedRunId === run.id }"
+            >
+              <div class="run-summary" @click="toggleRunExpand(run.id)">
+                <div class="run-info">
+                  <span :class="['run-status-dot', `dot-${run.status}`]"></span>
+                  <div class="run-details">
+                    <span class="run-filename">{{ run.fileName }}</span>
+                    <span class="run-timestamp">{{ formatTimestamp(run.timestamp) }}</span>
+                  </div>
                 </div>
-                <span :class="['result-badge', `badge-${result.status}`]">
-                  <svg v-if="result.status === 'success'" width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                <div class="run-meta">
+                  <span :class="['run-status-badge', `badge-${run.status}`]">{{ run.status }}</span>
+                  <span class="run-duration">{{ formatDuration(run.duration) }}</span>
+                  <svg 
+                    class="run-chevron" 
+                    :class="{ 'chevron-open': expandedRunId === run.id }"
+                    width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
                   </svg>
-                  <svg v-else width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                  {{ result.status }}
-                </span>
+                </div>
               </div>
               
-              <div class="result-card-body">
-                <div v-if="result.error" class="result-error-detail">
-                  <div class="error-icon">
-                    <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
+              <!-- Expanded node results -->
+              <div v-if="expandedRunId === run.id" class="run-node-results">
+                <div v-for="(result, index) in run.results" :key="result.nodeId" class="result-card">
+                  <div class="result-card-header">
+                    <div class="result-step">
+                      <span class="step-number">{{ index + 1 }}</span>
+                      <span class="step-name">{{ result.nodeLabel }}</span>
+                    </div>
+                    <span :class="['result-badge', `badge-${result.status}`]">
+                      <svg v-if="result.status === 'success'" width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                      </svg>
+                      <svg v-else width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                      {{ result.status }}
+                    </span>
                   </div>
-                  <div class="error-content">
-                    <p class="error-title">Error occurred</p>
-                    <p class="error-message">{{ result.error }}</p>
+                  
+                  <div class="result-card-body">
+                    <div v-if="result.error" class="result-error-detail">
+                      <div class="error-icon">
+                        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </div>
+                      <div class="error-content">
+                        <p class="error-title">Error occurred</p>
+                        <p class="error-message">{{ result.error }}</p>
+                      </div>
+                    </div>
+                    
+                    <div v-else-if="result.data" class="result-data-detail">
+                      <pre class="result-json">{{ formatResultData(result.data) }}</pre>
+                    </div>
+                    
+                    <div v-else class="result-empty">
+                      <p>No data returned</p>
+                    </div>
                   </div>
-                </div>
-                
-                <div v-else-if="result.data" class="result-data-detail">
-                  <pre class="result-json">{{ formatResultData(result.data) }}</pre>
-                </div>
-                
-                <div v-else class="result-empty">
-                  <p>No data returned</p>
                 </div>
               </div>
             </div>
@@ -863,17 +967,67 @@
 import { ref, computed, watch, onMounted, onUnmounted, nextTick, h } from 'vue'
 import { useJourney } from '~/composables/useJourney'
 import { useOCR } from '~/composables/useOCR'
+import { useNotification } from '~/composables/useNotification'
+import { useJobManager } from '~/composables/workflow/useJobManager'
+import JobPanel from '~/components/workflow-builder/panels/JobPanel.vue'
+import type { WorkflowNode } from '~/composables/useJourney'
+
+const props = defineProps<{
+  workflowId?: string | null
+}>()
+
+const emit = defineEmits<{
+  (e: 'back'): void
+}>()
 
 const {
   nodes,
   isProcessing,
   workflowResults,
+  executionHistory,
   addNode,
   removeNode,
   clearWorkflow,
   updateNodeFiles,
   executeWorkflow
 } = useJourney()
+
+const { success: notifySuccess, error: notifyError, warning: notifyWarning, info: notifyInfo } = useNotification()
+
+// Job Manager integration
+const {
+  currentJob,
+  jobPanelOpen,
+  isSubmitting: isJobSubmitting,
+  isRunning: isJobRunning,
+  submitJob,
+  cancelJob,
+  fetchJobHistory,
+} = useJobManager()
+
+// Execution mode: 'local' (browser) or 'job' (backend queue)
+const executionMode = ref<'local' | 'job'>('job')
+
+// Confirm dialog state
+const showConfirmDialog = ref(false)
+const confirmMessage = ref('')
+const confirmResolve = ref<((value: boolean) => void) | null>(null)
+
+const confirmAction = (message: string): Promise<boolean> => {
+  return new Promise((resolve) => {
+    confirmMessage.value = message
+    confirmResolve.value = resolve
+    showConfirmDialog.value = true
+  })
+}
+
+const handleConfirm = (result: boolean) => {
+  showConfirmDialog.value = false
+  if (confirmResolve.value) {
+    confirmResolve.value(result)
+    confirmResolve.value = null
+  }
+}
 
 // Pass canvas ref to addNode for viewport-aware positioning
 const addNodeInViewport = (type: WorkflowNode['type']) => {
@@ -904,6 +1058,12 @@ const generatingSchemaNodes = ref<Set<string>>(new Set())
 const schemaJsonInput = ref('')
 const jsonParseError = ref('')
 const showResultsModal = ref(false)
+const expandedRunId = ref<string | null>(null)
+const isSaving = ref(false)
+const savedWorkflowId = ref<string | null>(null)
+const workflowNameValue = ref('New Workflow')
+const isEditingName = ref(false)
+const nameInputRef = ref<HTMLInputElement | null>(null)
 const selectedConnection = ref<{ fromId: string; toId: string } | null>(null)
 const isPanning = ref(false)
 const hasPanned = ref(false)
@@ -938,6 +1098,26 @@ const workflowStatus = computed(() => {
   if (nodes.value.every(n => n.status === 'completed')) return 'Completed'
   if (nodes.value.some(n => n.status === 'error')) return 'Error'
   return 'Ready'
+})
+
+// Auto-save to Data Store when workflow completes
+watch(workflowStatus, (newStatus, oldStatus) => {
+  if (newStatus === 'Completed' && oldStatus === 'Running') {
+    const { saveEntry } = useDataStore()
+    // Collect results from all completed nodes
+    const nodeResults = nodes.value
+      .filter(n => n.status === 'completed' && n.result)
+      .map(n => ({ node_id: n.id, type: n.type, label: n.label, result: n.result }))
+    
+    const uploadNode = nodes.value.find(n => n.type === 'upload')
+    const filename = uploadNode?.files?.[0]?.name || 'workflow-result'
+    
+    saveEntry({
+      filename,
+      action_tag: 'WF',
+      result_data: { nodes: nodeResults, workflow_name: workflowNameValue.value },
+    })
+  }
 })
 
 const triggerFileInput = (nodeId: string) => {
@@ -1038,26 +1218,261 @@ const getNodeIcon = (type: string) => {
   return icons[type] || icons.parse
 }
 
+const startEditingName = () => {
+  isEditingName.value = true
+  nextTick(() => {
+    nameInputRef.value?.focus()
+    nameInputRef.value?.select()
+  })
+}
+
+const finishEditingName = () => {
+  isEditingName.value = false
+  if (!workflowNameValue.value.trim()) {
+    workflowNameValue.value = 'New Workflow'
+  }
+}
+
+const cancelEditingName = () => {
+  isEditingName.value = false
+}
+
+const loadWorkflowFromApi = async (workflowId: string) => {
+  try {
+    const runtimeConfig = useRuntimeConfig()
+    const apiBaseUrl = runtimeConfig.public.apiBaseUrl as string
+
+    const workflow = await $fetch<any>(`${apiBaseUrl}/api/v1/workflows/${workflowId}`)
+
+    if (workflow && workflow.graph_data && workflow.graph_data.nodes) {
+      // Clear existing nodes
+      clearWorkflow()
+
+      // Load nodes from graph_data
+      const graphNodes = workflow.graph_data.nodes
+
+      // Build ID mapping: addNode generates new IDs, but connections reference old IDs
+      const idMap = new Map<string, string>()
+
+      for (const gn of graphNodes) {
+        const node = addNode(gn.type, gn.x, gn.y)
+        if (node) {
+          // Preserve the original ID so connections remain valid
+          const newId = node.id
+          if (gn.id) {
+            idMap.set(gn.id, newId)
+            node.id = gn.id // Restore original ID
+          }
+          node.label = gn.label || node.label
+          node.tier = gn.tier || 'Normal'
+          if (gn.config) node.config = gn.config
+        }
+      }
+
+      // Restore connections after all nodes are loaded (IDs are now correct)
+      for (const gn of graphNodes) {
+        if (gn.connections) {
+          const node = nodes.value.find(n => n.id === gn.id)
+          if (node) {
+            node.connections = gn.connections
+          }
+        }
+      }
+
+      // Set saved workflow ID so Save updates instead of creates
+      savedWorkflowId.value = workflowId
+      workflowNameValue.value = workflow.name || 'Untitled Workflow'
+    }
+  } catch (error: any) {
+    console.error('Failed to load workflow:', error)
+  }
+}
+
+const handleSaveWorkflow = async () => {
+  if (nodes.value.length === 0) return
+  isSaving.value = true
+
+  try {
+    const config = useRuntimeConfig()
+    const apiBaseUrl = config.public.apiBaseUrl as string
+
+    // Build steps from nodes (exclude upload node)
+    const steps = nodes.value
+      .filter(n => n.type !== 'upload')
+      .map(n => ({
+        type: n.type,
+        tier: n.tier || 'Normal',
+        config: n.config || undefined,
+      }))
+
+    // Build full graph_data with positions and connections for canvas reload
+    const graphData = {
+      nodes: nodes.value.map(n => ({
+        id: n.id,
+        type: n.type,
+        label: n.label,
+        x: n.x,
+        y: n.y,
+        tier: n.tier,
+        config: n.config,
+        connections: n.connections,
+      })),
+      steps,
+    }
+
+    const workflowName = workflowNameValue.value || 'Untitled Workflow'
+
+    if (savedWorkflowId.value) {
+      // Update existing workflow
+      await $fetch(`${apiBaseUrl}/api/v1/workflows/${savedWorkflowId.value}`, {
+        method: 'PUT',
+        body: { name: workflowName, steps, graph_data: graphData },
+      })
+    } else {
+      // Create new workflow
+      const response = await $fetch<{ workflow_id: string }>(`${apiBaseUrl}/api/v1/workflows`, {
+        method: 'POST',
+        body: { name: workflowName, steps, graph_data: graphData },
+      })
+      savedWorkflowId.value = response.workflow_id
+    }
+
+    notifySuccess('Workflow saved successfully!')
+  } catch (error: any) {
+    console.error('Failed to save workflow:', error)
+    notifyError('Failed to save workflow: ' + (error.message || error))
+  } finally {
+    isSaving.value = false
+  }
+}
+
 const handleExecuteWorkflow = async () => {
   if (!canExecute.value) return
   
-  try {
-    await executeWorkflow()
-    // Show results modal after successful execution
-    showResultsModal.value = true
-  } catch (error: any) {
-    console.error('Workflow execution failed:', error)
-    // Still show modal even on error to display partial results
-    showResultsModal.value = true
+  if (executionMode.value === 'job') {
+    // Submit as background job via backend queue
+    await handleExecuteAsJob()
+  } else {
+    // Legacy: execute locally in browser
+    try {
+      await executeWorkflow()
+      showResultsModal.value = true
+    } catch (error: any) {
+      console.error('Workflow execution failed:', error)
+      showResultsModal.value = true
+    }
   }
 }
+
+const handleExecuteAsJob = async () => {
+  // Find upload node and get files
+  const uploadNode = nodes.value.find(n => n.type === 'upload')
+  if (!uploadNode?.files?.length) {
+    notifyError('No files uploaded. Add files to the Upload node first.')
+    return
+  }
+
+  const file = uploadNode.files[0]
+
+  // Build steps from workflow nodes (skip upload node)
+  const steps = nodes.value
+    .filter(n => n.type !== 'upload' && !n.inactive)
+    .map(n => ({
+      id: n.id,
+      type: n.type,
+      label: n.label,
+      tier: n.tier || 'Normal',
+      config: n.config,
+    }))
+
+  if (steps.length === 0) {
+    notifyError('No processing steps in workflow.')
+    return
+  }
+
+  try {
+    const job = await submitJob(file, steps, {
+      workflowId: props.workflowId || undefined,
+      workflowName: workflowNameValue.value || 'Untitled Workflow',
+      maxRetries: 3,
+    })
+
+    if (job) {
+      notifySuccess(`Job submitted: ${steps.length} steps queued for processing.`)
+      // Update node statuses to reflect job state
+      updateNodesFromJob()
+    }
+  } catch (error: any) {
+    notifyError(`Failed to submit job: ${error.message || error}`)
+  }
+}
+
+/**
+ * Sync node visual statuses from current job progress
+ */
+const updateNodesFromJob = () => {
+  if (!currentJob.value) return
+
+  for (const jobNode of currentJob.value.nodes) {
+    const workflowNode = nodes.value.find(n => n.id === jobNode.node_id)
+    if (workflowNode) {
+      switch (jobNode.status) {
+        case 'running':
+          workflowNode.status = 'processing'
+          break
+        case 'completed':
+          workflowNode.status = 'completed'
+          break
+        case 'failed':
+          workflowNode.status = 'error'
+          break
+        default:
+          workflowNode.status = 'pending'
+      }
+    }
+  }
+}
+
+// Watch job progress to update node statuses in real-time
+watch(currentJob, () => {
+  updateNodesFromJob()
+}, { deep: true })
 
 const closeResultsModal = () => {
   showResultsModal.value = false
 }
 
-const handleClearWorkflow = () => {
-  if (confirm('Clear all nodes?')) {
+const toggleRunExpand = (runId: string) => {
+  expandedRunId.value = expandedRunId.value === runId ? null : runId
+}
+
+const formatTimestamp = (date: Date) => {
+  const d = new Date(date)
+  const now = new Date()
+  const diffMs = now.getTime() - d.getTime()
+  const diffMin = Math.floor(diffMs / 60000)
+  
+  if (diffMin < 1) return 'Just now'
+  if (diffMin < 60) return `${diffMin}m ago`
+  
+  const diffHours = Math.floor(diffMin / 60)
+  if (diffHours < 24) return `${diffHours}h ago`
+  
+  return d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+}
+
+const formatDuration = (ms: number) => {
+  if (ms < 1000) return `${ms}ms`
+  const seconds = Math.floor(ms / 1000)
+  if (seconds < 60) return `${seconds}s`
+  const minutes = Math.floor(seconds / 60)
+  const remainingSeconds = seconds % 60
+  return `${minutes}m ${remainingSeconds}s`
+}
+
+const handleClearWorkflow = async () => {
+  const confirmed = await confirmAction('Clear all nodes?')
+  if (confirmed) {
     clearWorkflow()
   }
 }
@@ -1645,14 +2060,14 @@ const generateSchema = async () => {
   
   // Check if prompt is provided
   if (!node.config.schemaPrompt || node.config.schemaPrompt.trim() === '') {
-    alert('Please enter a prompt describing what data to extract')
+    notifyWarning('Please enter a prompt describing what data to extract')
     return
   }
   
   // Find upload node to get the file
   const uploadNode = nodes.value.find(n => n.type === 'upload')
   if (!uploadNode || !uploadNode.files || uploadNode.files.length === 0) {
-    alert('Please upload a file first')
+    notifyWarning('Please upload a file first')
     return
   }
   
@@ -1683,7 +2098,7 @@ const generateSchema = async () => {
     }
   } catch (error: any) {
     console.error('Schema generation failed:', error)
-    alert(`Schema generation failed: ${error.message || 'Unknown error'}`)
+    notifyError(`Schema generation failed: ${error.message || 'Unknown error'}`)
   } finally {
     generatingSchemaNodes.value.delete(node.id)
   }
@@ -1700,14 +2115,14 @@ const generateAllSchemas = async () => {
   )
   
   if (extractNodes.length === 0) {
-    alert('No extract nodes with prompts found')
+    notifyWarning('No extract nodes with prompts found')
     return
   }
   
   // Find upload node to get the file
   const uploadNode = nodes.value.find(n => n.type === 'upload')
   if (!uploadNode || !uploadNode.files || uploadNode.files.length === 0) {
-    alert('Please upload a file first')
+    notifyWarning('Please upload a file first')
     return
   }
   
@@ -1753,18 +2168,19 @@ const generateAllSchemas = async () => {
   const failCount = results.filter(r => !r.success).length
   
   if (failCount > 0) {
-    alert(`Schema generation completed: ${successCount} succeeded, ${failCount} failed`)
+    notifyWarning(`Schema generation completed: ${successCount} succeeded, ${failCount} failed`)
   } else {
-    alert(`All ${successCount} schemas generated successfully!`)
+    notifySuccess(`All ${successCount} schemas generated successfully!`)
   }
 }
 
-const clearGeneratedSchema = () => {
+const clearGeneratedSchema = async () => {
   if (!selectedNode.value) return
   const node = nodes.value.find(n => n.id === selectedNode.value)
   if (!node || node.type !== 'extract') return
   
-  if (confirm('Clear all generated schema fields?')) {
+  const confirmed = await confirmAction('Clear all generated schema fields?')
+  if (confirmed) {
     if (node.config.schema) {
       node.config.schema.fields = []
     }
@@ -2065,6 +2481,145 @@ const zoomToFit = () => {
   })
 }
 
+/**
+ * Auto-layout nodes in horizontal layers based on connection topology.
+ * Nodes without incoming connections go to level 0 (leftmost).
+ * Each subsequent level contains nodes whose inputs come from the previous level.
+ * Nodes within the same level are stacked vertically, centered.
+ */
+const autoLayoutNodes = () => {
+  if (nodes.value.length === 0) return
+
+  const canvas = canvasArea.value
+  if (!canvas) return
+
+  const NODE_WIDTH = 280
+  const NODE_HEIGHT = 160
+  const H_GAP = 60
+  const V_GAP = 30
+
+  // Build adjacency
+  const incomingMap = new Map<string, Set<string>>()
+  const allNodeIds = new Set(nodes.value.map(n => n.id))
+
+  for (const node of nodes.value) {
+    incomingMap.set(node.id, new Set())
+  }
+
+  for (const node of nodes.value) {
+    if (node.connections) {
+      for (const conn of node.connections) {
+        const targetId = typeof conn === 'string' ? conn : conn.targetId
+        if (allNodeIds.has(targetId)) {
+          incomingMap.get(targetId)!.add(node.id)
+        }
+      }
+    }
+  }
+
+  // Assign levels using BFS
+  const levels = new Map<string, number>()
+  const assigned = new Set<string>()
+  const queue: string[] = []
+
+  for (const node of nodes.value) {
+    if (incomingMap.get(node.id)!.size === 0) {
+      levels.set(node.id, 0)
+      assigned.add(node.id)
+      queue.push(node.id)
+    }
+  }
+
+  while (queue.length > 0) {
+    const current = queue.shift()!
+    const currentLevel = levels.get(current)!
+    const currentNode = nodes.value.find(n => n.id === current)
+
+    if (currentNode?.connections) {
+      for (const conn of currentNode.connections) {
+        const targetId = typeof conn === 'string' ? conn : conn.targetId
+        if (!allNodeIds.has(targetId)) continue
+
+        const existingLevel = levels.get(targetId)
+        const newLevel = currentLevel + 1
+
+        if (existingLevel === undefined || newLevel > existingLevel) {
+          levels.set(targetId, newLevel)
+        }
+
+        if (!assigned.has(targetId)) {
+          assigned.add(targetId)
+          queue.push(targetId)
+        }
+      }
+    }
+  }
+
+  for (const node of nodes.value) {
+    if (!levels.has(node.id)) {
+      levels.set(node.id, 0)
+    }
+  }
+
+  // Group nodes by level
+  const levelGroups = new Map<number, string[]>()
+  for (const [nodeId, level] of levels) {
+    if (!levelGroups.has(level)) {
+      levelGroups.set(level, [])
+    }
+    levelGroups.get(level)!.push(nodeId)
+  }
+
+  const maxLevel = Math.max(...levelGroups.keys(), 0)
+
+  // Calculate total layout size
+  const totalLayoutWidth = (maxLevel + 1) * NODE_WIDTH + maxLevel * H_GAP
+  let maxColumnHeight = 0
+  for (let level = 0; level <= maxLevel; level++) {
+    const count = (levelGroups.get(level) || []).length
+    const colHeight = count * NODE_HEIGHT + (count - 1) * V_GAP
+    maxColumnHeight = Math.max(maxColumnHeight, colHeight)
+  }
+
+  // The canvas-content is min-width: 200%, min-height: 200% of canvas-area
+  // We want to place nodes so they end up visually centered in the viewport
+  // Strategy: place layout at the center of the scrollable content area
+  const contentWidth = canvas.scrollWidth / zoomLevel.value
+  const contentHeight = canvas.scrollHeight / zoomLevel.value
+  const viewportWidth = canvas.clientWidth / zoomLevel.value
+  const viewportHeight = canvas.clientHeight / zoomLevel.value
+
+  // Center of the content area
+  const centerX = contentWidth / 2
+  const centerY = contentHeight / 2
+
+  // Position layout so its center aligns with content center
+  const startX = centerX - totalLayoutWidth / 2
+  const startY = centerY - maxColumnHeight / 2
+
+  for (let level = 0; level <= maxLevel; level++) {
+    const nodesInLevel = levelGroups.get(level) || []
+    const colHeight = nodesInLevel.length * NODE_HEIGHT + (nodesInLevel.length - 1) * V_GAP
+    const colStartY = startY + (maxColumnHeight - colHeight) / 2
+
+    for (let i = 0; i < nodesInLevel.length; i++) {
+      const node = nodes.value.find(n => n.id === nodesInLevel[i])
+      if (node) {
+        node.x = startX + level * (NODE_WIDTH + H_GAP)
+        node.y = colStartY + i * (NODE_HEIGHT + V_GAP)
+      }
+    }
+  }
+
+  // Scroll so the center of the layout is at the center of the viewport
+  nextTick(() => {
+    const layoutCenterX = (startX + totalLayoutWidth / 2) * zoomLevel.value
+    const layoutCenterY = (startY + maxColumnHeight / 2) * zoomLevel.value
+    canvas.scrollLeft = layoutCenterX - canvas.clientWidth / 2
+    canvas.scrollTop = layoutCenterY - canvas.clientHeight / 2
+  })
+}
+
 const handleWheel = (event: WheelEvent) => {
   // Ctrl/Cmd + Wheel for zoom
   if (event.ctrlKey || event.metaKey) {
@@ -2075,9 +2630,14 @@ const handleWheel = (event: WheelEvent) => {
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
   window.addEventListener('keydown', handleKeyDown)
   window.addEventListener('keyup', handleKeyUp)
+
+  // Load workflow from API if workflowId is provided
+  if (props.workflowId) {
+    await loadWorkflowFromApi(props.workflowId)
+  }
   
   // Center the canvas scroll position
   const canvas = canvasArea.value
@@ -2147,6 +2707,140 @@ onUnmounted(() => {
   position: relative;
 }
 
+/* Journey Toolbar */
+.journey-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  background: #ffffff;
+  border-bottom: 1px solid #e5e7eb;
+  flex-shrink: 0;
+  min-height: 56px;
+}
+
+.toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.back-btn-inline {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid #e5e7eb;
+  background: none;
+  border-radius: 8px;
+  cursor: pointer;
+  color: #6b7280;
+  transition: all 0.15s;
+}
+
+.back-btn-inline:hover {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.workflow-name-display {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.workflow-name-area {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.workflow-name-input {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1f2937;
+  border: 1px solid #7c3aed;
+  border-radius: 4px;
+  padding: 2px 8px;
+  outline: none;
+  width: 200px;
+}
+
+.edit-name-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: none;
+  border-radius: 4px;
+  cursor: pointer;
+  color: #9ca3af;
+  transition: all 0.15s;
+}
+
+.edit-name-btn:hover {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+.toolbar-save-btn,
+.toolbar-execute-btn,
+.toolbar-deploy-btn,
+.toolbar-action-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background-color: #ffffff;
+  color: #1f2937;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.toolbar-save-btn:hover:not(:disabled),
+.toolbar-execute-btn:hover:not(:disabled),
+.toolbar-deploy-btn:hover,
+.toolbar-action-btn:hover {
+  background-color: #f3f4f6;
+}
+
+.toolbar-save-btn:disabled,
+.toolbar-execute-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.toolbar-action-btn.active {
+  background-color: #eff6ff;
+  color: #2563eb;
+}
+
+.job-indicator {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #3b82f6;
+  animation: pulse-dot 1.5s infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
 /* Zoom Controls */
 .zoom-controls {
   position: absolute;
@@ -2189,9 +2883,11 @@ onUnmounted(() => {
 }
 
 .zoom-fit-btn {
-  border-left: 1px solid #e2e8f0;
   margin-left: 4px;
-  padding-left: 4px;
+}
+
+.zoom-layout-btn {
+  margin-left: 2px;
 }
 
 .zoom-level {
@@ -3477,6 +4173,30 @@ onUnmounted(() => {
   cursor: not-allowed;
 }
 
+.save-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  background: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.save-btn:hover:not(:disabled) {
+  background: #2563eb;
+}
+
+.save-btn:disabled {
+  background: #9ca3af;
+  cursor: not-allowed;
+}
+
 .spinner {
   animation: spin 1s linear infinite;
 }
@@ -3538,6 +4258,67 @@ onUnmounted(() => {
 .result-error {
   color: #dc2626;
   font-size: 0.75rem;
+}
+
+/* Confirm Dialog */
+.confirm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.confirm-dialog {
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 24px;
+  min-width: 320px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+}
+
+.confirm-message {
+  font-size: 14px;
+  color: #1f2937;
+  margin: 0 0 20px;
+  line-height: 1.5;
+}
+
+.confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.confirm-btn {
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.confirm-cancel {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  color: #6b7280;
+}
+
+.confirm-cancel:hover {
+  background: #f3f4f6;
+}
+
+.confirm-ok {
+  background: #7c3aed;
+  border: none;
+  color: #ffffff;
+}
+
+.confirm-ok:hover {
+  background: #6d28d9;
 }
 
 /* Results Modal Styles */
@@ -3609,6 +4390,144 @@ onUnmounted(() => {
   text-align: center;
   padding: 3rem;
   color: #9ca3af;
+}
+
+.execution-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.execution-run-item {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  overflow: hidden;
+  transition: box-shadow 0.2s;
+}
+
+.execution-run-item:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.execution-run-item.run-expanded {
+  border-color: #3b82f6;
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.1);
+}
+
+.run-summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.875rem 1rem;
+  cursor: pointer;
+  background: white;
+  transition: background 0.15s;
+}
+
+.run-summary:hover {
+  background: #f9fafb;
+}
+
+.run-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.run-status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.run-status-dot.dot-success {
+  background: #10b981;
+}
+
+.run-status-dot.dot-error {
+  background: #ef4444;
+}
+
+.run-status-dot.dot-partial {
+  background: #f59e0b;
+}
+
+.run-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-width: 0;
+}
+
+.run-filename {
+  font-weight: 500;
+  font-size: 0.875rem;
+  color: #1f2937;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.run-timestamp {
+  font-size: 0.75rem;
+  color: #9ca3af;
+}
+
+.run-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-shrink: 0;
+}
+
+.run-status-badge {
+  padding: 0.25rem 0.5rem;
+  border-radius: 10px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.run-status-badge.badge-success {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.run-status-badge.badge-error {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.run-status-badge.badge-partial {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.run-duration {
+  font-size: 0.75rem;
+  color: #6b7280;
+  font-variant-numeric: tabular-nums;
+}
+
+.run-chevron {
+  color: #9ca3af;
+  transition: transform 0.2s;
+}
+
+.run-chevron.chevron-open {
+  transform: rotate(180deg);
+}
+
+.run-node-results {
+  border-top: 1px solid #e5e7eb;
+  padding: 1rem;
+  background: #f9fafb;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
 }
 
 .results-timeline {
