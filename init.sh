@@ -1,5 +1,5 @@
 #!/bin/bash
-# init.sh: Harness Session Initializer for Dr Vision
+# init.sh: Harness Session Initializer for Doc Intelligence
 # Chạy đầu mỗi agent session. Must pass before any coding begins.
 set -euo pipefail
 

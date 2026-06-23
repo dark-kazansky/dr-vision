@@ -9,6 +9,7 @@ import { useWorkflowList } from '~/composables/useWorkflowList'
 import { useTranslation } from '~/composables/useTranslation'
 import ConfirmDialog from '~/components/journey/ConfirmDialog.vue'
 import SearchBox from '~/components/journey/SearchBox.vue'
+import DurableRunsPanel from '~/components/journey/DurableRunsPanel.vue'
 
 const { t } = useTranslation()
 
@@ -48,10 +49,15 @@ const cancelDelete = () => {
 // Emit to parent
 const emit = defineEmits<{
   (e: 'open-builder', workflowId?: string): void
+  (e: 'open-detail', workflowId: string): void
 }>()
 
 const openBuilder = (workflowId?: string) => {
   emit('open-builder', workflowId)
+}
+
+const handleCardClick = (workflowId: string) => {
+  emit('open-detail', workflowId)
 }
 
 // Infinite scroll observer
@@ -109,6 +115,11 @@ onUnmounted(() => {
       </div>
     </div>
 
+    <!-- Durable Workflow Runs (feat-054) -->
+    <div class="durable-section">
+      <DurableRunsPanel />
+    </div>
+
     <!-- Content -->
     <div class="dashboard-content">
       <!-- Skeleton Loading -->
@@ -158,7 +169,7 @@ onUnmounted(() => {
           v-for="workflow in filteredWorkflows"
           :key="workflow.workflow_id"
           class="wf-card"
-          @click="openBuilder(workflow.workflow_id)"
+          @click="handleCardClick(workflow.workflow_id)"
         >
           <div class="wf-card-accent" />
           <div class="wf-card-body">
@@ -226,6 +237,12 @@ onUnmounted(() => {
   overflow: hidden;
   background: #ffffff;
   font-family: 'Plus Jakarta Sans', sans-serif;
+}
+
+/* ── Durable Section ─────────────────────────────────────────────────── */
+.durable-section {
+  padding: 0 32px 16px;
+  flex-shrink: 0;
 }
 
 /* ── Header ─────────────────────────────────────────────────────────────── */

@@ -1,5 +1,5 @@
 """
-FastAPI application factory and lifespan for Dr.Vision.
+FastAPI application factory and lifespan for Doc Intelligence.
 
 This module owns:
 - Lifespan context manager (startup / shutdown)
@@ -30,12 +30,28 @@ from services.job_queue import job_queue
 from services.job_executor import execute_job
 from services import job_persistence
 from services import execution_state
+from services import observability
+from services.workflow_engine import WorkflowEngine
+from auth.repository import AuthRepository
+from auth.router import router as auth_router
+from auth.service import AuthService
 
 logger = logging.getLogger(__name__)
 
+# --- Validate required secrets at startup ---
+_missing_secrets = settings.check_required_secrets()
+if _missing_secrets:
+    logger.warning(
+        "Missing required environment variables: %s. "
+        "Database and storage features will be unavailable. "
+        "See .env.example for configuration reference.",
+        ", ".join(_missing_secrets),
+    )
+
 # Module-level repository instance — shared with route handlers via app.state
-banking_repo = BankingRepository(settings.database_url)
-workflow_repo = WorkflowRepository(settings.database_url)
+banking_repo = BankingRepository(settings.database_url or "")
+workflow_repo = WorkflowRepository(settings.database_url or "")
+auth_repo = AuthRepository()
 
 
 @asynccontextmanager
@@ -53,7 +69,7 @@ async def lifespan(app: FastAPI):
     - Logs shutdown message
     """
     logger.info("=" * 70)
-    logger.info("Dr.Vision — FastAPI Backend")
+    logger.info("Doc Intelligence — FastAPI Backend")
     logger.info("=" * 70)
 
     errors = settings.validate()
@@ -87,6 +103,35 @@ async def lifespan(app: FastAPI):
             "Workflow database unavailable — persistence disabled: %s", e,
         )
         app.state.workflow_repo = None
+
+    # --- Auth database (reuses workflow_repo pool) ---
+    try:
+        if workflow_repo._pool:
+            auth_repo.set_pool(workflow_repo._pool)
+            await auth_repo.init_schema()
+            app.state.auth_repo = auth_repo
+            logger.info("Auth schema initialized")
+
+            # Auto-create admin user on first boot
+            if settings.admin_email and settings.admin_password:
+                user_count = await auth_repo.count_users()
+                if user_count == 0:
+                    password_hash = AuthService.hash_password(settings.admin_password)
+                    await auth_repo.create_user(
+                        email=settings.admin_email,
+                        full_name=settings.admin_name,
+                        password_hash=password_hash,
+                        role="admin",
+                    )
+                    logger.info(
+                        "Admin user created: %s", settings.admin_email,
+                    )
+        else:
+            app.state.auth_repo = auth_repo
+            logger.warning("Auth: no DB pool — authentication disabled")
+    except Exception as e:
+        logger.warning("Auth initialization failed: %s", e)
+        app.state.auth_repo = auth_repo
 
     logger.info("Configuration loaded and validated successfully")
     logger.info("Available Models: %s", ", ".join(settings.get_available_models()))
@@ -125,10 +170,56 @@ async def lifespan(app: FastAPI):
         execution_state.set_repository(app.state.workflow_repo)
         logger.info("Execution state service initialized")
 
+        # --- Observability Service (feat-010) ---
+        observability.set_repository(app.state.workflow_repo)
+        logger.info("Observability service initialized")
+
+    # --- Durable Workflow Engine (feat-050/051) ---
+    workflow_engine = None
+    if workflow_repo._pool:
+        try:
+            from services.workflow_engine.definition_store import DefinitionStore
+
+            workflow_engine = WorkflowEngine(
+                pool=workflow_repo._pool,
+                num_workers=jq_config.get("durable_workers", 2),
+                queue_name="default",
+            )
+            await workflow_engine.start()
+            app.state.workflow_engine = workflow_engine
+
+            # Load canvas definitions for recovery
+            def_store = DefinitionStore(workflow_repo._pool)
+            definitions = await def_store.load_all()
+            for defn in definitions.values():
+                workflow_engine.scheduler.register_definition(defn)
+            app.state.definition_store = def_store
+
+            logger.info(
+                "Durable workflow engine started (workers=%d, definitions=%d, durable_mode=%s)",
+                workflow_engine._num_workers, len(definitions), settings.durable_mode,
+            )
+        except Exception as e:
+            logger.warning("Durable workflow engine unavailable: %s", e)
+            app.state.workflow_engine = None
+            app.state.definition_store = None
+    else:
+        app.state.workflow_engine = None
+        app.state.definition_store = None
+        logger.info("Durable workflow engine skipped (no DB pool)")
+
     logger.info("Server ready to accept requests")
     logger.info("=" * 70)
 
     yield
+
+    # --- Shutdown: stop durable workflow engine ---
+    if app.state.workflow_engine:
+        try:
+            await app.state.workflow_engine.stop()
+            logger.info("Durable workflow engine stopped")
+        except Exception as e:
+            logger.warning("Error stopping workflow engine: %s", e)
 
     # --- Shutdown: stop persistence ---
     await job_persistence.stop_persistence()
@@ -149,7 +240,7 @@ async def lifespan(app: FastAPI):
         logger.warning("Error closing workflow database: %s", e)
 
     logger.info("=" * 70)
-    logger.info("Shutting down Dr.Vision")
+    logger.info("Shutting down Doc Intelligence")
     logger.info("=" * 70)
 
 
@@ -180,14 +271,6 @@ def create_app() -> FastAPI:
         )
         cors_origins = ["http://localhost:3000"]
 
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=cors_origins,
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
-
     # --- Request logging ---
     app.add_middleware(RequestLoggingMiddleware)
 
@@ -202,10 +285,16 @@ def create_app() -> FastAPI:
     except Exception:
         logging.warning("Failed to configure rate limiter; rate limiting disabled.")
 
-    # --- Routers ---
-    app.include_router(api_router)
+    # --- CORS (Must be added last to run first and wrap all responses) ---
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=cors_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
-    # --- Root endpoint ---
+    # --- Public endpoints (no auth required) ---
     @app.get("/")
     async def root():
         """Root endpoint with API information."""
@@ -215,10 +304,28 @@ def create_app() -> FastAPI:
             "description": "OCR processing API with multiple model support",
             "endpoints": {
                 "health": "/health",
-                "ocr": "/ocr (POST)",
+                "auth": "/auth/login (POST)",
                 "docs": "/docs",
             },
         }
+
+    @app.get("/health")
+    async def public_health():
+        """Public health check — no authentication required."""
+        from core.dependencies import get_config
+        from services import system_service
+        config = get_config()
+        health = system_service.get_health(config)
+        # Add workflow engine status
+        engine = getattr(app.state, "workflow_engine", None)
+        health["workflow_engine"] = {
+            "status": "running" if engine and engine.is_running else "unavailable",
+        }
+        return health
+
+    # --- Routers ---
+    app.include_router(auth_router)
+    app.include_router(api_router)
 
     return app
 

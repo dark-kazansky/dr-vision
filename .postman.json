@@ -1,5 +1,5 @@
 {
-  "note": "Postman MCP server was not connected. Import the collection from .postman/dr-vision-collection.json manually, then update the IDs below.",
+  "note": "Postman MCP server is disabled. Import the collection from .postman/dr-vision-collection.json manually, then update the IDs below.",
   "workspaceId": "",
   "collectionId": "",
   "environmentId": "",

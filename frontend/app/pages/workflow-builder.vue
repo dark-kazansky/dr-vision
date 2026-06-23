@@ -84,6 +84,7 @@ const nodeTypes: Record<string, any> = {
   'ocr': markRaw(WorkflowNodeComponent),
   'parser': markRaw(WorkflowNodeComponent),
   'text-splitter': markRaw(WorkflowNodeComponent),
+  'layout-recognize': markRaw(WorkflowNodeComponent),
   'classifier': markRaw(WorkflowNodeComponent),
   'extractor': markRaw(WorkflowNodeComponent),
   'llm': markRaw(WorkflowNodeComponent),

@@ -1,5 +1,5 @@
 """
-FastAPI dependency injection functions for Dr.Vision.
+FastAPI dependency injection functions for Doc Intelligence.
 
 Provides injectable dependencies for configuration and agent creation,
 decoupling route handlers from direct agent construction.

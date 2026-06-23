@@ -1,5 +1,5 @@
 """
-FastAPI application entry point for Dr.Vision.
+FastAPI application entry point for Doc Intelligence.
 
 This module is the ASGI entry point used by uvicorn. All application
 setup (middleware, routers, exception handlers, lifespan) lives in server.py.

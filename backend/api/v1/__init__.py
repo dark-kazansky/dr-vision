@@ -1,3 +1,3 @@
 """
-API v1 endpoints for Dr.Vision.
+API v1 endpoints for Doc Intelligence.
 """

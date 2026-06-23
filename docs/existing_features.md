@@ -1,6 +1,6 @@
 # Tài Liệu Tính Năng Hiện Có (Existing Features)
 
-Dự án **DR-Vision** (OCR Web UI) được phát triển dưới dạng một hệ thống nhận dạng ký tự quang học (OCR) hoàn chỉnh, phân chia thành hai thành phần chính: **Backend (FastAPI)** và **Frontend (Nuxt.js)**. Dưới đây là danh sách chi tiết các tính năng đã được triển khai.
+Dự án **Doc Intelligence** (OCR Web UI) được phát triển dưới dạng một hệ thống nhận dạng ký tự quang học (OCR) hoàn chỉnh, phân chia thành hai thành phần chính: **Backend (FastAPI)** và **Frontend (Nuxt.js)**. Dưới đây là danh sách chi tiết các tính năng đã được triển khai.
 
 ## 1. Backend (FastAPI)
 

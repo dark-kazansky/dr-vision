@@ -11,8 +11,16 @@ import pytest
 import httpx
 from unittest.mock import patch, MagicMock, AsyncMock
 
+import os
+# Set dummy AWS credentials before importing any application code that might initialize boto3
+os.environ["AWS_ACCESS_KEY_ID"] = "test"
+os.environ["AWS_SECRET_ACCESS_KEY"] = "test"
+os.environ["MINIO_ACCESS_KEY"] = "test"
+os.environ["MINIO_SECRET_KEY"] = "test"
+
 from fastapi import FastAPI
 from api.v1.journey_jobs import router
+import os
 
 @pytest.fixture
 def mock_config():
@@ -68,13 +76,15 @@ async def test_trigger_workflow_success(client, mock_config):
          patch("core.minio_client.minio_client", mock_minio), \
          patch("services.job_executor.store_job_context", new_callable=AsyncMock), \
          patch("os.path.exists", return_value=True), \
-         patch("os.path.getsize", return_value=12345):
+         patch("os.path.getsize", return_value=12345), \
+         patch.dict(os.environ, {"WEBHOOK_API_KEY": "test-webhook-key"}):
 
         async with client:
             resp = await client.post(
                 "/api/v1/workflows/wf-123/trigger",
                 files={"file": ("test.pdf", b"%PDF-1.4 fake content", "application/pdf")},
-                data={"max_retries": 3}
+                data={"max_retries": 3},
+                headers={"X-API-Key": "test-webhook-key"}
             )
 
             assert resp.status_code == 200
@@ -98,12 +108,14 @@ async def test_trigger_workflow_not_found(client, mock_config):
     mock_repo.get_workflow.return_value = None
 
     with patch("server.workflow_repo", mock_repo), \
-         patch("config.Config.load", return_value=mock_config):
+         patch("config.Config.load", return_value=mock_config), \
+         patch.dict(os.environ, {"WEBHOOK_API_KEY": "test-webhook-key"}):
 
         async with client:
             resp = await client.post(
                 "/api/v1/workflows/wf-999/trigger",
                 files={"file": ("test.pdf", b"%PDF-1.4 fake content", "application/pdf")},
+                headers={"X-API-Key": "test-webhook-key"}
             )
 
             assert resp.status_code == 404
@@ -125,12 +137,14 @@ async def test_trigger_workflow_empty_steps(client, mock_config):
     mock_repo.get_workflow.return_value = mock_workflow
 
     with patch("server.workflow_repo", mock_repo), \
-         patch("config.Config.load", return_value=mock_config):
+         patch("config.Config.load", return_value=mock_config), \
+         patch.dict(os.environ, {"WEBHOOK_API_KEY": "test-webhook-key"}):
 
         async with client:
             resp = await client.post(
                 "/api/v1/workflows/wf-empty/trigger",
                 files={"file": ("test.pdf", b"%PDF-1.4 fake content", "application/pdf")},
+                headers={"X-API-Key": "test-webhook-key"}
             )
 
             assert resp.status_code == 400
@@ -151,12 +165,14 @@ async def test_trigger_workflow_invalid_file_extension(client, mock_config):
     mock_repo.get_workflow.return_value = mock_workflow
 
     with patch("server.workflow_repo", mock_repo), \
-         patch("config.Config.load", return_value=mock_config):
+         patch("config.Config.load", return_value=mock_config), \
+         patch.dict(os.environ, {"WEBHOOK_API_KEY": "test-webhook-key"}):
 
         async with client:
             resp = await client.post(
                 "/api/v1/workflows/wf-123/trigger",
                 files={"file": ("test.exe", b"fake executable", "application/octet-stream")},
+                headers={"X-API-Key": "test-webhook-key"}
             )
 
             assert resp.status_code == 400

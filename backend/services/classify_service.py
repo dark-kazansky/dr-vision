@@ -193,7 +193,8 @@ async def classify_document(
         parse_result = await asyncio.to_thread(parser.parse, file_path)
 
         if not parse_result.success:
-            raise HTTPException(status_code=500, detail=f"Parse failed: {parse_result.error}")
+            from core.exceptions import raise_agent_error
+            raise_agent_error(parse_result, prefix="Parse failed: ")
 
         logger.info("Parse successful, text length: %d", len(parse_result.text))
         logger.info("Classifying with model: %s, rules: %d", classifier_model_id, len(rules))
@@ -210,7 +211,8 @@ async def classify_document(
         classify_result = await asyncio.to_thread(classifier.classify, parse_result.text, rules)
 
         if not classify_result.success:
-            raise HTTPException(status_code=500, detail=f"Classification failed: {classify_result.error}")
+            from core.exceptions import raise_agent_error
+            raise_agent_error(classify_result, prefix="Classification failed: ")
 
         logger.info("Classification successful: %s", classify_result.document_type)
 
@@ -261,7 +263,8 @@ async def classify_text(
         classify_result = await asyncio.to_thread(classifier.classify, text, rules)
 
         if not classify_result.success:
-            raise HTTPException(status_code=500, detail=classify_result.error)
+            from core.exceptions import raise_agent_error
+            raise_agent_error(classify_result)
 
         classification_result = ClassificationResult(
             fileName="text_input",

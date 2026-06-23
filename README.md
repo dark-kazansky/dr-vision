@@ -1,233 +1,165 @@
-# LightOnOCR-2-1B Inference Guide for LM Studio
-```source .venv/bin/activate && python app.p
-y```
-## Model Information
+# Doc Intelligence — Document Intelligence Platform
 
-| Property | Value |
-|----------|-------|
-| **Model** | `staghado/LightOnOCR-2-1B-Q4_K_M-GGUF` |
-| **API Identifier** | `lightonocr-2-1b` |
-| **Architecture** | Qwen3 (Vision Enabled) |
-| **Format** | GGUF Q4_K_M |
-| **Size** | 846.15 MB |
-| **Capabilities** | OCR, Document Understanding, Table Extraction |
+AI-powered document processing platform for banking operations. Provides OCR, structured data extraction, document classification, and multi-document splitting through a unified REST API.
+
+**Version:** 2.0.0 | **Stack:** FastAPI + Nuxt 4 + PostgreSQL + Multi-Provider AI
+
+---
+
+## Architecture
+
+```
+┌─────────────────┐     ┌──────────────────────────────────────────┐
+│   Frontend      │     │          Backend (FastAPI)                │
+│   Nuxt 4 + Vue  │────▶│  API → Services → Components → Agents   │
+│   TailwindCSS   │     │                                          │
+└─────────────────┘     │  Providers: Gemini │ Bedrock │ LM Studio │
+                        │             Ollama │ vLLM    │ POE       │
+                        └──────────┬───────────────────────────────┘
+                                   │
+                        ┌──────────▼───────────────────────────────┐
+                        │  PostgreSQL 16  │  MinIO Object Storage   │
+                        └──────────────────────────────────────────┘
+```
+
+## Key Capabilities
+
+| Feature | Description |
+|---------|-------------|
+| **Parse (OCR)** | Extract text from images, PDFs, DOCX — sync or async |
+| **Extract** | Schema-based structured data extraction with AI |
+| **Split** | Categorize multi-document bundles by page range |
+| **Classify** | Document type classification with confidence scoring |
+| **Workflow** | Multi-step pipelines (OCR → Classify → Extract → Validate) |
+| **Banking Analytics** | Transaction categorization and statement analysis |
 
 ## Quick Start
 
-### 1. Start LM Studio Server
-
-1. Open LM Studio
-2. Ensure `lightonocr-2-1b` model is loaded (you can see "READY" status)
-3. Toggle **Status: Stopped** to start the server
-4. Wait for "Server running" message
-5. Default endpoint: `http://localhost:1234`
-
-### 2. Install Dependencies
-
 ```bash
-pip install requests pillow pypdfium2
+# 1. Start infrastructure
+docker compose up -d postgres minio
+
+# 2. Backend
+cd backend
+cp .env.example .env          # Configure API keys
+pip install -r requirements.txt
+python main.py                 # http://localhost:8000
+
+# 3. Frontend
+cd frontend
+npm install
+npm run dev                    # http://localhost:3000
 ```
 
-### 3. Basic Usage
-
-```python
-import base64
-import requests
-
-# Read and encode image
-with open("document.png", "rb") as f:
-    image_data = base64.b64encode(f.read()).decode("utf-8")
-
-# Make OCR request
-response = requests.post(
-    "http://localhost:1234/v1/chat/completions",
-    json={
-        "model": "lightonocr-2-1b",
-        "messages": [{
-            "role": "user",
-            "content": [{
-                "type": "image_url",
-                "image_url": {
-                    "url": f"data:image/png;base64,{image_data}"
-                }
-            }]
-        }],
-        "max_tokens": 4096,
-        "temperature": 0.2
-    }
-)
-
-text = response.json()["choices"][0]["message"]["content"]
-print(text)
+**Full stack (Docker):**
+```bash
+docker compose up
 ```
 
-## Files Included
+## Project Structure
 
-| File | Description |
-|------|-------------|
-| `lightonocr_inference.py` | Full-featured inference library with PDF support |
-| `lightonocr_api_examples.py` | Various API usage patterns (sync, async, streaming) |
-| `ocr_quick.py` | Command-line tool for quick OCR |
-| `requirements.txt` | Python dependencies |
+```
+doc-intelligence/
+├── backend/                    FastAPI application
+│   ├── api/v1/                 REST endpoints (versioned)
+│   ├── services/               Business logic layer
+│   ├── components/             AI components (Parser, Extractor, Splitter)
+│   ├── agents/                 Multi-provider AI agents (Factory pattern)
+│   ├── core/                   Middleware, schemas, exceptions, utilities
+│   ├── storage/                PostgreSQL repositories
+│   ├── config/                 YAML config + tier routing
+│   └── tests/                  Unit & integration tests (pytest)
+├── frontend/                   Nuxt 4 + Vue 3 + TypeScript + TailwindCSS
+│   ├── app/pages/              Page routes
+│   ├── app/components/         Vue components
+│   └── app/composables/        Shared logic (API client, state)
+├── docs/                       Architecture & API documentation
+│   ├── api-specification.md    Full API reference
+│   ├── sequence-diagram.md     BPM integration flow
+│   └── existing_features.md    Feature inventory
+├── k8s/                        Kubernetes deployment manifests
+├── .postman/                   Postman collection + environment (56 requests)
+├── docker-compose.yml          Local development stack
+└── CHANGELOG.md                Version history
+```
 
 ## API Endpoints
 
-LM Studio provides OpenAI-compatible endpoints:
+| Group | Endpoints | Description |
+|-------|-----------|-------------|
+| Parse | `POST /parse`, `POST /ocr` | OCR text extraction |
+| Extract | `POST /extract`, `POST /extract-text`, `POST /generate-schema` | Structured extraction |
+| Split | `POST /split` | Document categorization |
+| Jobs | `GET/DELETE /api/v1/jobs/{id}` | Async job management |
+| Workflows | `CRUD /api/v1/workflows` | Pipeline management |
+| Observability | `/api/v1/observability/*` | Metrics, timeline, audit |
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/v1/models` | GET | List available models |
-| `/v1/chat/completions` | POST | Generate OCR response |
-| `/v1/completions` | POST | Legacy completions API |
+Full specification: [`docs/api-specification.md`](docs/api-specification.md)
 
-## Usage Examples
-
-### Command Line
-
-```bash
-# OCR single image
-python ocr_quick.py receipt.png
-
-# OCR PDF (first page)
-python ocr_quick.py document.pdf
-
-# OCR specific PDF page
-python ocr_quick.py document.pdf --page 2
-
-# Save results to file
-python ocr_quick.py *.png --output results.txt
-```
-
-### Python Library
-
-```python
-from lightonocr_inference import ocr_image, ocr_pdf_page, check_server_status
-
-# Check server
-status = check_server_status()
-if status["status"] == "running":
-    
-    # OCR image file
-    text = ocr_image("scan.jpg")
-    
-    # OCR from URL
-    text = ocr_image("https://example.com/document.jpg")
-    
-    # OCR PDF page
-    text = ocr_pdf_page("contract.pdf", page_number=0)
-```
-
-### Using OpenAI SDK
-
-```python
-from openai import OpenAI
-import base64
-
-client = OpenAI(
-    base_url="http://localhost:1234/v1",
-    api_key="not-needed"
-)
-
-with open("image.png", "rb") as f:
-    image_data = base64.b64encode(f.read()).decode("utf-8")
-
-response = client.chat.completions.create(
-    model="lightonocr-2-1b",
-    messages=[{
-        "role": "user",
-        "content": [{
-            "type": "image_url",
-            "image_url": {"url": f"data:image/png;base64,{image_data}"}
-        }]
-    }],
-    max_tokens=4096
-)
-
-print(response.choices[0].message.content)
-```
-
-### cURL
+## Testing
 
 ```bash
-# Encode image to base64
-IMAGE_BASE64=$(base64 -i document.png)
+# Backend unit tests
+cd backend && pytest
 
-# Make request
-curl http://localhost:1234/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "lightonocr-2-1b",
-    "messages": [{
-      "role": "user",
-      "content": [{
-        "type": "image_url",
-        "image_url": {
-          "url": "data:image/png;base64,'$IMAGE_BASE64'"
-        }
-      }]
-    }],
-    "max_tokens": 4096,
-    "temperature": 0.2
-  }'
+# Backend lint
+cd backend && ruff check .
+
+# Frontend type check
+cd frontend && npx vue-tsc --noEmit
+
+# Frontend unit tests
+cd frontend && npx vitest --run
+
+# Postman collection (requires newman)
+npx newman run .postman/doc-intelligence-collection.json -e .postman/doc-intelligence-environment.json
 ```
 
-## Recommended Parameters
+## Configuration
 
-| Parameter | Recommended Value | Description |
-|-----------|------------------|-------------|
-| `max_tokens` | 4096-8192 | Higher for longer documents |
-| `temperature` | 0.2 | Lower for more deterministic output |
-| `top_p` | 0.9 | Nucleus sampling |
+Backend reads from `backend/config/settings.yaml` with env variable overrides:
 
-## Performance Tips
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `DATABASE_URL` | PostgreSQL connection | `postgresql://...localhost:5433/drvision` |
+| `GOOGLE_STUDIO_API_KEY` | Gemini API key | — |
+| `BEDROCK_REGION` | AWS region for Claude | `ap-southeast-2` |
+| `MAX_FILE_SIZE_MB` | Upload size limit | `10` |
+| `RATE_LIMIT_REQUESTS_PER_MINUTE` | Rate limit | `30` |
 
-1. **Image Resolution**: Render PDFs at 200 DPI for optimal quality/speed balance
-2. **Batch Processing**: Use async client for multiple images
-3. **Memory**: Q4_K_M quantization keeps memory usage low (~1.5GB RAM)
-4. **GPU**: Model supports Metal (MPS) on Mac, CUDA on Windows/Linux
+See `backend/.env.example` for all options.
 
-## Document Types Supported
+## Deployment
 
-- 📄 Scanned documents
-- 🧾 Receipts and invoices
-- 📊 Tables and forms
-- 📑 Multi-column layouts
-- 🔢 Mathematical notation (LaTeX)
-- 🇻🇳 Vietnamese text (well supported)
-- 🇫🇷 French text (enhanced in v2)
+| Target | Command | Notes |
+|--------|---------|-------|
+| Local | `docker compose up` | All services on localhost |
+| Kubernetes | `kubectl apply -f k8s/` | PostgreSQL, MinIO, Backend, Frontend |
+| Production | CI/CD pipeline | Configurable via env vars |
 
-## Troubleshooting
+## Documentation
 
-### Server Not Running
-```
-Error: LM Studio server is not running!
-```
-→ Toggle "Status: Stopped" in LM Studio to start the server
+| Document | Content |
+|----------|---------|
+| [`docs/api-specification.md`](docs/api-specification.md) | Complete API reference for SA review |
+| [`docs/sequence-diagram.md`](docs/sequence-diagram.md) | BPM ↔ AI Server integration flow |
+| [`docs/existing_features.md`](docs/existing_features.md) | Feature inventory |
+| [`CHANGELOG.md`](CHANGELOG.md) | Version history |
+| `/docs` endpoint | Interactive Swagger UI |
+| `/redoc` endpoint | ReDoc API documentation |
 
-### Model Not Loaded
-→ Click on model name and ensure it shows "READY"
+## Tech Stack
 
-### Out of Memory
-→ Try smaller batch sizes or close other applications
-
-### Slow Response
-→ First request may be slow due to model warm-up. Subsequent requests are faster.
-
-## Model Architecture
-
-LightOnOCR-2-1B uses:
-- **Vision Encoder**: Pixtral-based (from Mistral-Small-3.1)
-- **Language Decoder**: Qwen3-based
-- **Training**: RLVR (Reinforcement Learning from Visual Reasoning)
-- **Benchmark**: State-of-the-art on OlmOCR-Bench (83.2 score)
+| Layer | Technology |
+|-------|-----------|
+| Backend | Python 3.11, FastAPI 0.109, Pydantic v2 |
+| Frontend | Nuxt 4, Vue 3, TypeScript, TailwindCSS |
+| Database | PostgreSQL 16 (async via asyncpg) |
+| Storage | MinIO (S3-compatible) |
+| AI | Google Gemini, AWS Bedrock (Claude), LM Studio, Ollama, vLLM |
+| Testing | pytest + hypothesis (BE), vitest + fast-check (FE) |
+| Infra | Docker Compose, Kubernetes |
 
 ## License
 
-LightOnOCR-2-1B is released under Apache 2.0 license.
-
-## Links
-
-- [Model on HuggingFace](https://huggingface.co/lightonai/LightOnOCR-2-1B)
-- [Official Blog Post](https://huggingface.co/blog/lightonai/lightonocr-2)
-- [Demo](https://huggingface.co/spaces/lightonai/LightOnOCR-2-1B-Demo)
-- [LM Studio](https://lmstudio.ai/)
+Internal use — Banking AI Platform Team.

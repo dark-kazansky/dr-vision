@@ -303,6 +303,7 @@ class JobQueue:
         status: NodeStatus,
         error: Optional[str] = None,
         result: Optional[Dict[str, Any]] = None,
+        duration_ms: Optional[int] = None,
     ) -> None:
         """Update the status of a specific node within a job."""
         node_type = ""
@@ -345,7 +346,7 @@ class JobQueue:
         if status == NodeStatus.RUNNING:
             await bus.emit_node_started(job_id, node_id, node_type, node_label)
         elif status == NodeStatus.COMPLETED:
-            await bus.emit_node_completed(job_id, node_id, node_type, node_label)
+            await bus.emit_node_completed(job_id, node_id, node_type, node_label, duration_ms=duration_ms)
             await bus.emit_job_progress(job_id, progress)
         elif status == NodeStatus.FAILED:
             await bus.emit_node_failed(

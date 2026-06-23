@@ -1,5 +1,5 @@
 """
-AI processing components for Dr.Vision.
+AI processing components for Doc Intelligence.
 
 Each component encapsulates a specific AI processing capability:
 - Parser: OCR and document text extraction

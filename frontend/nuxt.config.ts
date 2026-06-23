@@ -11,7 +11,7 @@ export default defineNuxtConfig({
   
   runtimeConfig: {
     public: {
-      apiBaseUrl: process.env.API_BASE_URL || 'http://localhost:8882'
+      apiBaseUrl: process.env.NUXT_PUBLIC_API_BASE_URL || process.env.API_BASE_URL || 'http://localhost:8000'
     }
   },
   
@@ -29,5 +29,11 @@ export default defineNuxtConfig({
   typescript: {
     strict: true,
     typeCheck: false  // Disabled for now due to vite-plugin-checker issue
+  },
+  
+  vite: {
+    server: {
+      allowedHosts: true
+    }
   }
 })

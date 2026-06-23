@@ -1,5 +1,5 @@
 """
-Business logic and infrastructure services for Dr.Vision.
+Business logic and infrastructure services for Doc Intelligence.
 
 Business logic services (one per domain):
 - parse_service: OCR and document text extraction

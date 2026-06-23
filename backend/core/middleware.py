@@ -1,5 +1,5 @@
 """
-Middleware components for the Dr.Vision backend.
+Middleware components for the Doc Intelligence backend.
 
 Provides cross-cutting concerns like file size validation
 and request logging.

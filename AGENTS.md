@@ -1,4 +1,4 @@
-# AGENTS.md: Dr Vision
+# AGENTS.md: Doc Intelligence
 **Version:** 1.0 | **Last Updated:** 2026-05-19 | **Project Stage:** Active Development
 
 ## 🚀 BẮT ĐẦU MỖI SESSION (đọc trước, làm sau)

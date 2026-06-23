@@ -108,7 +108,8 @@ async def split_document(
             split_result = await asyncio.to_thread(splitter.split_by_document_type, file_path, chunk_categories)
 
             if not split_result.success:
-                raise HTTPException(status_code=500, detail=f"Split failed: {split_result.error}")
+                from core.exceptions import raise_agent_error
+                raise_agent_error(split_result, prefix="Split failed: ")
 
             document_type_models = [
                 DocumentTypeResult(type_name=dt.type_name, page_numbers=dt.page_numbers, confidence=dt.confidence)
@@ -141,7 +142,8 @@ async def split_document(
             )
 
             if not split_result.success:
-                raise HTTPException(status_code=500, detail=f"Split failed: {split_result.error}")
+                from core.exceptions import raise_agent_error
+                raise_agent_error(split_result, prefix="Split failed: ")
 
             def _to_chunk_model(chunk) -> ChunkModel:
                 return ChunkModel(

@@ -1,5 +1,5 @@
 """
-Centralized storage paths for Dr.Vision.
+Centralized storage paths for Doc Intelligence.
 
 All uploaded files and processing results are stored under a single
 root directory: ``dataResult/`` (sibling of the backend folder).

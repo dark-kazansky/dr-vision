@@ -240,7 +240,8 @@ async def parse_document(
         result = await asyncio.to_thread(parser.parse, file_path, force_ocr)
 
         if not result.success:
-            raise HTTPException(status_code=500, detail=result.error)
+            from core.exceptions import raise_agent_error
+            raise_agent_error(result)
 
         text = result.text
         if parse_formatting:

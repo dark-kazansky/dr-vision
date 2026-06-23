@@ -2,7 +2,7 @@
 Pydantic schemas for request/response validation.
 
 This module defines all data schemas used for API request validation,
-response serialization, and data transfer objects in the Dr.Vision application.
+response serialization, and data transfer objects in the Doc Intelligence application.
 """
 
 from pydantic import BaseModel, Field, validator

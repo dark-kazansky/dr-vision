@@ -407,7 +407,7 @@ export function useWorkflowState() {
 
   // ─── Local Storage ─────────────────────────────────────────────────────
 
-  const STORAGE_KEY = 'dr-vision-workflow-builder'
+  const STORAGE_KEY = 'doc-intelligence-workflow-builder'
 
   const saveToLocalStorage = () => {
     if (typeof window === 'undefined') return

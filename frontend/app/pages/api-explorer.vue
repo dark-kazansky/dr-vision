@@ -3,8 +3,8 @@
     <!-- Top Bar -->
     <div class="top-bar">
       <div class="logo logo-clickable">
-        <img src="/assets/logo.png" alt="Dr.Vision" class="logo-icon" @click="navigateTo('/')" />
-        <span class="logo-text" @click="navigateTo('/')">Dr.Vision</span>
+        <img src="/assets/logo.png" alt="Doc Intelligence" class="logo-icon" @click="navigateTo('/')" />
+        <span class="logo-text" @click="navigateTo('/')">Doc Intelligence</span>
       </div>
       <div class="top-bar-actions">
         <button class="top-bar-btn" @click="navigateTo('/')">
@@ -256,7 +256,7 @@ onMounted(() => {
   loadEndpoints()
 })
 
-useHead({ title: 'API Explorer — Dr.Vision' })
+useHead({ title: 'API Explorer — Doc Intelligence' })
 </script>
 
 <style scoped>

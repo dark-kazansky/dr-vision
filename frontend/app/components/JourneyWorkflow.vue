@@ -58,18 +58,6 @@
           </svg>
           {{ isProcessing || isJobSubmitting ? 'Submitting...' : 'Execute' }}
         </button>
-        <button 
-          class="toolbar-action-btn"
-          :class="{ active: jobPanelOpen }"
-          @click="jobPanelOpen = !jobPanelOpen"
-          title="Toggle job progress panel"
-        >
-          <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-          </svg>
-          Jobs
-          <span v-if="isJobRunning" class="job-indicator" />
-        </button>
         <button class="toolbar-deploy-btn" title="Deploy workflow">
           <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
@@ -340,6 +328,18 @@
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12M8 12h12m-12 5h12M3 7h.01M3 12h.01M3 17h.01" />
               </svg>
               <span>Split</span>
+            </button>
+            <button class="node-btn" @click="addNodeInViewport('layout_recognize')" :disabled="isProcessing">
+              <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
+              </svg>
+              <span>Layout</span>
+            </button>
+            <button class="node-btn" @click="addNodeInViewport('table_recognize')" :disabled="isProcessing">
+              <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M3 14h18M3 6h18M3 18h18M8 6v12M16 6v12" />
+              </svg>
+              <span>Table</span>
             </button>
             <button class="node-btn" @click="addNodeInViewport('condition')" :disabled="isProcessing">
               <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -786,6 +786,84 @@
             </div>
           </div>
           
+          <!-- Layout Recognize Node Settings -->
+          <div v-else-if="getSelectedNodeObject.type === 'layout_recognize'" class="node-config-content">
+            <div class="config-group">
+              <label class="config-label">Processing Tier</label>
+              <select v-model="getSelectedNodeObject.tier" class="config-select" :disabled="isProcessing">
+                <option value="Rapid">Rapid</option>
+                <option value="Normal">Normal</option>
+                <option value="Advance">Advance</option>
+              </select>
+            </div>
+            <div class="config-group">
+              <label class="config-label">Confidence Threshold</label>
+              <input type="number" v-model.number="getSelectedNodeObject.config.threshold" min="0.05" max="1.0" step="0.05" class="config-input" :disabled="isProcessing" />
+              <p class="config-hint">Lower = more detections but more noise (default: 0.2)</p>
+            </div>
+            <div class="config-group">
+              <label class="config-label">Scale Factor</label>
+              <select v-model.number="getSelectedNodeObject.config.scale_factor" class="config-select" :disabled="isProcessing">
+                <option :value="1">1x (Fast)</option>
+                <option :value="2">2x (Balanced)</option>
+                <option :value="3">3x (Quality)</option>
+                <option :value="4">4x (High Quality)</option>
+              </select>
+              <p class="config-hint">Higher = better detection quality but slower</p>
+            </div>
+          </div>
+
+          <!-- Table Recognize Node Settings -->
+          <div v-else-if="getSelectedNodeObject.type === 'table_recognize'" class="node-config-content">
+            <div class="config-group">
+              <label class="config-label">Processing Method</label>
+              <select v-model="getSelectedNodeObject.config.method" class="config-select" :disabled="isProcessing">
+                <option value="auto">Auto (detect best method)</option>
+                <option value="deepdoc">DeepDoc TSR (scanned/image)</option>
+                <option value="markitdown">MarkItDown (native XLSX/DOCX/CSV)</option>
+                <option value="llm">LLM Extract (AI-powered)</option>
+              </select>
+              <p class="config-hint">Auto: uses MarkItDown for native files, DeepDoc for scans</p>
+            </div>
+            <div class="config-group">
+              <label class="config-label">Processing Tier</label>
+              <select v-model="getSelectedNodeObject.tier" class="config-select" :disabled="isProcessing">
+                <option value="Rapid">Rapid</option>
+                <option value="Normal">Normal</option>
+                <option value="Advance">Advance</option>
+              </select>
+            </div>
+            <div class="config-group">
+              <label class="config-label">Output Format</label>
+              <select v-model="getSelectedNodeObject.config.output_format" class="config-select" :disabled="isProcessing">
+                <option value="json">JSON (Cells)</option>
+                <option value="csv">CSV</option>
+                <option value="markdown">Markdown</option>
+                <option value="html">HTML</option>
+                <option value="all">All Formats</option>
+              </select>
+            </div>
+            <div class="config-group">
+              <label class="config-label">Confidence Threshold</label>
+              <input type="number" v-model.number="getSelectedNodeObject.config.threshold" min="0.05" max="1.0" step="0.05" class="config-input" :disabled="isProcessing" />
+            </div>
+            <div class="config-group">
+              <label class="config-label">Scale Factor</label>
+              <select v-model.number="getSelectedNodeObject.config.scale_factor" class="config-select" :disabled="isProcessing">
+                <option :value="1">1x (Fast)</option>
+                <option :value="2">2x (Balanced)</option>
+                <option :value="3">3x (Quality)</option>
+                <option :value="4">4x (High Quality)</option>
+              </select>
+            </div>
+            <div class="config-group">
+              <label class="config-label">
+                <input type="checkbox" v-model="getSelectedNodeObject.config.use_layout_detection" :disabled="isProcessing" />
+                Auto-detect table regions (layout detection)
+              </label>
+            </div>
+          </div>
+
           <!-- OCR/Parse Node Settings -->
           <div v-else class="node-config-content">
             <div class="config-group">

@@ -1,0 +1,152 @@
+# Docker Compose for Doc Intelligence Microservices (Development)
+# Usage: docker compose -f docker-compose.dev.yml up
+#
+# This runs all 4 services + infrastructure with hot-reload.
+# For partial startup: docker compose -f docker-compose.dev.yml up gateway ocr
+
+services:
+  # === Infrastructure ===
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - "${POSTGRES_PORT:-5433}:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-docintel}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-docintel_dev}
+      POSTGRES_DB: ${POSTGRES_DB:-docintel}
+    volumes:
+      - pgdata_dev:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-docintel}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  minio:
+    image: minio/minio
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
+    volumes:
+      - minio_dev:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # === Services ===
+  gateway:
+    build:
+      context: .
+      dockerfile: services/gateway/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      PORT: 8000
+      CORS_ORIGINS: http://localhost:3000
+      OCR_SERVICE_URL: http://ocr:8001
+      JOURNEY_SERVICE_URL: http://journey:8002
+      BANKING_SERVICE_URL: http://banking:8003
+      PROXY_TIMEOUT: 120
+    volumes:
+      - ./services/gateway:/app
+      - ./packages/common:/app/packages/common
+    depends_on:
+      ocr:
+        condition: service_started
+      journey:
+        condition: service_started
+      banking:
+        condition: service_started
+
+  ocr:
+    build:
+      context: .
+      dockerfile: services/ocr/Dockerfile
+    ports:
+      - "8001:8001"
+    environment:
+      PORT: 8001
+      REDIS_URL: redis://redis:6379
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-dev-secret-change-in-production}
+      LM_STUDIO_BASE_URL: ${LM_STUDIO_BASE_URL:-http://host.docker.internal:1234}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      GOOGLE_STUDIO_API_KEY: ${GOOGLE_STUDIO_API_KEY:-}
+      BEDROCK_REGION: ${BEDROCK_REGION:-ap-southeast-2}
+    volumes:
+      - ./services/ocr:/app
+      - ./packages/common:/app/packages/common
+    depends_on:
+      minio:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  journey:
+    build:
+      context: .
+      dockerfile: services/journey/Dockerfile
+    ports:
+      - "8002:8002"
+    environment:
+      PORT: 8002
+      DATABASE_URL: postgresql://${POSTGRES_USER:-docintel}:${POSTGRES_PASSWORD:-docintel_dev}@postgres:5432/${POSTGRES_DB:-docintel}
+      REDIS_URL: redis://redis:6379
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-dev-secret-change-in-production}
+      OCR_SERVICE_URL: http://ocr:8001
+    volumes:
+      - ./services/journey:/app
+      - ./packages/common:/app/packages/common
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  banking:
+    build:
+      context: .
+      dockerfile: services/banking/Dockerfile
+    ports:
+      - "8003:8003"
+    environment:
+      PORT: 8003
+      DATABASE_URL: postgresql://${POSTGRES_USER:-docintel}:${POSTGRES_PASSWORD:-docintel_dev}@postgres:5432/${POSTGRES_DB:-docintel}
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-dev-secret-change-in-production}
+      OCR_SERVICE_URL: http://ocr:8001
+    volumes:
+      - ./services/banking:/app
+      - ./packages/common:/app/packages/common
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  pgdata_dev:
+  minio_dev:

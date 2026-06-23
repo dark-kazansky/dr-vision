@@ -105,8 +105,8 @@
     <!-- Top Bar -->
     <div class="top-bar">
       <div class="logo logo-clickable">
-        <img src="/assets/logo.png" alt="Dr.Vision" class="logo-icon" @click="handleRefresh" />
-        <span class="logo-text" @click="handleRefresh">Dr.Vision</span>
+        <img src="/assets/logo.png" alt="Doc Intelligence" class="logo-icon" @click="handleRefresh" />
+        <span class="logo-text" @click="handleRefresh">Doc Intelligence</span>
       </div>
       <div class="top-bar-actions">
         <button class="top-bar-btn" @click="handleFeedback">
@@ -769,8 +769,9 @@
       </div>
       
       <!-- Journey View -->
-      <JourneyDashboard v-if="activeView === 'journey' && !journeyBuilderOpen" @open-builder="handleOpenJourneyBuilder" />
-      <JourneyWorkflow v-if="activeView === 'journey' && journeyBuilderOpen" :workflow-id="editingWorkflowId" @back="journeyBuilderOpen = false" />
+      <JourneyDashboard v-if="activeView === 'journey' && !journeyBuilderOpen && !journeyDetailOpen" @open-builder="handleOpenJourneyBuilder" @open-detail="handleOpenJourneyDetail" />
+      <JourneyWorkflowDetail v-if="activeView === 'journey' && journeyDetailOpen && !journeyBuilderOpen" :workflow-id="editingWorkflowId!" @back="journeyDetailOpen = false" @open-builder="handleOpenJourneyBuilderFromDetail" />
+      <JourneyWorkflow v-if="activeView === 'journey' && journeyBuilderOpen" :workflow-id="editingWorkflowId" @back="handleBackFromBuilder" />
 
       <!-- Data Store View -->
       <DataStorePanel
@@ -1437,6 +1438,7 @@ import ClassifyConfigPanel from '~/components/ClassifyConfigPanel.vue'
 import SplitConfigPanel from '~/components/SplitConfigPanel.vue'
 import JourneyWorkflow from '~/components/JourneyWorkflow.vue'
 import JourneyDashboard from '~/components/JourneyDashboard.vue'
+import JourneyWorkflowDetail from '~/components/JourneyWorkflowDetail.vue'
 import HelpDialog from '~/components/HelpDialog.vue'
 import DeployDialog from '~/components/DeployDialog.vue'
 import ModelSelector from '~/components/ModelSelector.vue'
@@ -1481,6 +1483,7 @@ const {
 // Local state
 const activeView = ref('parse') // 'parse' or 'extraction'
 const journeyBuilderOpen = ref(false)
+const journeyDetailOpen = ref(false)
 const editingWorkflowId = ref<string | null>(null)
 const selectedFile = ref<any>(null)
 const uploadedFiles = ref<Map<string, File>>(new Map())
@@ -1989,6 +1992,7 @@ watch(activeView, async (newView) => {
   // Reset journey builder when switching away
   if (newView !== 'journey') {
     journeyBuilderOpen.value = false
+    journeyDetailOpen.value = false
   }
 
   if (newView === 'settings') {
@@ -2579,6 +2583,22 @@ const handleCancel = () => {
 const handleOpenJourneyBuilder = (workflowId?: string) => {
   editingWorkflowId.value = workflowId || null
   journeyBuilderOpen.value = true
+}
+
+const handleOpenJourneyDetail = (workflowId: string) => {
+  editingWorkflowId.value = workflowId
+  journeyDetailOpen.value = true
+}
+
+const handleOpenJourneyBuilderFromDetail = (workflowId: string) => {
+  editingWorkflowId.value = workflowId
+  journeyBuilderOpen.value = true
+}
+
+const handleBackFromBuilder = () => {
+  journeyBuilderOpen.value = false
+  // If we came from detail page, go back to detail; otherwise go to dashboard
+  // journeyDetailOpen stays as-is
 }
 
 const handleRefresh = async () => {

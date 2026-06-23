@@ -1,5 +1,5 @@
 """
-Agent system for Dr.Vision.
+Agent system for Doc Intelligence.
 
 This module provides base agent classes and implementations for:
 - LLM agents (text-based language models)

@@ -1,5 +1,5 @@
 #!/bin/bash
-# verify.sh: Full Pipeline Verification for Dr Vision
+# verify.sh: Full Pipeline Verification for Doc Intelligence
 # Chạy trước khi declare bất kỳ feature nào done.
 # Exit 0 = tất cả gates pass. Exit 1 = có gate fail.
 set -euo pipefail

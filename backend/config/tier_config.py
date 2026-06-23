@@ -1,5 +1,5 @@
 """
-Tier configuration for Dr.Vision.
+Tier configuration for Doc Intelligence.
 
 This module provides centralized tier-to-model mappings for different features.
 Modify this file to change which models are used for each tier.

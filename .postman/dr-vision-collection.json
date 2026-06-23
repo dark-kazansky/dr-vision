@@ -1,17 +1,661 @@
 {
   "info": {
-    "name": "Dr.Vision API",
-    "_postman_id": "dr-vision-api-collection",
-    "description": "Complete API collection for Dr.Vision OCR Web UI backend",
+    "name": "Doc Intelligence API",
+    "_postman_id": "doc-intelligence-api-collection",
+    "description": "Complete API collection for Doc Intelligence — OCR, Extraction & Document Intelligence Platform.\n\nEndpoints are grouped by domain: Core OCR (Parse/Extract/Split), System, Providers, Uploads, Data Store, Jobs, Workflows, Banking, Observability.\n\nVersion: 2.0.0 | Contact: AI Platform Team",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{access_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "exec": [
+          "// Auto-login if access_token is empty",
+          "const token = pm.environment.get('access_token');",
+          "if (!token && pm.info.requestName !== 'Login') {",
+          "  const baseUrl = pm.environment.get('base_url') || pm.collectionVariables.get('base_url');",
+          "  const email = pm.environment.get('admin_email') || 'admin@drvision.local';",
+          "  const password = pm.environment.get('admin_password') || 'admin123';",
+          "  pm.sendRequest({",
+          "    url: baseUrl + '/auth/login',",
+          "    method: 'POST',",
+          "    header: { 'Content-Type': 'application/json' },",
+          "    body: { mode: 'raw', raw: JSON.stringify({ email, password }) }",
+          "  }, (err, res) => {",
+          "    if (!err && res.code === 200) {",
+          "      const body = res.json();",
+          "      pm.environment.set('access_token', body.access_token);",
+          "      pm.environment.set('refresh_token', body.refresh_token);",
+          "    }",
+          "  });",
+          "}"
+        ]
+      }
+    }
+  ],
   "variable": [
     {
       "key": "base_url",
       "value": "http://localhost:8000"
+    },
+    {
+      "key": "test_model_id",
+      "value": "gemini-2.5-flash"
+    },
+    {
+      "key": "extractor_model_id",
+      "value": "qwen3-max"
     }
   ],
   "item": [
+    {
+      "name": "Auth",
+      "description": "Authentication endpoints (public — no Bearer token required).\n\nFlow: Login → get access_token → use for all subsequent requests.\nToken expires in 30 minutes. Use /auth/refresh to renew.",
+      "item": [
+        {
+          "name": "Login",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "url": "{{base_url}}/auth/login",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{admin_email}}\",\n  \"password\": \"{{admin_password}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Has access_token', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.have.property('access_token');",
+                  "  pm.expect(body).to.have.property('refresh_token');",
+                  "  pm.expect(body).to.have.property('expires_in');",
+                  "  pm.environment.set('access_token', body.access_token);",
+                  "  pm.environment.set('refresh_token', body.refresh_token);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Refresh Token",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{refresh_token}}", "type": "string" }]
+            },
+            "method": "POST",
+            "url": "{{base_url}}/auth/refresh"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('New tokens received', () => {",
+                  "  pm.expect(body).to.have.property('access_token');",
+                  "  pm.environment.set('access_token', body.access_token);",
+                  "  pm.environment.set('refresh_token', body.refresh_token);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Current User (me)",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/auth/me"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Has user info', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.have.property('id');",
+                  "  pm.expect(body).to.have.property('email');",
+                  "  pm.expect(body).to.have.property('role');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Protected Endpoint without Token (expect 401)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": "{{base_url}}/health"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// /health is public — should return 200 even without auth",
+                  "pm.test('Health is public (200)', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Protected Endpoint without Token (expect 401) — Providers",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": "{{base_url}}/providers"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 401 without token', () => pm.response.to.have.status(401));",
+                  "pm.test('Has WWW-Authenticate header', () => {",
+                  "  // FastAPI returns detail explaining the issue",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.have.property('detail');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Core — Parse (OCR)",
+      "description": "Document parsing and OCR text extraction endpoints.\n\nSupports: PDF, PNG, JPG, JPEG, DOCX\nModes: Synchronous (small files) | Background job (large PDFs)\nAlias: POST /ocr is identical to POST /parse",
+      "item": [
+        {
+          "name": "Parse Document (PDF)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/parse",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {"key": "file", "type": "file", "src": "", "description": "Document file (PDF/PNG/JPG/DOCX)"},
+                {"key": "model_id", "value": "{{test_model_id}}", "type": "text", "description": "OCR model to use"},
+                {"key": "force_ocr", "value": "false", "type": "text", "description": "Force OCR even for text-based PDFs"},
+                {"key": "parse_formatting", "value": "true", "type": "text", "description": "Apply text formatting/structuring"},
+                {"key": "process_all_pages", "value": "true", "type": "text", "description": "Process all pages or just first"},
+                {"key": "tier", "value": "Normal", "type": "text", "description": "Processing tier: Rapid|Normal|Advance"}
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Response is JSON', () => pm.response.to.be.json);",
+                  "const body = pm.response.json();",
+                  "pm.test('Has success=true', () => pm.expect(body.success).to.be.true);",
+                  "pm.test('Has text field', () => pm.expect(body).to.have.property('text'));",
+                  "pm.test('Has file_type', () => pm.expect(body).to.have.property('file_type'));",
+                  "pm.test('Has pages count', () => pm.expect(body).to.have.property('pages'));",
+                  "pm.test('Has filename', () => pm.expect(body).to.have.property('filename'));",
+                  "pm.test('Has model used', () => pm.expect(body).to.have.property('model'));",
+                  "// If background job dispatched, verify job_id",
+                  "if (body.background) {",
+                  "  pm.test('Background: has job_id', () => pm.expect(body).to.have.property('job_id'));",
+                  "  pm.environment.set('parse_job_id', body.job_id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Parse Document (Image — /ocr alias)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/ocr",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {"key": "file", "type": "file", "src": "", "description": "Image file (PNG/JPG)"},
+                {"key": "model_id", "value": "{{test_model_id}}", "type": "text"},
+                {"key": "force_ocr", "value": "true", "type": "text"},
+                {"key": "parse_formatting", "value": "true", "type": "text"},
+                {"key": "tier", "value": "Normal", "type": "text"}
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('Success', () => pm.expect(body.success).to.be.true);",
+                  "pm.test('Has OCR text', () => pm.expect(body.text).to.be.a('string'));",
+                  "pm.test('file_type is image', () => pm.expect(body.file_type).to.be.oneOf(['image', 'png', 'jpg', 'jpeg']));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Parse with Inline Extraction",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/parse",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {"key": "file", "type": "file", "src": "", "description": "Document with structured data"},
+                {"key": "model_id", "value": "{{test_model_id}}", "type": "text"},
+                {"key": "force_ocr", "value": "false", "type": "text"},
+                {"key": "parse_formatting", "value": "true", "type": "text"},
+                {"key": "tier", "value": "Normal", "type": "text"},
+                {"key": "extraction_enabled", "value": "true", "type": "text", "description": "Enable inline extraction"},
+                {"key": "extraction_target", "value": "document", "type": "text", "description": "document|page|table_row"},
+                {"key": "extraction_schema", "value": "[{\"name\":\"invoice_number\",\"type\":\"string\",\"description\":\"Invoice number\",\"required\":true},{\"name\":\"total_amount\",\"type\":\"number\",\"description\":\"Total amount\",\"required\":true},{\"name\":\"date\",\"type\":\"date\",\"description\":\"Invoice date\",\"required\":false}]", "type": "text"},
+                {"key": "extractor_model", "value": "{{extractor_model_id}}", "type": "text"}
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('Parse success', () => pm.expect(body.success).to.be.true);",
+                  "pm.test('Has text', () => pm.expect(body.text).to.be.a('string'));",
+                  "pm.test('Has extraction result', () => pm.expect(body).to.have.property('extraction'));",
+                  "if (body.extraction) {",
+                  "  pm.test('Extraction has success flag', () => pm.expect(body.extraction).to.have.property('success'));",
+                  "  if (body.extraction.success) {",
+                  "    pm.test('Has structured_data', () => pm.expect(body.extraction).to.have.property('structured_data'));",
+                  "  }",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Parse — Error: No File (422)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/parse",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {"key": "model_id", "value": "{{test_model_id}}", "type": "text"}
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 422 (validation error)', () => pm.response.to.have.status(422));",
+                  "const body = pm.response.json();",
+                  "pm.test('Has error info', () => pm.expect(body.error || body.detail).to.exist);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Core — Extract",
+      "description": "Structured data extraction endpoints.\n\nModes:\n- POST /extract: Upload file → OCR + Extract\n- POST /extract-text: Extract from pre-extracted text\n- POST /generate-schema: AI generates extraction schema from prompt",
+      "item": [
+        {
+          "name": "Extract from File",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/extract",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {"key": "file", "type": "file", "src": "", "description": "Document to OCR + extract"},
+                {"key": "parser_model_id", "value": "{{test_model_id}}", "type": "text", "description": "Model for OCR step"},
+                {"key": "extractor_model_id", "value": "{{extractor_model_id}}", "type": "text", "description": "Model for extraction step"},
+                {"key": "extraction_schema", "value": "[{\"name\":\"company_name\",\"type\":\"string\",\"description\":\"Company name\",\"required\":true},{\"name\":\"revenue\",\"type\":\"number\",\"description\":\"Annual revenue (VND)\",\"required\":true},{\"name\":\"report_date\",\"type\":\"date\",\"description\":\"Report date\",\"required\":false}]", "type": "text", "description": "JSON array of fields to extract"},
+                {"key": "extraction_target", "value": "document", "type": "text", "description": "document|page|table_row"}
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Response is JSON', () => pm.response.to.be.json);",
+                  "const body = pm.response.json();",
+                  "pm.test('Has success=true', () => pm.expect(body.success).to.be.true);",
+                  "pm.test('Has structured_data', () => pm.expect(body).to.have.property('structured_data'));",
+                  "pm.test('Has filename', () => pm.expect(body).to.have.property('filename'));",
+                  "pm.test('structured_data is object', () => pm.expect(body.structured_data).to.be.an('object'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Extract from File (with AI Schema)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/extract",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {"key": "file", "type": "file", "src": ""},
+                {"key": "parser_model_id", "value": "{{test_model_id}}", "type": "text"},
+                {"key": "extractor_model_id", "value": "{{extractor_model_id}}", "type": "text"},
+                {"key": "extraction_schema", "value": "[]", "type": "text", "description": "Placeholder — schema generated by AI"},
+                {"key": "extraction_target", "value": "document", "type": "text"},
+                {"key": "generate_schema", "value": "true", "type": "text", "description": "Use AI to generate schema"},
+                {"key": "schema_prompt", "value": "Extract all invoice fields: number, date, vendor, line items, totals", "type": "text", "description": "Natural language description of what to extract"}
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('Success', () => pm.expect(body.success).to.be.true);",
+                  "pm.test('Has structured_data', () => pm.expect(body).to.have.property('structured_data'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Extract from Text (no OCR)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/extract-text",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {"key": "text", "value": "INVOICE #INV-2026-0042\\nDate: 2026-06-01\\nVendor: Công ty TNHH ABC\\nTotal: 150,000,000 VND\\n\\nLine Items:\\n1. Dịch vụ tư vấn AI - 100,000,000 VND\\n2. Bảo trì hệ thống - 50,000,000 VND", "type": "text", "description": "Pre-extracted text from OCR"},
+                {"key": "extraction_schema", "value": "[{\"name\":\"invoice_number\",\"type\":\"string\",\"description\":\"Invoice number\",\"required\":true},{\"name\":\"vendor\",\"type\":\"string\",\"description\":\"Vendor company name\",\"required\":true},{\"name\":\"total_amount\",\"type\":\"number\",\"description\":\"Total amount in VND\",\"required\":true},{\"name\":\"date\",\"type\":\"date\",\"description\":\"Invoice date\",\"required\":true}]", "type": "text"},
+                {"key": "extraction_target", "value": "document", "type": "text"},
+                {"key": "extractor_model_id", "value": "gemini-2.5-flash", "type": "text"},
+                {"key": "tier", "value": "Normal", "type": "text"}
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('Success', () => pm.expect(body.success).to.be.true);",
+                  "pm.test('Has extraction result', () => pm.expect(body).to.have.property('extraction'));",
+                  "if (body.extraction && body.extraction.success) {",
+                  "  pm.test('Has structured_data', () => pm.expect(body.extraction).to.have.property('structured_data'));",
+                  "  const data = body.extraction.structured_data;",
+                  "  pm.test('Extracted invoice_number', () => pm.expect(data).to.have.property('invoice_number'));",
+                  "  pm.test('Extracted vendor', () => pm.expect(data).to.have.property('vendor'));",
+                  "  pm.test('Extracted total_amount', () => pm.expect(data).to.have.property('total_amount'));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Generate Extraction Schema",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/generate-schema",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {"key": "prompt", "value": "Extract all fields from a banking statement: transaction date, description, debit amount, credit amount, balance", "type": "text", "description": "Natural language description"},
+                {"key": "tier", "value": "Normal", "type": "text"}
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('Success', () => pm.expect(body.success).to.be.true);",
+                  "pm.test('Has schema array', () => pm.expect(body.schema).to.be.an('array'));",
+                  "pm.test('Schema has fields', () => pm.expect(body.schema.length).to.be.above(0));",
+                  "pm.test('Each field has name', () => body.schema.forEach(f => pm.expect(f).to.have.property('name')));",
+                  "pm.test('Each field has type', () => body.schema.forEach(f => pm.expect(f).to.have.property('type')));",
+                  "pm.test('Valid types', () => body.schema.forEach(f => pm.expect(f.type).to.be.oneOf(['string','number','boolean','date'])));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Generate Schema with Sample File",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/generate-schema",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {"key": "prompt", "value": "Identify all extractable fields from this document", "type": "text"},
+                {"key": "file", "type": "file", "src": "", "description": "Optional: sample document for context"},
+                {"key": "tier", "value": "Normal", "type": "text"}
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('Success', () => pm.expect(body.success).to.be.true);",
+                  "pm.test('Schema generated', () => pm.expect(body.schema).to.be.an('array'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Extract — Error: Missing Schema (422)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/extract",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {"key": "file", "type": "file", "src": ""},
+                {"key": "parser_model_id", "value": "{{test_model_id}}", "type": "text"},
+                {"key": "extraction_target", "value": "document", "type": "text"}
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 422 (missing required field)', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Core — Split",
+      "description": "Document splitting and categorization endpoints.\n\nModes:\n- sections: Split into categorized text chunks\n- document_type: Identify page ranges per document type\n\nUse case: Multi-document PDF (e.g. loan application package with contract + ID + bank statement)",
+      "item": [
+        {
+          "name": "Split Document (sections mode)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/split",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {"key": "file", "type": "file", "src": "", "description": "Multi-section document (PDF)"},
+                {"key": "categories", "value": "[{\"name\":\"Hợp đồng\",\"description\":\"Hợp đồng tín dụng, hợp đồng thế chấp\",\"order\":0},{\"name\":\"CMND/CCCD\",\"description\":\"Chứng minh nhân dân hoặc Căn cước công dân\",\"order\":1},{\"name\":\"Sao kê\",\"description\":\"Sao kê ngân hàng, bảng kê giao dịch\",\"order\":2},{\"name\":\"Hóa đơn\",\"description\":\"Hóa đơn VAT, hóa đơn dịch vụ\",\"order\":3}]", "type": "text", "description": "JSON array of category definitions"},
+                {"key": "allow_uncategorized", "value": "true", "type": "text", "description": "Allow chunks that don't match any category"},
+                {"key": "split_mode", "value": "sections", "type": "text", "description": "sections|document_type"},
+                {"key": "splitter_tier", "value": "Normal", "type": "text"}
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Response is JSON', () => pm.response.to.be.json);",
+                  "const body = pm.response.json();",
+                  "pm.test('Has success=true', () => pm.expect(body.success).to.be.true);",
+                  "pm.test('Has chunks array', () => pm.expect(body.chunks).to.be.an('array'));",
+                  "pm.test('Has unknown_chunks array', () => pm.expect(body.unknown_chunks).to.be.an('array'));",
+                  "pm.test('document_types is null (sections mode)', () => pm.expect(body.document_types).to.be.null);",
+                  "if (body.chunks.length > 0) {",
+                  "  pm.test('Chunk has content', () => pm.expect(body.chunks[0]).to.have.property('content'));",
+                  "  pm.test('Chunk has category', () => pm.expect(body.chunks[0]).to.have.property('category'));",
+                  "  pm.test('Chunk has page_number', () => pm.expect(body.chunks[0]).to.have.property('page_number'));",
+                  "  pm.test('Chunk has confidence', () => pm.expect(body.chunks[0]).to.have.property('confidence'));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Split Document (document_type mode)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/split",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {"key": "file", "type": "file", "src": "", "description": "Multi-document PDF bundle"},
+                {"key": "categories", "value": "[{\"name\":\"Hợp đồng\",\"description\":\"Contract documents\",\"order\":0},{\"name\":\"CMND/CCCD\",\"description\":\"Identity documents\",\"order\":1},{\"name\":\"Sao kê\",\"description\":\"Bank statements\",\"order\":2}]", "type": "text"},
+                {"key": "split_mode", "value": "document_type", "type": "text", "description": "Identify page ranges per document type"},
+                {"key": "splitter_tier", "value": "Normal", "type": "text"}
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('Success', () => pm.expect(body.success).to.be.true);",
+                  "pm.test('Has document_types', () => pm.expect(body.document_types).to.be.an('array'));",
+                  "pm.test('chunks is empty (doc_type mode)', () => pm.expect(body.chunks).to.eql([]));",
+                  "if (body.document_types && body.document_types.length > 0) {",
+                  "  pm.test('DocType has type_name', () => pm.expect(body.document_types[0]).to.have.property('type_name'));",
+                  "  pm.test('DocType has page_numbers', () => pm.expect(body.document_types[0].page_numbers).to.be.an('array'));",
+                  "  pm.test('DocType has confidence', () => pm.expect(body.document_types[0]).to.have.property('confidence'));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Split — Error: Invalid Mode (400)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/split",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {"key": "file", "type": "file", "src": ""},
+                {"key": "categories", "value": "[{\"name\":\"Test\",\"description\":\"Test\",\"order\":0}]", "type": "text"},
+                {"key": "split_mode", "value": "invalid_mode", "type": "text"}
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 400', () => pm.response.to.have.status(400));",
+                  "const body = pm.response.json();",
+                  "pm.test('Error mentions invalid mode', () => pm.expect(body.detail || body.error).to.include('Invalid split_mode'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Split — Error: No File (422)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/split",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {"key": "categories", "value": "[{\"name\":\"Test\",\"description\":\"Test\",\"order\":0}]", "type": "text"},
+                {"key": "split_mode", "value": "sections", "type": "text"}
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 422', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
     {
       "name": "System",
       "item": [
@@ -623,6 +1267,43 @@
               }
             }
           ]
+        },
+        {
+          "name": "Delete Job",
+          "request": {
+            "method": "DELETE",
+            "url": "{{base_url}}/api/v1/jobs/{{job_id}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 or 404 or 409', () => pm.expect(pm.response.code).to.be.oneOf([200, 404, 409]));",
+                  "if(pm.response.code === 200) { pm.test('Has success field', () => { const j = pm.response.json(); pm.expect(j.success).to.be.true; }); }",
+                  "if(pm.response.code === 409) { pm.test('Has conflict detail', () => { const j = pm.response.json(); pm.expect(j.detail).to.include('Cannot delete'); }); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete Job (Not Found)",
+          "request": {
+            "method": "DELETE",
+            "url": "{{base_url}}/api/v1/jobs/non-existent-job-id"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 404', () => pm.response.to.have.status(404));",
+                  "pm.test('Has not found detail', () => { const j = pm.response.json(); pm.expect(j.detail).to.include('not found'); });"
+                ]
+              }
+            }
+          ]
         }
       ]
     },
@@ -878,6 +1559,348 @@
                 "exec": [
                   "pm.test('Status 200', () => pm.response.to.have.status(200));",
                   "pm.test('Has context', () => { const j = pm.response.json(); pm.expect(j).to.have.property('context'); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Document Processing (Async)",
+      "description": "Async document processing API (feat-042).\n\nFlow: Submit → Get job_id (202) → Stream SSE or Poll status → Get result.\n\nOperations: ocr, classify, split, extract.\nSupports file upload or upload_id reference.",
+      "item": [
+        {
+          "name": "Submit Document for Processing (OCR)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/documents/process",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {"key": "file", "type": "file", "src": "", "description": "Document file (PDF/PNG/JPG/DOCX)"},
+                {"key": "operation", "value": "ocr", "type": "text", "description": "ocr|classify|split|extract"},
+                {"key": "model_id", "value": "{{test_model_id}}", "type": "text", "description": "Model to use for processing"},
+                {"key": "tier", "value": "Normal", "type": "text", "description": "Processing tier: Rapid|Normal|Advance"},
+                {"key": "force_ocr", "value": "false", "type": "text"},
+                {"key": "process_all_pages", "value": "true", "type": "text"}
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 202 Accepted', () => pm.response.to.have.status(202));",
+                  "pm.test('Response is JSON', () => pm.response.to.be.json);",
+                  "const body = pm.response.json();",
+                  "pm.test('Has job_id', () => {",
+                  "  pm.expect(body).to.have.property('job_id');",
+                  "  pm.environment.set('doc_job_id', body.job_id);",
+                  "});",
+                  "pm.test('Status is queued', () => pm.expect(body.status).to.equal('queued'));",
+                  "pm.test('Has stream_url', () => pm.expect(body).to.have.property('stream_url'));",
+                  "pm.test('Has poll_url', () => pm.expect(body).to.have.property('poll_url'));",
+                  "pm.test('Operation matches', () => pm.expect(body.operation).to.equal('ocr'));",
+                  "pm.test('Has filename', () => pm.expect(body).to.have.property('filename'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Submit Document for Processing (Extract)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/documents/process",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {"key": "file", "type": "file", "src": "", "description": "Document to extract from"},
+                {"key": "operation", "value": "extract", "type": "text"},
+                {"key": "model_id", "value": "{{test_model_id}}", "type": "text"},
+                {"key": "tier", "value": "Normal", "type": "text"},
+                {"key": "extraction_schema", "value": "[{\"name\":\"invoice_number\",\"type\":\"string\",\"required\":true},{\"name\":\"total\",\"type\":\"number\",\"required\":true}]", "type": "text"},
+                {"key": "extraction_target", "value": "document", "type": "text"},
+                {"key": "extractor_model", "value": "{{extractor_model_id}}", "type": "text"}
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 202 Accepted', () => pm.response.to.have.status(202));",
+                  "const body = pm.response.json();",
+                  "pm.test('Has job_id', () => pm.expect(body).to.have.property('job_id'));",
+                  "pm.test('Operation is extract', () => pm.expect(body.operation).to.equal('extract'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Submit Document for Processing (Classify)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/documents/process",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {"key": "file", "type": "file", "src": "", "description": "Document to classify"},
+                {"key": "operation", "value": "classify", "type": "text"},
+                {"key": "model_id", "value": "{{test_model_id}}", "type": "text"},
+                {"key": "tier", "value": "Normal", "type": "text"},
+                {"key": "classification_rules", "value": "[{\"category\":\"Invoice\",\"description\":\"Invoice or bill\"},{\"category\":\"Contract\",\"description\":\"Legal contract\"}]", "type": "text"},
+                {"key": "classifier_model_id", "value": "{{test_model_id}}", "type": "text"},
+                {"key": "is_multimodal", "value": "false", "type": "text"},
+                {"key": "max_pages", "value": "5", "type": "text"}
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 202 Accepted', () => pm.response.to.have.status(202));",
+                  "const body = pm.response.json();",
+                  "pm.test('Has job_id', () => pm.expect(body).to.have.property('job_id'));",
+                  "pm.test('Operation is classify', () => pm.expect(body.operation).to.equal('classify'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Submit Document — Error: No File or Upload ID (400)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/documents/process",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {"key": "operation", "value": "ocr", "type": "text"},
+                {"key": "model_id", "value": "{{test_model_id}}", "type": "text"}
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 400', () => pm.response.to.have.status(400));",
+                  "const body = pm.response.json();",
+                  "pm.test('Error mentions file or upload_id', () => {",
+                  "  pm.expect(body.detail).to.include('file');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Submit Document — Error: Invalid Operation (400)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/documents/process",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {"key": "file", "type": "file", "src": ""},
+                {"key": "operation", "value": "invalid_op", "type": "text"},
+                {"key": "model_id", "value": "{{test_model_id}}", "type": "text"}
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 400', () => pm.response.to.have.status(400));",
+                  "const body = pm.response.json();",
+                  "pm.test('Error mentions invalid operation', () => {",
+                  "  pm.expect(body.detail).to.include('Invalid operation');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Poll Document Job Status",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/documents/{{doc_job_id}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('Has job_id', () => pm.expect(body.job_id).to.equal(pm.environment.get('doc_job_id')));",
+                  "pm.test('Has status', () => pm.expect(body).to.have.property('status'));",
+                  "pm.test('Has progress', () => pm.expect(body).to.have.property('progress'));",
+                  "pm.test('Has operation', () => pm.expect(body).to.have.property('operation'));",
+                  "pm.test('Has filename', () => pm.expect(body).to.have.property('filename'));",
+                  "pm.test('Has created_at', () => pm.expect(body).to.have.property('created_at'));",
+                  "pm.test('Valid status value', () => {",
+                  "  pm.expect(body.status).to.be.oneOf(['queued', 'running', 'completed', 'failed', 'cancelled']);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Poll Document Job — Not Found (404)",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/documents/non-existent-job-id"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 404', () => pm.response.to.have.status(404));",
+                  "const body = pm.response.json();",
+                  "pm.test('Has detail', () => pm.expect(body).to.have.property('detail'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Document Job Result",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/documents/{{doc_job_id}}/result"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 or 409', () => pm.expect(pm.response.code).to.be.oneOf([200, 409]));",
+                  "const body = pm.response.json();",
+                  "if (pm.response.code === 200) {",
+                  "  pm.test('Has job_id', () => pm.expect(body).to.have.property('job_id'));",
+                  "  pm.test('Has status', () => pm.expect(body).to.have.property('status'));",
+                  "  pm.test('Has result or error', () => {",
+                  "    pm.expect(body.result !== null || body.error !== null).to.be.true;",
+                  "  });",
+                  "}",
+                  "if (pm.response.code === 409) {",
+                  "  pm.test('Still running message', () => pm.expect(body.detail).to.include('still'));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Document Job Result — Not Found (404)",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/documents/non-existent-job-id/result"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 404', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cancel Document Job",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/documents/{{doc_job_id}}/cancel"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 or 409', () => pm.expect(pm.response.code).to.be.oneOf([200, 409]));",
+                  "const body = pm.response.json();",
+                  "if (pm.response.code === 200) {",
+                  "  pm.test('Success true', () => pm.expect(body.success).to.be.true);",
+                  "  pm.test('Has job_id', () => pm.expect(body.job_id).to.equal(pm.environment.get('doc_job_id')));",
+                  "  pm.test('Has message', () => pm.expect(body).to.have.property('message'));",
+                  "}",
+                  "if (pm.response.code === 409) {",
+                  "  pm.test('Cannot cancel message', () => pm.expect(body.detail).to.include('cannot be cancelled'));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cancel Document Job — Not Found (404)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/documents/non-existent-job-id/cancel"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 404', () => pm.response.to.have.status(404));",
+                  "const body = pm.response.json();",
+                  "pm.test('Has detail', () => pm.expect(body).to.have.property('detail'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Stream Document Progress (SSE)",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/documents/{{doc_job_id}}/stream",
+            "description": "SSE endpoint — use EventSource or fetch with streaming. Returns text/event-stream.\n\nEvents: connected, stage_changed, page_progress, partial_result, job_completed, job_failed, job_cancelled"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// SSE endpoints return text/event-stream — Postman can test the initial response",
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Content-Type is event-stream', () => {",
+                  "  pm.expect(pm.response.headers.get('Content-Type')).to.include('text/event-stream');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Stream Document Progress — Not Found (404)",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/documents/non-existent-job-id/stream"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 404', () => pm.response.to.have.status(404));"
                 ]
               }
             }

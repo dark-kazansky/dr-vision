@@ -2,7 +2,7 @@
 
 ## Tổng quan
 
-Mỗi loại tài liệu ngân hàng có schema trích xuất riêng, định nghĩa các trường dữ liệu cần khai thác. Schema sử dụng cấu trúc `ExtractionConfig` của Dr.Vision.
+Mỗi loại tài liệu ngân hàng có schema trích xuất riêng, định nghĩa các trường dữ liệu cần khai thác. Schema sử dụng cấu trúc `ExtractionConfig` của Doc Intelligence.
 
 ## Field Types
 

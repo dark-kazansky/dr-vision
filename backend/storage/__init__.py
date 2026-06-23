@@ -1,5 +1,5 @@
 """
-Storage package for Dr.Vision — persistent data layer.
+Storage package for Doc Intelligence — persistent data layer.
 
 Provides:
     BankingRepository — async PostgreSQL repository for banking data mining results.

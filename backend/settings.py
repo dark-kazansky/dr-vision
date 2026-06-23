@@ -19,7 +19,6 @@ Environment Variables:
     OLLAMA_BASE_URL: Ollama server base URL
 """
 
-import os
 import yaml
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -59,7 +58,10 @@ class Settings(BaseSettings):
     fastapi_host: str = Field(default="0.0.0.0", alias="HOST")
     fastapi_port: int = Field(default=8000, alias="PORT")
     fastapi_debug: bool = Field(default=False, alias="FASTAPI_DEBUG")
-    cors_origins: List[str] = Field(default=["*"])
+    cors_origins_str: str = Field(
+        default="http://localhost:3000",
+        alias="CORS_ORIGINS",
+    )
     
     # --- Upload settings ---
     upload_folder: str = Field(default="uploads", alias="UPLOAD_FOLDER")
@@ -91,16 +93,30 @@ class Settings(BaseSettings):
     claude_sonet_id: Optional[str] = Field(default=None, alias="CLAUDE_SONET_ID")
     
     # --- Database ---
-    database_url: str = Field(
-        default="postgresql://drvision:drvision_dev@localhost:5433/drvision",
+    database_url: Optional[str] = Field(
+        default=None,
         alias="DATABASE_URL",
     )
+
+    # --- JWT Authentication ---
+    jwt_secret_key: str = Field(
+        default="CHANGE-ME-IN-PRODUCTION-use-openssl-rand-hex-32",
+        alias="JWT_SECRET_KEY",
+    )
+    jwt_algorithm: str = Field(default="HS256", alias="JWT_ALGORITHM")
+    # First admin user auto-created on startup if no users exist
+    admin_email: Optional[str] = Field(default=None, alias="ADMIN_EMAIL")
+    admin_password: Optional[str] = Field(default=None, alias="ADMIN_PASSWORD")
+    admin_name: str = Field(default="Admin", alias="ADMIN_NAME")
     
     # --- MinIO Storage ---
     minio_endpoint: str = Field(default="http://localhost:9000", alias="MINIO_ENDPOINT")
-    minio_access_key: str = Field(default="minioadmin", alias="MINIO_ACCESS_KEY")
-    minio_secret_key: str = Field(default="minioadmin", alias="MINIO_SECRET_KEY")
+    minio_access_key: Optional[str] = Field(default=None, alias="MINIO_ACCESS_KEY")
+    minio_secret_key: Optional[str] = Field(default=None, alias="MINIO_SECRET_KEY")
     minio_bucket_name: str = Field(default="drvision-docs", alias="MINIO_BUCKET_NAME")
+
+    # --- Durable Workflow Engine ---
+    durable_mode: bool = Field(default=False, alias="DURABLE_MODE")
     
     # --- Model configuration ---
     default_model: Optional[str] = Field(default=None, alias="DEFAULT_MODEL_ID")
@@ -151,8 +167,31 @@ class Settings(BaseSettings):
             raise ValueError("fastapi_port must be between 1 and 65535")
         return v
     
+    def check_required_secrets(self) -> List[str]:
+        """
+        Check that required secrets are configured.
+        Returns list of missing secret names. Empty list = all good.
+        """
+        missing = []
+        if not self.database_url:
+            missing.append("DATABASE_URL")
+        if not self.minio_access_key:
+            missing.append("MINIO_ACCESS_KEY")
+        if not self.minio_secret_key:
+            missing.append("MINIO_SECRET_KEY")
+        return missing
+    
     # --- Public API (compatible with old Config class) ---
     
+    @property
+    def cors_origins(self) -> List[str]:
+        """Parse CORS_ORIGINS from comma-separated string."""
+        return [
+            origin.strip()
+            for origin in self.cors_origins_str.split(",")
+            if origin.strip()
+        ]
+
     @property
     def models(self) -> Dict[str, Any]:
         """Get model configurations."""
@@ -246,7 +285,7 @@ class Settings(BaseSettings):
 
 # Re-export TierConfig from config/tier_config.py — it has the full implementation
 # with provider-aware model specs, fallback logic, and export_to_json.
-from config.tier_config import TierConfig, Tier  # noqa: F401
+from config.tier_config import TierConfig, Tier  # noqa: F401, E402
 
 
 # Module-level singleton

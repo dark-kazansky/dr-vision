@@ -6,7 +6,7 @@
           <!-- Header with Pagination -->
           <div class="fullscreen-header">
             <div class="header-left">
-              <h2 class="header-title">Dr.Vision Editor</h2>
+              <h2 class="header-title">Doc Intelligence Editor</h2>
             </div>
             
             <div class="header-center">

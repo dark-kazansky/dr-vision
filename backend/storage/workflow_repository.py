@@ -800,6 +800,17 @@ class WorkflowRepository:
             logger.info("Deleted %d old jobs", count)
         return count
 
+    async def delete_job(self, job_id: str) -> bool:
+        """Delete a single job by ID. Returns True if deleted."""
+        if not self._pool:
+            raise RuntimeError("Not connected")
+
+        async with self._pool.acquire() as conn:
+            result = await conn.execute(
+                "DELETE FROM jobs WHERE job_id = $1", job_id
+            )
+        return result and "DELETE 1" in result
+
     # ------------------------------------------------------------------
     # Job Logs
     # ------------------------------------------------------------------

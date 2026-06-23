@@ -16,8 +16,8 @@ const emit = defineEmits<{
 <template>
   <div class="top-bar">
     <div class="logo logo-clickable">
-      <img src="/assets/logo.png" alt="Dr.Vision" class="logo-icon" @click="emit('refresh')" />
-      <span class="logo-text" @click="emit('refresh')">Dr.Vision</span>
+      <img src="/assets/logo.png" alt="Doc Intelligence" class="logo-icon" @click="emit('refresh')" />
+      <span class="logo-text" @click="emit('refresh')">Doc Intelligence</span>
     </div>
     <div class="top-bar-actions">
       <button class="top-bar-btn" @click="emit('feedback')">

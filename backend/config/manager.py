@@ -1,5 +1,5 @@
 """
-Configuration loader and validator for Dr.Vision.
+Configuration loader and validator for Doc Intelligence.
 
 This module provides configuration management with:
 - YAML file loading
@@ -42,7 +42,7 @@ class ModelConfig:
 
 class Config:
     """
-    Singleton configuration object for Dr.Vision.
+    Singleton configuration object for Doc Intelligence.
     
     Loads configuration from YAML file and applies environment variable overrides.
     Provides validated access to all configuration sections.
