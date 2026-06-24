@@ -14,6 +14,7 @@ Usage:
 """
 
 import logging
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -25,6 +26,7 @@ from core.middleware import RequestLoggingMiddleware
 from core.rate_limiter import RateLimiter
 from core.exceptions import register_exception_handlers
 from storage.banking_repository import BankingRepository
+from storage.ocr_result_repository import OcrResultRepository
 from storage.workflow_repository import WorkflowRepository
 from services.job_queue import job_queue
 from services.job_executor import execute_job
@@ -50,6 +52,7 @@ if _missing_secrets:
 
 # Module-level repository instance — shared with route handlers via app.state
 banking_repo = BankingRepository(settings.database_url or "")
+ocr_result_repo = OcrResultRepository(settings.database_url or "")
 workflow_repo = WorkflowRepository(settings.database_url or "")
 auth_repo = AuthRepository()
 
@@ -80,6 +83,22 @@ async def lifespan(app: FastAPI):
         logger.error("=" * 70)
         raise RuntimeError(f"Configuration errors: {errors}")
 
+    # --- Database Migrations (Alembic) ---
+    if os.environ.get("AUTO_MIGRATE", "").lower() in ("true", "1", "yes"):
+        try:
+            from alembic.config import Config as AlembicConfig
+            from alembic import command as alembic_command
+            from pathlib import Path
+
+            alembic_ini = Path(__file__).parent / "alembic.ini"
+            alembic_cfg = AlembicConfig(str(alembic_ini))
+            alembic_cfg.set_main_option("sqlalchemy.url", settings.database_url or "")
+            alembic_command.upgrade(alembic_cfg, "head")
+            logger.info("Database migrations applied (alembic upgrade head)")
+        except Exception as e:
+            logger.error("Database migration failed: %s", e)
+            raise RuntimeError(f"Migration failed: {e}")
+
     # --- Banking database ---
     try:
         await banking_repo.connect()
@@ -91,6 +110,18 @@ async def lifespan(app: FastAPI):
             "Banking database unavailable — storage features disabled: %s", e,
         )
         app.state.banking_repo = None
+
+    # --- OCR Results database ---
+    try:
+        await ocr_result_repo.connect()
+        await ocr_result_repo.init_schema()
+        app.state.ocr_result_repo = ocr_result_repo
+        logger.info("OCR results database connected and schema initialized")
+    except Exception as e:
+        logger.error(
+            "OCR results database connection FAILED — system cannot operate without DB: %s", e,
+        )
+        raise RuntimeError(f"OCR results database unavailable: {e}")
 
     # --- Workflow database ---
     try:
@@ -233,6 +264,11 @@ async def lifespan(app: FastAPI):
         await banking_repo.close()
     except Exception as e:
         logger.warning("Error closing banking database: %s", e)
+
+    try:
+        await ocr_result_repo.close()
+    except Exception as e:
+        logger.warning("Error closing OCR results database: %s", e)
 
     try:
         await workflow_repo.close()

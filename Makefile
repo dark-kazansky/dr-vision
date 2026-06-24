@@ -1,7 +1,7 @@
 # Dr-Vision Makefile
 # Development commands for the monolith architecture.
 
-.PHONY: help up down logs ps build lint test health dev
+.PHONY: help up down logs ps build lint test health dev migrate migrate-status migrate-history migrate-create migrate-rollback migrate-reset
 
 COMPOSE = docker compose
 
@@ -10,7 +10,10 @@ help: ## Show this help
 
 # ─── Infrastructure ───────────────────────────────────────────────────────────
 
-up: ## Start infrastructure (postgres, minio)
+up: ## Start all services (backend + frontend + infra)
+	$(COMPOSE) up -d
+
+up-infra: ## Start infrastructure only (postgres, minio)
 	$(COMPOSE) up -d postgres minio
 
 down: ## Stop all containers
@@ -22,8 +25,11 @@ ps: ## Show running containers
 logs: ## Follow logs from all containers
 	$(COMPOSE) logs -f
 
-build: ## Build backend Docker image
-	$(COMPOSE) build backend
+logs-backend: ## Follow backend logs
+	$(COMPOSE) logs -f backend
+
+build: ## Build all Docker images
+	$(COMPOSE) build
 
 # ─── Development ──────────────────────────────────────────────────────────────
 
@@ -50,6 +56,26 @@ verify: ## Run full verification pipeline
 health: ## Check if services are responding
 	@echo "Backend:";  curl -s http://localhost:8000/health | python3 -m json.tool 2>/dev/null || echo "  DOWN"
 	@echo "Frontend:"; curl -s -o /dev/null -w "  HTTP %{http_code}\n" http://localhost:3000 2>/dev/null || echo "  DOWN"
+
+# ─── Database Migrations ──────────────────────────────────────────────────────
+
+migrate: ## Apply all pending migrations (alembic upgrade head)
+	cd backend && alembic upgrade head
+
+migrate-status: ## Show current migration status
+	cd backend && alembic current
+
+migrate-history: ## Show migration history
+	cd backend && alembic history
+
+migrate-create: ## Create new migration (usage: make migrate-create MSG="add column")
+	cd backend && alembic revision -m "$(MSG)"
+
+migrate-rollback: ## Rollback last migration
+	cd backend && alembic downgrade -1
+
+migrate-reset: ## Rollback ALL migrations (destructive!)
+	cd backend && alembic downgrade base
 
 # ─── Deployment ───────────────────────────────────────────────────────────────
 

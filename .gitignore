@@ -1,5 +1,5 @@
 # ═══════════════════════════════════════════════════════════════════════════════
-# Dr.Vision — .gitignore (Monorepo: services/ + backend/ + frontend/)
+# Dr.Vision — .gitignore
 # ═══════════════════════════════════════════════════════════════════════════════
 
 # ─── Python ───────────────────────────────────────────────────────────────────
@@ -54,6 +54,9 @@ htmlcov/
 .env.prod
 .env.staging
 .env.*.local
+!.env.example
+!backend/.env.example
+!frontend/.env.example
 
 # ─── OS Files ─────────────────────────────────────────────────────────────────
 .DS_Store
@@ -65,25 +68,25 @@ backend/uploads/*
 !backend/uploads/.gitkeep
 backend/data/uploaded/*
 !backend/data/uploaded/.gitkeep
-backend/data/classified/*
-!backend/data/classified/.gitkeep
-backend/data/extracted/*
-!backend/data/extracted/.gitkeep
-backend/data/parsed/*
-!backend/data/parsed/.gitkeep
-backend/data/raw_ocr/*
-!backend/data/raw_ocr/.gitkeep
-backend/data/splited/*
-!backend/data/splited/.gitkeep
+
+# ─── AI Model Files (downloaded at runtime) ──────────────────────────────────
+backend/models/
+*.onnx
+*.pt
+*.pth
+*.bin
+*.h5
+*.pkl
+*.safetensors
 
 # ─── Frontend: Build Artifacts ────────────────────────────────────────────────
 frontend/.nuxt/
 frontend/.output/
 frontend/node_modules/
 
-# ─── Data & Results (local testing) ──────────────────────────────────────────
-dataResult/
+# ─── Local Data (never tracked) ──────────────────────────────────────────────
 data/
+dataResult/
 
 # ─── Notebooks & Experiments ──────────────────────────────────────────────────
 *.ipynb
@@ -92,15 +95,12 @@ experiments/
 
 # ─── Logs & Artifacts ─────────────────────────────────────────────────────────
 *.log
-artifacts/logs/*.log
-artifacts/screenshots/*.png
+artifacts/logs/*
+!artifacts/logs/.gitkeep
+artifacts/screenshots/*
+!artifacts/screenshots/.gitkeep
 
 # ─── Build & Deploy Artifacts ─────────────────────────────────────────────────
 *.tar.gz
 *.zip
 .dev-server.pid
-
-# ─── Services: Runtime ────────────────────────────────────────────────────────
-services/*/uploads/
-services/*/.venv/
-services/*/uv.lock

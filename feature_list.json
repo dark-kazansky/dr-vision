@@ -2,12 +2,12 @@
   "project": "Doc Intelligence — OCR Web UI",
   "version": "3.0.0",
   "schema_version": "2",
-  "last_updated": "2026-06-23T00:00:00Z",
-  "updated_by_session": 12,
+  "last_updated": "2026-06-24T00:00:00Z",
+  "updated_by_session": 13,
   "summary": {
-    "total": 51,
+    "total": 60,
     "done": 20,
-    "pending": 31
+    "pending": 40
   },
   "features": [
     {
@@ -1404,6 +1404,268 @@
       "last_attempted": null,
       "evidence": {},
       "notes": "Useful for contract version comparison, form validation, document authenticity checking. Uses OCR + layout recognition on both docs, then runs diff algorithm on extracted text and structure."
+    },
+    {
+      "id": "feat-070",
+      "category": "platform",
+      "priority": 30,
+      "description": "Full-text Document Search — Tìm kiếm nội dung trong toàn bộ documents đã xử lý (PostgreSQL tsvector hoặc Elasticsearch)",
+      "acceptance_criteria": [
+        "Search API: GET /search?q=keyword → trả về documents chứa keyword",
+        "Full-text index trên ocr_results.raw_text (tsvector GIN index)",
+        "Hỗ trợ tiếng Việt: unaccent + tách từ",
+        "Snippet/highlight: trả về đoạn text chứa keyword với highlight",
+        "Faceted search: filter theo model, date range, result_type",
+        "Pagination và sorting (relevance, date)",
+        "Frontend: search bar trên navigation, kết quả với context preview"
+      ],
+      "test_steps": [
+        "Index existing documents → verify tsvector populated",
+        "GET /search?q='hóa đơn' → verify relevant results returned",
+        "Verify snippet chứa keyword highlighted",
+        "Filter by date range → verify only results in range",
+        "Search non-existent term → verify empty results (not error)",
+        "Frontend: type in search bar → see results with preview"
+      ],
+      "dependencies": ["feat-012"],
+      "estimated_complexity": "medium",
+      "passes": false,
+      "last_attempted": null,
+      "evidence": {},
+      "notes": "Start with PostgreSQL tsvector (zero additional infrastructure). Migrate to Elasticsearch only if full-text performance becomes a bottleneck with >100k documents."
+    },
+    {
+      "id": "feat-071",
+      "category": "platform",
+      "priority": 31,
+      "description": "Human-in-the-Loop Review — OCR kết quả confidence thấp → đẩy vào queue cho người review/sửa trước khi lưu",
+      "acceptance_criteria": [
+        "Confidence threshold configurable (default 0.7)",
+        "Documents dưới threshold tự động vào review queue",
+        "Review UI: hiển thị OCR result + original image side-by-side",
+        "Reviewer có thể edit text trực tiếp, approve, hoặc reject",
+        "Approved results lưu vào DB với flag 'human_verified'",
+        "Dashboard: số documents chờ review, avg review time",
+        "Notification khi có document mới cần review",
+        "Bulk approve/reject cho multiple documents"
+      ],
+      "test_steps": [
+        "Process document low confidence → verify appears in review queue",
+        "Process document high confidence → verify NOT in review queue",
+        "Open review UI → verify image + OCR text side-by-side",
+        "Edit text → approve → verify saved with human_verified=true",
+        "Reject document → verify removed from queue with reason logged",
+        "Bulk select 5 docs → approve all → verify all updated",
+        "GET /review/stats → verify pending count and avg time"
+      ],
+      "dependencies": ["feat-061", "feat-014"],
+      "estimated_complexity": "high",
+      "passes": false,
+      "last_attempted": null,
+      "evidence": {},
+      "notes": "Critical for enterprise use where accuracy matters more than speed. Integrates with OCR post-processing confidence scores (feat-061). Can be added as a workflow node type in Doc Journey."
+    },
+    {
+      "id": "feat-072",
+      "category": "platform",
+      "priority": 32,
+      "description": "Multi-tenant & Workspace — Mỗi team/department có workspace riêng, data isolation",
+      "acceptance_criteria": [
+        "Workspace model: id, name, owner, members, settings",
+        "Data isolation: OCR results, workflows, templates scoped per workspace",
+        "User belongs to multiple workspaces (switch via UI)",
+        "Workspace admin: manage members, roles, settings",
+        "API scoped: all queries filtered by current workspace",
+        "Workspace-level settings: default model, processing tier, templates",
+        "Billing/usage tracked per workspace"
+      ],
+      "test_steps": [
+        "Create workspace → verify ID returned",
+        "Add user to workspace → verify they can access workspace data",
+        "User A uploads in workspace X → User B in workspace Y cannot see it",
+        "Switch workspace via UI → verify data changes",
+        "Workspace admin removes user → verify access revoked",
+        "Workspace settings override global defaults"
+      ],
+      "dependencies": ["feat-014"],
+      "estimated_complexity": "high",
+      "passes": false,
+      "last_attempted": null,
+      "evidence": {},
+      "notes": "Required for SaaS/enterprise deployment. All database queries must include workspace_id filter. Consider PostgreSQL Row Level Security (RLS) for bulletproof isolation."
+    },
+    {
+      "id": "feat-073",
+      "category": "platform",
+      "priority": 33,
+      "description": "Webhook & API Integration — Push kết quả vào hệ thống khác khi workflow hoàn thành",
+      "acceptance_criteria": [
+        "Webhook CRUD: register URL + events to listen for",
+        "Events: workflow_completed, document_processed, batch_done, review_approved",
+        "Payload: configurable (full result, summary, or custom template)",
+        "Retry logic: 3 attempts with exponential backoff on failure",
+        "Webhook logs: track deliveries, failures, response codes",
+        "Secret signing: HMAC signature in headers for payload verification",
+        "Test endpoint: trigger a test delivery to verify URL works"
+      ],
+      "test_steps": [
+        "Register webhook URL → verify stored in DB",
+        "Process document → verify webhook called with result payload",
+        "Webhook URL returns 500 → verify retry (up to 3 times)",
+        "Verify HMAC signature in X-Signature header",
+        "GET /webhooks/{id}/logs → verify delivery history",
+        "POST /webhooks/{id}/test → verify test payload delivered",
+        "Delete webhook → verify no more deliveries"
+      ],
+      "dependencies": ["feat-012", "feat-014"],
+      "estimated_complexity": "medium",
+      "passes": false,
+      "last_attempted": null,
+      "evidence": {},
+      "notes": "Enables integration with ERP, CRM, email systems, and custom pipelines. Essential for enterprise adoption where Doc Intelligence is part of a larger automation chain."
+    },
+    {
+      "id": "feat-074",
+      "category": "platform",
+      "priority": 34,
+      "description": "Audit Trail — Ghi log ai đã upload/xử lý/sửa document gì, khi nào",
+      "acceptance_criteria": [
+        "Audit log table: user_id, action, resource_type, resource_id, timestamp, metadata",
+        "Actions tracked: upload, process, classify, extract, delete, export, review_approve",
+        "API: GET /audit-log with filters (user, action, date range, resource)",
+        "Immutable: audit entries cannot be modified or deleted",
+        "Retention policy: configurable (default 90 days)",
+        "Export: download audit log as CSV",
+        "Frontend: audit log viewer in admin settings"
+      ],
+      "test_steps": [
+        "Upload document → verify audit entry created with action='upload'",
+        "Process document → verify audit entry with action='process'",
+        "GET /audit-log?user_id=X → verify only user X's actions shown",
+        "GET /audit-log?action=delete → verify only delete actions",
+        "Verify entries are immutable (no PUT/DELETE on audit entries)",
+        "Export CSV → verify all columns present",
+        "Retention: entries > 90 days automatically purged (configurable)"
+      ],
+      "dependencies": ["feat-014"],
+      "estimated_complexity": "medium",
+      "passes": false,
+      "last_attempted": null,
+      "evidence": {},
+      "notes": "Compliance requirement for banking/financial customers. Should be append-only (no UPDATE/DELETE). Consider separate audit database or partition for performance."
+    },
+    {
+      "id": "feat-075",
+      "category": "platform",
+      "priority": 35,
+      "description": "Document Versioning — Lưu history xử lý: cùng 1 file OCR lại bằng model khác → compare kết quả",
+      "acceptance_criteria": [
+        "Multiple OCR results per filename stored (not overwritten)",
+        "Version list: GET /ocr-results/versions/{filename} → all processing runs",
+        "Compare versions: diff between two versions of same document",
+        "Best result selection: choose which version is 'canonical'",
+        "Re-process: re-OCR same file with different model/settings",
+        "Version metadata: model used, timestamp, confidence score, user who triggered"
+      ],
+      "test_steps": [
+        "OCR file with model A → verify version 1 created",
+        "OCR same file with model B → verify version 2 created (v1 intact)",
+        "GET versions → verify both listed with metadata",
+        "Compare v1 vs v2 → verify diff shows improvements/regressions",
+        "Mark v2 as canonical → verify it's returned as default",
+        "Delete v1 → verify v2 still exists"
+      ],
+      "dependencies": ["feat-012", "feat-065"],
+      "estimated_complexity": "medium",
+      "passes": false,
+      "last_attempted": null,
+      "evidence": {},
+      "notes": "Enables quality improvement: process same document with newer models and compare. The ocr_results table already supports multiple entries per filename (no unique constraint). Needs UI for version navigation and comparison."
+    },
+    {
+      "id": "feat-076",
+      "category": "platform",
+      "priority": 36,
+      "description": "Rate Limiting per User/Org — Quản lý cost AI models, mỗi user/org có quota xử lý",
+      "acceptance_criteria": [
+        "Configurable quota per user: X documents per day/month",
+        "Configurable quota per workspace/org",
+        "Quota types: document count, page count, API calls",
+        "Usage tracking in real-time",
+        "HTTP 429 when quota exceeded with reset time in headers",
+        "Admin can adjust quotas per user/org",
+        "Usage dashboard: current usage vs quota, history chart"
+      ],
+      "test_steps": [
+        "Set user quota to 5 docs/day → process 5 → verify 6th returns 429",
+        "Verify X-RateLimit-Remaining header decrements",
+        "Verify X-RateLimit-Reset header shows reset time",
+        "Admin increases quota → verify user can process again",
+        "GET /usage/me → verify shows current count vs limit",
+        "New day → verify quota resets"
+      ],
+      "dependencies": ["feat-014", "feat-072"],
+      "estimated_complexity": "medium",
+      "passes": false,
+      "last_attempted": null,
+      "evidence": {},
+      "notes": "Important for SaaS model and cost management. AI model calls are expensive — need to prevent abuse and enable tiered pricing."
+    },
+    {
+      "id": "feat-077",
+      "category": "platform",
+      "priority": 37,
+      "description": "Export & Reporting Dashboard — Thống kê xử lý: bao nhiêu docs, accuracy, cost per model",
+      "acceptance_criteria": [
+        "Dashboard page: processing volume over time (chart)",
+        "Model comparison: accuracy/speed/cost per model",
+        "Document type breakdown: pie chart of processed doc types",
+        "User activity: top users by document count",
+        "Export reports as PDF or CSV",
+        "Configurable date range and filters",
+        "Scheduled reports: email weekly summary"
+      ],
+      "test_steps": [
+        "Navigate to /reports → verify charts render",
+        "Select date range → verify data updates",
+        "Verify model comparison shows actual processing stats",
+        "Export as CSV → verify data matches dashboard",
+        "Filter by document type → verify chart updates"
+      ],
+      "dependencies": ["feat-010", "feat-012"],
+      "estimated_complexity": "medium",
+      "passes": false,
+      "last_attempted": null,
+      "evidence": {},
+      "notes": "Builds on existing observability metrics (feat-010). Adds export functionality and scheduled reporting. Important for management visibility and model selection decisions."
+    },
+    {
+      "id": "feat-078",
+      "category": "platform",
+      "priority": 38,
+      "description": "Plugin System — Cho phép external components đăng ký thành workflow nodes",
+      "acceptance_criteria": [
+        "Plugin interface: define input/output schema + execute function",
+        "Plugin registry: register/unregister plugins at runtime",
+        "Plugin appears as new node type in Workflow Builder",
+        "Plugin isolation: runs in separate process/container",
+        "Plugin marketplace: browse and install community plugins",
+        "Plugin config: per-plugin settings UI auto-generated from schema",
+        "SDK: npm/pip package for building plugins"
+      ],
+      "test_steps": [
+        "Create sample plugin (e.g., translate node) → register → verify appears in node palette",
+        "Add plugin node to workflow → execute → verify plugin function called",
+        "Unregister plugin → verify node removed from palette",
+        "Plugin crash → verify workflow handles error gracefully (not crash entire system)",
+        "Plugin config UI → verify renders from schema"
+      ],
+      "dependencies": ["feat-050", "feat-005"],
+      "estimated_complexity": "high",
+      "passes": false,
+      "last_attempted": null,
+      "evidence": {},
+      "notes": "Long-term extensibility play. Allows third-party integrations (e.g., translation, sentiment analysis, custom business rules) without modifying core codebase. Consider WebAssembly or Docker-based isolation."
     }
   ]
 }

@@ -1,14 +1,36 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# Doc Intelligence Backend — Development Dockerfile
+# Hot-reload via uvicorn --reload. Code mounted as volume.
+# ═══════════════════════════════════════════════════════════════════════════════
+
 FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies (e.g. for psycopg2 or other libs if needed)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
+    libpq-dev \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# The code will be mounted via docker-compose volume
+# Dev extras: linting, testing, debugging
+RUN pip install --no-cache-dir \
+    ruff \
+    pytest \
+    pytest-asyncio \
+    httpx \
+    hypothesis
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    HOST=0.0.0.0 \
+    PORT=8000 \
+    FASTAPI_DEBUG=true
+
+EXPOSE 8000
+
+# Code is volume-mounted via docker-compose — hot reload enabled
 CMD ["python", "main.py"]

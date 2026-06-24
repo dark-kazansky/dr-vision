@@ -1,4 +1,8 @@
-# Doc Intelligence Microservice Architecture
+# Doc Intelligence — Microservice Architecture (Future Roadmap)
+
+> Status: NOT IMPLEMENTED — This document describes a potential future architecture.
+> Current state: Monolith (backend/ + frontend/) deployed via Docker Compose.
+> Implement only when the monolith becomes a scaling bottleneck or team size > 5.
 
 ## Tổng quan
 

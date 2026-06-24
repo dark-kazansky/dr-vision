@@ -25,9 +25,6 @@ logger = logging.getLogger(__name__)
 
 file_size_validator = FileSizeValidator()
 
-_BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-_DATA_DIR = os.path.join(_BACKEND_DIR, "data")
-
 
 def _safe_remove(path: str) -> None:
     try:
@@ -51,16 +48,36 @@ def _parse_categories(categories_json: str) -> tuple[list, list[ChunkCategory]]:
 
 
 def _persist_split_result(payload: dict, base_filename: str) -> None:
-    """Save split result JSON to data/splited/."""
-    splited_dir = os.path.join(_DATA_DIR, "splited")
-    os.makedirs(splited_dir, exist_ok=True)
-    split_file_path = os.path.join(splited_dir, f"{base_filename}.json")
+    """Save split result to PostgreSQL. Raises if DB unavailable."""
+    filename = payload.get("filename", base_filename)
+
+    import asyncio as _aio
+    from server import ocr_result_repo
+
+    if not ocr_result_repo or not ocr_result_repo._pool:
+        raise RuntimeError("Database unavailable — cannot persist split results")
+
+    loop = _aio.new_event_loop()
     try:
-        with open(split_file_path, "w", encoding="utf-8") as f:
-            json.dump(payload, f, indent=2, ensure_ascii=False)
-        logger.info("Split result saved: %s", split_file_path)
-    except Exception as e:
-        logger.warning("Failed to save split result: %s", e)
+        existing = loop.run_until_complete(ocr_result_repo.get_result_by_filename(filename))
+        if existing:
+            loop.run_until_complete(ocr_result_repo.update_result_data(
+                existing["id"],
+                {"split_result": payload},
+            ))
+        else:
+            loop.run_until_complete(ocr_result_repo.store_result(
+                filename=filename,
+                raw_text="",
+                model_id=payload.get("splitter_model"),
+                result_data={
+                    "type": "split",
+                    "split_result": payload,
+                },
+            ))
+    finally:
+        loop.close()
+    logger.info("Split result persisted to DB: %s", filename)
 
 
 async def split_document(

@@ -41,6 +41,7 @@ from api.v1 import (
     batch,
     templates,
     compare,
+    ocr_results,
 )
 
 # ─── Authenticated Router ─────────────────────────────────────────────────────
@@ -78,6 +79,7 @@ auth_router.include_router(banking.router)
 auth_router.include_router(uploads.router)
 auth_router.include_router(data_store.router)
 auth_router.include_router(saved_files.router)
+auth_router.include_router(ocr_results.router)
 
 # System & observability
 auth_router.include_router(system.router)
