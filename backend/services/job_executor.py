@@ -152,6 +152,11 @@ async def _execute_node_with_retry(
         _run_extract_step,
         _run_parse_step,
         _run_split_step,
+        _run_layout_recognize_step,
+        _run_table_recognize_step,
+        _run_document_to_markdown_step,
+        _run_ocr_postprocess_step,
+        _run_template_extract_step,
     )
     from services import execution_state
 
@@ -199,6 +204,16 @@ async def _execute_node_with_retry(
                 result = await _run_extract_step(file_path, step_tier, step_config, config)
             elif step_type == "split":
                 result = await _run_split_step(file_path, step_tier, step_config, config)
+            elif step_type == "layout_recognize":
+                result = await _run_layout_recognize_step(file_path, step_tier, step_config, config)
+            elif step_type == "table_recognize":
+                result = await _run_table_recognize_step(file_path, step_tier, step_config, config)
+            elif step_type == "document_to_markdown":
+                result = await _run_document_to_markdown_step(file_path, step_tier, step_config, config)
+            elif step_type == "ocr_postprocess":
+                result = await _run_ocr_postprocess_step(file_path, step_tier, step_config, config)
+            elif step_type == "template_extract":
+                result = await _run_template_extract_step(file_path, step_tier, step_config, config)
             else:
                 raise ValueError(f"Unknown step type: {step_type}")
 
@@ -206,7 +221,8 @@ async def _execute_node_with_retry(
 
             # Success — update queue status
             await queue.update_node_status(
-                job.job_id, node.node_id, NodeStatus.COMPLETED, result=result
+                job.job_id, node.node_id, NodeStatus.COMPLETED, result=result,
+                duration_ms=duration_ms,
             )
             results.append({"step": step_type, "tier": step_tier, "result": result})
 

@@ -91,7 +91,8 @@ async def generate_schema(
         result = await asyncio.to_thread(schema_gen.generate, sample_text or "", prompt)
 
         if not result.success:
-            raise HTTPException(status_code=500, detail=result.error)
+            from core.exceptions import raise_agent_error
+            raise_agent_error(result)
 
         return {
             "success": True,
@@ -141,7 +142,8 @@ async def extract_from_file(
         parse_result = await asyncio.to_thread(parser.parse, file_path)
 
         if not parse_result.success:
-            raise HTTPException(status_code=500, detail=parse_result.error)
+            from core.exceptions import raise_agent_error
+            raise_agent_error(parse_result)
 
         llm_agent = AgentFactory.create_llm_agent(extractor_model_id, config=config, provider=provider)
 
@@ -149,7 +151,8 @@ async def extract_from_file(
             schema_gen = SchemaGenerator(agent=llm_agent)
             schema_result = await asyncio.to_thread(schema_gen.generate, parse_result.text, schema_prompt)
             if not schema_result.success:
-                raise HTTPException(status_code=500, detail=schema_result.error)
+                from core.exceptions import raise_agent_error
+                raise_agent_error(schema_result)
             fields = schema_result.fields
         else:
             fields = _parse_schema_fields(extraction_schema)
@@ -159,7 +162,8 @@ async def extract_from_file(
         extract_result = await asyncio.to_thread(extractor.extract, parse_result.text, extraction_config)
 
         if not extract_result.success:
-            raise HTTPException(status_code=500, detail=extract_result.error)
+            from core.exceptions import raise_agent_error
+            raise_agent_error(extract_result)
 
         return {
             "success": True,
@@ -196,7 +200,8 @@ async def extract_from_text(
         extract_result = await asyncio.to_thread(extractor.extract, text, extraction_config)
 
         if not extract_result.success:
-            raise HTTPException(status_code=500, detail=extract_result.error)
+            from core.exceptions import raise_agent_error
+            raise_agent_error(extract_result)
 
         return {
             "success": True,

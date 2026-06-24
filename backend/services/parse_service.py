@@ -14,15 +14,13 @@ import json
 import logging
 import os
 import threading
-import traceback
 from typing import Optional
 
 from agents.factory import AgentFactory
 from services.job_manager import job_manager
-from core.docx_generator import DocxGenerator
 from core.middleware import FileSizeValidator
 from core.schemas import ExtractionConfig, ExtractionTarget, FieldType, SchemaField
-from core.storage import UPLOADS_DIR, RAW_OCR_DIR, PARSED_DIR, EXTRACTED_DIR, ensure_dirs
+from core.storage import UPLOADS_DIR
 from core.utils import allowed_file, secure_save_file
 from components.extractor import Extractor
 from components.parser import Parser
@@ -33,8 +31,6 @@ from fastapi import HTTPException, UploadFile
 logger = logging.getLogger(__name__)
 
 file_size_validator = FileSizeValidator()
-
-ensure_dirs()
 
 
 def _safe_remove(path: str) -> None:
@@ -106,29 +102,31 @@ def _background_parse_worker(
         if parse_formatting:
             text = TextParser.auto_parse(text)
 
-        raw_ocr_dir = str(RAW_OCR_DIR)
-        parsed_dir = str(PARSED_DIR)
-        os.makedirs(raw_ocr_dir, exist_ok=True)
-        os.makedirs(parsed_dir, exist_ok=True)
-        base_fn = os.path.splitext(filename)[0]
+        # Persist to PostgreSQL (mandatory)
+        import asyncio as _aio
+        from server import ocr_result_repo
+        if not ocr_result_repo or not ocr_result_repo._pool:
+            job_manager.update_status(job_id, "failed", error="Database unavailable — cannot persist OCR results")
+            return
 
+        loop = _aio.new_event_loop()
         try:
-            with open(os.path.join(raw_ocr_dir, f"{base_fn}.txt"), "w", encoding="utf-8") as f:
-                f.write(result.text)
-        except Exception as e:
-            logger.warning("BG job %s: failed to save raw OCR: %s", job_id, e)
-
-        try:
-            DocxGenerator().generate(
-                text=text,
+            loop.run_until_complete(ocr_result_repo.store_result(
                 filename=filename,
+                raw_text=result.text,
                 model_id=model_id,
-                pages=result.pages or 1,
-                file_type=result.file_type,
-                output_path=os.path.join(parsed_dir, f"{base_fn}.docx"),
-            )
-        except Exception as e:
-            logger.warning("BG job %s: failed to create DOCX: %s", job_id, e)
+                provider=provider,
+                result_data={
+                    "type": "parse",
+                    "parsed_text": text if parse_formatting else None,
+                    "file_type": result.file_type,
+                    "is_scanned": result.is_scanned,
+                    "pages": result.pages,
+                },
+            ))
+            logger.info("BG job %s: OCR result persisted to DB", job_id)
+        finally:
+            loop.close()
 
         response_data: dict = {
             "success": True,
@@ -240,39 +238,32 @@ async def parse_document(
         result = await asyncio.to_thread(parser.parse, file_path, force_ocr)
 
         if not result.success:
-            raise HTTPException(status_code=500, detail=result.error)
+            from core.exceptions import raise_agent_error
+            raise_agent_error(result)
 
         text = result.text
         if parse_formatting:
             text = await asyncio.to_thread(TextParser.auto_parse, text)
 
-        # Persist artefacts
-        raw_ocr_dir = str(RAW_OCR_DIR)
-        parsed_dir = str(PARSED_DIR)
-        os.makedirs(raw_ocr_dir, exist_ok=True)
-        os.makedirs(parsed_dir, exist_ok=True)
-        base_filename = os.path.splitext(file.filename)[0]
+        # Persist to PostgreSQL (mandatory)
+        from server import ocr_result_repo
+        if not ocr_result_repo or not ocr_result_repo._pool:
+            raise HTTPException(status_code=503, detail="Database unavailable — cannot persist OCR results")
 
-        try:
-            with open(os.path.join(raw_ocr_dir, f"{base_filename}.txt"), "w", encoding="utf-8") as f:
-                f.write(result.text)
-            logger.info("Raw OCR saved: %s", base_filename)
-        except Exception as e:
-            logger.warning("Failed to save raw OCR: %s", e)
-
-        try:
-            DocxGenerator().generate(
-                text=text,
-                filename=file.filename,
-                model_id=model_id,
-                pages=result.pages or 1,
-                file_type=result.file_type,
-                output_path=os.path.join(parsed_dir, f"{base_filename}.docx"),
-            )
-            logger.info("DOCX saved: %s", base_filename)
-        except Exception as e:
-            logger.warning("Failed to create DOCX: %s", e)
-            logger.debug("DOCX traceback: %s", traceback.format_exc())
+        await ocr_result_repo.store_result(
+            filename=file.filename,
+            raw_text=result.text,
+            model_id=model_id,
+            provider=provider,
+            result_data={
+                "type": "parse",
+                "parsed_text": text if parse_formatting else None,
+                "file_type": result.file_type,
+                "is_scanned": result.is_scanned,
+                "pages": result.pages,
+            },
+        )
+        logger.info("OCR result persisted to DB: %s", file.filename)
 
         response_data: dict = {
             "success": True,
@@ -298,25 +289,23 @@ async def parse_document(
                 extract_result = await asyncio.to_thread(extractor.extract, text, extraction_config)
 
                 if extract_result.success:
-                    # Persist extraction result
-                    extracted_dir = str(EXTRACTED_DIR)
-                    os.makedirs(extracted_dir, exist_ok=True)
-                    try:
-                        with open(os.path.join(extracted_dir, f"{base_filename}.json"), "w", encoding="utf-8") as f:
-                            json.dump(
+                    # Persist extraction result to DB
+                    from server import ocr_result_repo
+                    if ocr_result_repo and ocr_result_repo._pool:
+                        result_by_file = await ocr_result_repo.get_result_by_filename(file.filename)
+                        if result_by_file:
+                            await ocr_result_repo.update_result_data(
+                                result_by_file["id"],
                                 {
-                                    "filename": file.filename,
-                                    "model": extractor_model,
-                                    "extraction_target": extraction_target or "document",
-                                    "schema": schema_data,
-                                    "structured_data": extract_result.structured_data,
-                                    "field_errors": extract_result.field_errors,
-                                    "timestamp": os.path.getctime(file_path) if os.path.exists(file_path) else None,
+                                    "extraction": {
+                                        "model": extractor_model,
+                                        "target": extraction_target or "document",
+                                        "schema": schema_data,
+                                        "structured_data": extract_result.structured_data,
+                                        "field_errors": extract_result.field_errors,
+                                    }
                                 },
-                                f, indent=2, ensure_ascii=False,
                             )
-                    except Exception as e:
-                        logger.warning("Failed to save extraction result: %s", e)
 
                     response_data["extraction"] = {
                         "success": True,

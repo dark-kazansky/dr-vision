@@ -1,10 +1,46 @@
 {
-  "id": "dr-vision-local-env",
-  "name": "Dr.Vision Local",
+  "id": "doc-intelligence-local-env",
+  "name": "Doc Intelligence Local",
   "values": [
     {
       "key": "base_url",
       "value": "http://localhost:8000",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "admin_email",
+      "value": "admin@drvision.local",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "admin_password",
+      "value": "admin123",
+      "type": "secret",
+      "enabled": true
+    },
+    {
+      "key": "access_token",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "refresh_token",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "test_model_id",
+      "value": "gemini-2.5-flash",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "extractor_model_id",
+      "value": "qwen3-max",
       "type": "default",
       "enabled": true
     },
@@ -16,6 +52,12 @@
     },
     {
       "key": "job_id",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "parse_job_id",
       "value": "",
       "type": "default",
       "enabled": true
@@ -40,6 +82,12 @@
     },
     {
       "key": "data_store_entry_id",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "doc_job_id",
       "value": "",
       "type": "default",
       "enabled": true

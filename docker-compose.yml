@@ -1,30 +1,43 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# Doc Intelligence — Development Docker Compose
+# ═══════════════════════════════════════════════════════════════════════════════
+# Usage:
+#   docker compose up -d                    # Start all services
+#   docker compose up -d postgres minio     # Infrastructure only
+#   docker compose up backend               # Start backend with logs
+#   docker compose logs -f backend          # Follow backend logs
+#   docker compose exec backend alembic upgrade head  # Run migrations manually
+# ═══════════════════════════════════════════════════════════════════════════════
+
 services:
+  # ─── Infrastructure ─────────────────────────────────────────────────────────
+
   postgres:
     image: postgres:16-alpine
-    container_name: drvision-postgres
+    container_name: docintel-postgres
     environment:
-      POSTGRES_DB: drvision
-      POSTGRES_USER: drvision
-      POSTGRES_PASSWORD: drvision_dev
+      POSTGRES_DB: ${POSTGRES_DB:-docintel}
+      POSTGRES_USER: ${POSTGRES_USER:-docintel}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-docintel_dev}
     ports:
-      - "5433:5432"
+      - "${POSTGRES_PORT:-5433}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U drvision -d drvision"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-docintel} -d ${POSTGRES_DB:-docintel}"]
       interval: 5s
       timeout: 5s
       retries: 5
 
   minio:
     image: minio/minio:latest
-    container_name: drvision-minio
+    container_name: docintel-minio
     ports:
       - "9000:9000"
       - "9001:9001"
     environment:
-      - MINIO_ROOT_USER=minioadmin
-      - MINIO_ROOT_PASSWORD=minioadmin
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
     command: server /data --console-address ":9001"
     volumes:
       - minio_data:/data
@@ -34,47 +47,63 @@ services:
       timeout: 20s
       retries: 3
 
+  # ─── Application ────────────────────────────────────────────────────────────
+
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile.dev
-    container_name: drvision-backend
+    container_name: docintel-backend
     ports:
-      - "8000:8000"
+      - "${PORT:-8000}:8000"
     volumes:
       - ./backend:/app
     env_file:
       - ./backend/.env
     environment:
-      - DATABASE_URL=postgresql://drvision:drvision_dev@postgres:5432/drvision
-      - HOST=0.0.0.0
-      - PORT=8000
-      - MINIO_ENDPOINT=http://minio:9000
-      - MINIO_ACCESS_KEY=minioadmin
-      - MINIO_SECRET_KEY=minioadmin
-      - MINIO_BUCKET_NAME=drvision-docs
+      DATABASE_URL: postgresql://${POSTGRES_USER:-docintel}:${POSTGRES_PASSWORD:-docintel_dev}@postgres:5432/${POSTGRES_DB:-docintel}
+      HOST: "0.0.0.0"
+      PORT: "8000"
+      FASTAPI_DEBUG: "true"
+      AUTO_MIGRATE: "true"
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      MINIO_BUCKET_NAME: ${MINIO_BUCKET_NAME:-docintel-docs}
+      # AI providers (connect to host machine services)
+      LM_STUDIO_BASE_URL: ${LM_STUDIO_BASE_URL:-http://host.docker.internal:1234}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      GOOGLE_STUDIO_API_KEY: ${GOOGLE_STUDIO_API_KEY:-}
     depends_on:
       postgres:
         condition: service_healthy
       minio:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
 
-  # frontend:
-  #   build:
-  #     context: ./frontend
-  #     dockerfile: Dockerfile.dev
-  #   container_name: drvision-frontend
-  #   ports:
-  #     - "3000:3000"
-  #   volumes:
-  #     - ./frontend:/app
-  #     - /app/node_modules
-  #   environment:
-  #     - HOST=0.0.0.0
-  #     - NUXT_HOST=0.0.0.0
-  #     - NUXT_PORT=3000
-  #   depends_on:
-  #     - backend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: docintel-frontend
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      HOST: "0.0.0.0"
+      NUXT_HOST: "0.0.0.0"
+      NUXT_PORT: "3000"
+      NUXT_PUBLIC_API_BASE_URL: http://localhost:8000
+    depends_on:
+      backend:
+        condition: service_healthy
 
 volumes:
   pgdata:

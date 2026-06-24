@@ -4,7 +4,7 @@
 
 ### Mục tiêu Phase 1
 
-Xây dựng **configuration layer** để hệ thống Dr.Vision có thể xử lý sao kê ngân hàng end-to-end. Vì core pipeline (OCR → Classification → Extraction) đã hoàn chỉnh ở mức 80%, Phase 1 chủ yếu là **định nghĩa schemas, rules và workflow templates** — không cần viết logic xử lý mới.
+Xây dựng **configuration layer** để hệ thống Doc Intelligence có thể xử lý sao kê ngân hàng end-to-end. Vì core pipeline (OCR → Classification → Extraction) đã hoàn chỉnh ở mức 80%, Phase 1 chủ yếu là **định nghĩa schemas, rules và workflow templates** — không cần viết logic xử lý mới.
 
 ### Deliverables
 
@@ -27,7 +27,7 @@ Xây dựng **configuration layer** để hệ thống Dr.Vision có thể xử 
 
 ```
 ┌───────────────────────────────────────────────────────────────┐
-│                     Dr.Vision Backend                          │
+│                     Doc Intelligence Backend                          │
 ├───────────────────────────────────────────────────────────────┤
 │                                                                │
 │  api/v1/                                                       │

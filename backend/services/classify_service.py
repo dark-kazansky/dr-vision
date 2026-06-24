@@ -19,8 +19,7 @@ from typing import Optional
 from agents.factory import AgentFactory
 from core.middleware import FileSizeValidator
 from core.schemas import ClassificationResult, ClassifyResponse
-from core.storage import UPLOADS_DIR, CLASSIFIED_DIR, ensure_dirs
-from core.utils import secure_save_file
+from core.storage import UPLOADS_DIR, ensure_dirs
 from components.classifier import Classifier, ClassificationRule
 from components.parser import Parser
 from config import Config, TierConfig
@@ -78,23 +77,35 @@ def _parse_rules(classification_rules: str) -> list[ClassificationRule]:
         raise HTTPException(status_code=400, detail=f"Invalid classification rules: {str(e)}")
 
 
-def _persist_classification_result(filename: str, document_type: str) -> None:
-    """Save classification result to data/classified/result.json."""
-    classified_dir = os.path.join(_DATA_DIR, "classified")
-    os.makedirs(classified_dir, exist_ok=True)
-    result_file_path = os.path.join(classified_dir, "result.json")
+def _persist_classification_result(filename: str, document_type: str, model_id: Optional[str] = None) -> None:
+    """Save classification result to PostgreSQL. Raises if DB unavailable."""
+    import asyncio as _aio
+    from server import ocr_result_repo
 
+    if not ocr_result_repo or not ocr_result_repo._pool:
+        raise RuntimeError("Database unavailable — cannot persist classification results")
+
+    loop = _aio.new_event_loop()
     try:
-        results_data = {}
-        if os.path.exists(result_file_path):
-            with open(result_file_path, "r", encoding="utf-8") as f:
-                results_data = json.load(f)
-        results_data[filename] = document_type
-        with open(result_file_path, "w", encoding="utf-8") as f:
-            json.dump(results_data, f, indent=2, ensure_ascii=False)
-        logger.info("Result saved to: %s", result_file_path)
-    except Exception as e:
-        logger.warning("Failed to save result to result.json: %s", e)
+        existing = loop.run_until_complete(ocr_result_repo.get_result_by_filename(filename))
+        if existing:
+            loop.run_until_complete(ocr_result_repo.update_result_data(
+                existing["id"],
+                {"classification": {"document_type": document_type, "model": model_id}},
+            ))
+        else:
+            loop.run_until_complete(ocr_result_repo.store_result(
+                filename=filename,
+                raw_text="",
+                model_id=model_id,
+                result_data={
+                    "type": "classify",
+                    "classification": {"document_type": document_type, "model": model_id},
+                },
+            ))
+    finally:
+        loop.close()
+    logger.info("Classification result persisted to DB: %s → %s", filename, document_type)
 
 
 async def classify_document(
@@ -136,7 +147,7 @@ async def classify_document(
     logger.info("Loaded %d classification rules: %s", len(rules), [r.doc_type for r in rules])
 
     # Setup directories
-    uploaded_dir = os.path.join(_DATA_DIR, "uploaded")
+    uploaded_dir = str(UPLOADS_DIR)
     os.makedirs(uploaded_dir, exist_ok=True)
 
     # Read file content and check for duplicates
@@ -193,7 +204,8 @@ async def classify_document(
         parse_result = await asyncio.to_thread(parser.parse, file_path)
 
         if not parse_result.success:
-            raise HTTPException(status_code=500, detail=f"Parse failed: {parse_result.error}")
+            from core.exceptions import raise_agent_error
+            raise_agent_error(parse_result, prefix="Parse failed: ")
 
         logger.info("Parse successful, text length: %d", len(parse_result.text))
         logger.info("Classifying with model: %s, rules: %d", classifier_model_id, len(rules))
@@ -210,7 +222,8 @@ async def classify_document(
         classify_result = await asyncio.to_thread(classifier.classify, parse_result.text, rules)
 
         if not classify_result.success:
-            raise HTTPException(status_code=500, detail=f"Classification failed: {classify_result.error}")
+            from core.exceptions import raise_agent_error
+            raise_agent_error(classify_result, prefix="Classification failed: ")
 
         logger.info("Classification successful: %s", classify_result.document_type)
 
@@ -221,7 +234,7 @@ async def classify_document(
             reasoning=classify_result.reasoning,
         )
 
-        _persist_classification_result(file.filename, classify_result.document_type)
+        _persist_classification_result(file.filename, classify_result.document_type, model_id=classifier_model_id)
 
         return ClassifyResponse(success=True, results=[classification_result], error=None, error_type=None)
 
@@ -261,7 +274,8 @@ async def classify_text(
         classify_result = await asyncio.to_thread(classifier.classify, text, rules)
 
         if not classify_result.success:
-            raise HTTPException(status_code=500, detail=classify_result.error)
+            from core.exceptions import raise_agent_error
+            raise_agent_error(classify_result)
 
         classification_result = ClassificationResult(
             fileName="text_input",

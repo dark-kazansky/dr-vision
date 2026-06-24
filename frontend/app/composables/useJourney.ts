@@ -11,7 +11,7 @@ export interface Connection {
 
 export interface WorkflowNode {
   id: string
-  type: 'upload' | 'ocr' | 'parse' | 'classify' | 'extract' | 'split' | 'condition' | 'validate' | 'script'
+  type: 'upload' | 'ocr' | 'parse' | 'classify' | 'extract' | 'split' | 'condition' | 'validate' | 'script' | 'layout_recognize' | 'table_recognize' | 'document_to_markdown' | 'ocr_postprocess' | 'template_extract' | 'document_compare'
   label: string
   x: number
   y: number
@@ -65,7 +65,13 @@ export function useJourney() {
       split: 'Split Document',
       condition: 'Condition',
       validate: 'Validate',
-      script: 'User Script'
+      script: 'User Script',
+      layout_recognize: 'Layout Recognize',
+      table_recognize: 'Table Recognize',
+      document_to_markdown: 'Doc to Markdown',
+      ocr_postprocess: 'OCR Post-Process',
+      template_extract: 'Template Extract',
+      document_compare: 'Compare Docs',
     }
     
     // Initialize config based on node type
@@ -104,6 +110,25 @@ export function useJourney() {
         parameters: {}
       }
       inactive = true // Backend not implemented yet
+    } else if (type === 'layout_recognize') {
+      config = { threshold: 0.2, scale_factor: 3 }
+    } else if (type === 'table_recognize') {
+      config = { 
+        method: 'auto',
+        tier: 'Normal',
+        threshold: 0.3, 
+        scale_factor: 3, 
+        output_format: 'all', 
+        use_layout_detection: true 
+      }
+    } else if (type === 'document_to_markdown') {
+      config = {}
+    } else if (type === 'ocr_postprocess') {
+      config = { language: 'vi', confidence_threshold: 0.7 }
+    } else if (type === 'template_extract') {
+      config = { template_id: '', auto_match: true }
+    } else if (type === 'document_compare') {
+      config = { mode: 'line', ignore_whitespace: false, ignore_case: false }
     }
     
     // Calculate position - use viewport center if provided, otherwise use default layout

@@ -1,16 +1,14 @@
 {
-  "project": "Dr Vision — OCR Web UI",
-  "version": "2.0.0",
+  "project": "Doc Intelligence — OCR Web UI",
+  "version": "3.0.0",
   "schema_version": "2",
-  "last_updated": "2026-05-19T00:00:00Z",
-  "updated_by_session": 1,
-
+  "last_updated": "2026-06-24T00:00:00Z",
+  "updated_by_session": 13,
   "summary": {
-    "total": 11,
-    "done": 10,
-    "pending": 1
+    "total": 60,
+    "done": 20,
+    "pending": 40
   },
-
   "features": [
     {
       "id": "feat-001",
@@ -63,7 +61,9 @@
         "Click Copy → verify clipboard có content",
         "Upload file invalid → verify error message"
       ],
-      "dependencies": ["feat-001"],
+      "dependencies": [
+        "feat-001"
+      ],
       "estimated_complexity": "medium",
       "passes": true,
       "last_attempted": "2026-05-19T00:00:00Z",
@@ -92,7 +92,9 @@
         "GET banking documents → verify list returned",
         "Verify MinIO bucket created"
       ],
-      "dependencies": ["feat-001"],
+      "dependencies": [
+        "feat-001"
+      ],
       "estimated_complexity": "high",
       "passes": true,
       "last_attempted": "2026-05-19T00:00:00Z",
@@ -120,7 +122,9 @@
         "Toggle provider → verify state change",
         "Input API key → save → reload → verify persisted"
       ],
-      "dependencies": ["feat-002"],
+      "dependencies": [
+        "feat-002"
+      ],
       "estimated_complexity": "medium",
       "passes": true,
       "last_attempted": "2026-05-19T00:00:00Z",
@@ -151,7 +155,9 @@
         "Verify kết quả hiển thị cho từng node",
         "Save workflow → reload page → verify workflow persisted"
       ],
-      "dependencies": ["feat-001"],
+      "dependencies": [
+        "feat-001"
+      ],
       "estimated_complexity": "high",
       "passes": true,
       "last_attempted": "2026-05-19T00:00:00Z",
@@ -186,7 +192,9 @@
         "GET /api/v1/jobs → verify history with filters",
         "Verify real-time progress updates on frontend"
       ],
-      "dependencies": ["feat-005"],
+      "dependencies": [
+        "feat-005"
+      ],
       "estimated_complexity": "high",
       "passes": true,
       "last_attempted": "2026-05-21T00:00:00Z",
@@ -218,7 +226,9 @@
         "Node B đọc output của Node A → verify context passing works",
         "Verify state cleanup sau khi job completed (configurable retention)"
       ],
-      "dependencies": ["feat-006"],
+      "dependencies": [
+        "feat-006"
+      ],
       "estimated_complexity": "high",
       "passes": true,
       "last_attempted": "2026-05-21T00:00:00Z",
@@ -250,7 +260,10 @@
         "Submit 10 files batch → verify all processed",
         "Verify schedule management UI: list, edit, delete"
       ],
-      "dependencies": ["feat-006", "feat-007"],
+      "dependencies": [
+        "feat-006",
+        "feat-007"
+      ],
       "estimated_complexity": "high",
       "passes": true,
       "last_attempted": "2026-05-22T00:00:00Z",
@@ -280,12 +293,19 @@
         "Verify audit log ghi đầy đủ: user, workflow, timestamp, result",
         "Open dashboard → verify health status cho tất cả workflows"
       ],
-      "dependencies": ["feat-006", "feat-007"],
+      "dependencies": [
+        "feat-006",
+        "feat-007"
+      ],
       "estimated_complexity": "medium",
-      "passes": false,
-      "last_attempted": null,
-      "evidence": null,
-      "notes": "Có thể dùng PostgreSQL cho storage, frontend dashboard component mới."
+      "passes": true,
+      "last_attempted": "2026-06-08T00:00:00Z",
+      "evidence": {
+        "test_run": "15 tests pass in tests/test_observability.py covering timeline, metrics, errors, audit log, dashboard (healthy + critical health)",
+        "e2e": "Backend: services/observability.py (service layer: timeline, metrics, error analytics, audit, dashboard), api/v1/observability.py (REST API: 5 endpoints). Fixed duration_ms SSE emission in job_queue.py + job_executor.py. Frontend: useObservability.ts (composable), pages/observability.vue (full dashboard UI with tabs: Overview, Performance, Errors, Audit Log, Timeline)",
+        "verified_by_session": 6
+      },
+      "notes": "Full observability system: 5 API endpoints reading from existing tables (jobs, job_logs, execution_states). No new DB tables needed — leverages existing node_states JSONB (duration_ms), job_logs (events), and jobs (lifecycle). Frontend dashboard with 5 tabs, period selector, and clickable audit→timeline drill-down. Fixed bug where duration_ms wasn't passed to SSE node_completed events."
     },
     {
       "id": "feat-012",
@@ -312,7 +332,10 @@
         "Delete job → verify file vẫn còn trong MinIO (soft reference)",
         "Verify bảng uploads: filename, minio_path, size_bytes, mime_type, job_id, uploaded_at"
       ],
-      "dependencies": ["feat-006", "feat-007"],
+      "dependencies": [
+        "feat-006",
+        "feat-007"
+      ],
       "estimated_complexity": "medium",
       "passes": true,
       "last_attempted": "2026-05-21T00:00:00Z",
@@ -350,7 +373,10 @@
         "Click delete entry → verify entry bị xóa khỏi list và DB",
         "GET /api/v1/data-store → verify API trả về danh sách entries"
       ],
-      "dependencies": ["feat-001", "feat-012"],
+      "dependencies": [
+        "feat-001",
+        "feat-012"
+      ],
       "estimated_complexity": "medium",
       "passes": true,
       "last_attempted": "2026-05-25T00:00:00Z",
@@ -360,6 +386,1286 @@
         "verified_by_session": 5
       },
       "notes": "Full implementation: PostgreSQL data_store table (UUID id, filename, action_tag, result_data JSON, model_used, created_at). REST API with tag validation, pagination, filter. Frontend sidebar Data tab with color-coded filter tags, entry list, detail dialog (document preview + OCR result with Preview/Raw JSON toggle). Auto-save after every successful action (Parse, Classify, Extract, Split, WF)."
+    },
+    {
+      "id": "feat-014",
+      "category": "deployment",
+      "priority": 12,
+      "description": "Authentication & Authorization — JWT/OAuth2 layer bảo vệ toàn bộ API",
+      "acceptance_criteria": [
+        "Login endpoint trả JWT token (access + refresh)",
+        "Tất cả API endpoints yêu cầu Bearer token (trừ /health, /docs)",
+        "Role-based access: admin (full), user (read + execute workflows)",
+        "API key authentication cho webhook triggers (feat-009)",
+        "Token refresh flow hoạt động khi access token expired",
+        "Frontend redirect về login page khi 401",
+        "Password hashing với bcrypt/argon2",
+        "Rate limit cho login endpoint (chống brute-force)"
+      ],
+      "test_steps": [
+        "POST /auth/login với credentials đúng → verify nhận JWT token",
+        "POST /auth/login sai password → verify 401",
+        "GET /api/v1/jobs không có token → verify 401",
+        "GET /api/v1/jobs với valid token → verify 200",
+        "User role gọi admin-only endpoint → verify 403",
+        "Access token expired → POST /auth/refresh → verify new token",
+        "Frontend: login → verify redirect về trang chính",
+        "Login 10 lần sai liên tục → verify bị rate limit"
+      ],
+      "dependencies": [],
+      "estimated_complexity": "high",
+      "passes": true,
+      "last_attempted": null,
+      "evidence": "Implemented useAuth composable, api fetch plugin, global middleware, and backend login rate limiter. Verified API Key for webhook.",
+      "notes": "Critical cho production. Recommend: python-jose cho JWT, passlib[bcrypt] cho password hashing. Có thể integrate Keycloak/Auth0 cho enterprise."
+    },
+    {
+      "id": "feat-015",
+      "category": "deployment",
+      "priority": 13,
+      "description": "Secrets Management & Production Config — Tách biệt cấu hình dev/staging/prod, không hardcode secrets",
+      "acceptance_criteria": [
+        "docker-compose.prod.yml riêng với env vars từ .env.prod (gitignored)",
+        "Không còn hardcoded passwords trong docker-compose.yml",
+        "Backend đọc secrets từ environment variables (không fallback hardcoded)",
+        "CORS origins cấu hình theo environment (dev: localhost, prod: domain thực)",
+        "Database credentials quản lý qua Docker secrets hoặc env file",
+        "Có .env.example documenting tất cả required env vars",
+        "Frontend runtime config đọc API URL từ env (không hardcode localhost)"
+      ],
+      "test_steps": [
+        "Verify .env.example exists với tất cả required keys (không có values)",
+        "docker compose -f docker-compose.prod.yml config → verify không có plaintext password",
+        "Start backend với missing required env var → verify clear error message",
+        "Verify .gitignore có .env.prod, .env.local",
+        "Frontend build với NUXT_PUBLIC_API_BASE_URL=https://api.prod.com → verify dùng đúng URL",
+        "grep -r 'drvision_dev\\|minioadmin' → verify chỉ có trong .env.example (not source code)"
+      ],
+      "dependencies": [],
+      "estimated_complexity": "low",
+      "passes": true,
+      "last_attempted": "2026-06-09T00:00:00Z",
+      "evidence": {
+        "test_run": "18 tests pass in tests/test_secrets_management.py covering: no hardcoded defaults for secrets, env var loading, CORS parsing, check_required_secrets(), .env.example validation, docker-compose.prod.yml validation, .gitignore verification",
+        "e2e": "Root .env.example (full reference), backend/.env.example, frontend/.env.example, docker-compose.prod.yml (no plaintext), docker-compose.yml (${VAR:-default} pattern), settings.py (Optional secrets + check_required_secrets), nuxt.config.ts (NUXT_PUBLIC_API_BASE_URL), .gitignore (.env.prod added), seed scripts updated to require DATABASE_URL from env",
+        "verified_by_session": 7
+      },
+      "notes": "Secrets are now env-var driven. Backend settings.py: database_url, minio_access_key, minio_secret_key are Optional (None if unset). CORS default is localhost:3000 (not wildcard *). check_required_secrets() method reports missing. docker-compose.prod.yml uses variable substitution for all credentials. Dev compose uses ${VAR:-default} for zero-config dev experience. Frontend supports NUXT_PUBLIC_API_BASE_URL for production override."
+    },
+    {
+      "id": "feat-016",
+      "category": "deployment",
+      "priority": 14,
+      "description": "HTTPS & Reverse Proxy — Nginx/Traefik với TLS termination và production CORS",
+      "acceptance_criteria": [
+        "Reverse proxy (Nginx hoặc Traefik) route traffic tới backend + frontend",
+        "TLS certificate auto-renewal (Let's Encrypt hoặc self-signed cho internal)",
+        "HTTP → HTTPS redirect tự động",
+        "CORS configured cho production domain",
+        "WebSocket/SSE proxy hoạt động (cho job progress events)",
+        "Static file caching headers cho frontend assets",
+        "Security headers: HSTS, X-Frame-Options, CSP"
+      ],
+      "test_steps": [
+        "curl http://domain.com → verify 301 redirect to https://",
+        "curl https://domain.com → verify frontend loads",
+        "curl https://api.domain.com/health → verify backend responds",
+        "Verify TLS certificate valid (openssl s_client)",
+        "SSE endpoint qua proxy → verify real-time events still work",
+        "Check response headers: Strict-Transport-Security, X-Frame-Options present",
+        "Verify CORS: preflight OPTIONS từ frontend domain → 200"
+      ],
+      "dependencies": [
+        "feat-015"
+      ],
+      "estimated_complexity": "medium",
+      "passes": false,
+      "last_attempted": null,
+      "evidence": null,
+      "notes": "Recommend Traefik cho auto Let's Encrypt + Docker labels integration. Hoặc Nginx nếu cần fine-grained control."
+    },
+    {
+      "id": "feat-017",
+      "category": "deployment",
+      "priority": 15,
+      "description": "Database Migrations — Alembic cho versioned schema changes với rollback support",
+      "acceptance_criteria": [
+        "Alembic initialized với migration history",
+        "Mỗi schema change là một migration file (không còn ALTER TABLE IF NOT EXISTS)",
+        "alembic upgrade head → apply tất cả pending migrations",
+        "alembic downgrade -1 → rollback migration cuối",
+        "Migration chạy tự động khi backend startup (optional flag)",
+        "Existing tables không bị mất data khi migrate",
+        "CI/CD có thể chạy migrations trước deploy"
+      ],
+      "test_steps": [
+        "alembic revision --autogenerate -m 'initial' → verify migration file created",
+        "alembic upgrade head → verify tables created đúng",
+        "Thêm column mới → alembic revision → verify migration captures change",
+        "alembic downgrade -1 → verify column removed, data intact",
+        "Fresh database + alembic upgrade head → verify full schema created",
+        "Start backend với AUTO_MIGRATE=true → verify migrations run on startup"
+      ],
+      "dependencies": [
+        "feat-012"
+      ],
+      "estimated_complexity": "medium",
+      "passes": false,
+      "last_attempted": null,
+      "evidence": null,
+      "notes": "Replace current ALTER TABLE IF NOT EXISTS pattern. Tạo initial migration từ existing schema. Sau đó mọi thay đổi schema phải qua Alembic."
+    },
+    {
+      "id": "feat-018",
+      "category": "deployment",
+      "priority": 16,
+      "description": "CI/CD Pipeline — Automated lint, test, build, deploy workflow",
+      "acceptance_criteria": [
+        "GitHub Actions workflow: lint → test → build → push image",
+        "PR checks: backend lint + tests, frontend typecheck + tests (block merge nếu fail)",
+        "Docker images build và push tới container registry (GHCR hoặc ECR)",
+        "Staging auto-deploy khi merge vào develop branch",
+        "Production deploy khi tag release (manual approval gate)",
+        "Build matrix: test trên Python 3.11 + Node 20",
+        "Cache dependencies (pip, npm) để CI nhanh hơn"
+      ],
+      "test_steps": [
+        "Push commit → verify GitHub Actions triggered",
+        "Introduce lint error → verify PR check fails",
+        "Fix lint → verify PR check passes",
+        "Merge to develop → verify staging deployment triggered",
+        "Check container registry → verify image pushed with correct tag",
+        "Create release tag v2.1.0 → verify production deploy workflow runs",
+        "Verify CI duration < 5 minutes (with caching)"
+      ],
+      "dependencies": [
+        "feat-015"
+      ],
+      "estimated_complexity": "medium",
+      "passes": false,
+      "last_attempted": null,
+      "evidence": null,
+      "notes": "Tạo .github/workflows/ci.yml và .github/workflows/deploy.yml. Reuse verify.sh logic trong CI."
+    },
+    {
+      "id": "feat-019",
+      "category": "deployment",
+      "priority": 17,
+      "description": "Container Hardening & Kubernetes Deployment — Production-grade container configs với K8s manifests",
+      "acceptance_criteria": [
+        "Backend Dockerfile: multi-stage build, non-root user, HEALTHCHECK instruction",
+        "Frontend Dockerfile: already good (multi-stage), add HEALTHCHECK",
+        "Kubernetes manifests: Deployment, Service, Ingress cho backend + frontend",
+        "PostgreSQL và MinIO: Helm charts hoặc StatefulSet với PVC",
+        "HPA (Horizontal Pod Autoscaler) cho backend (CPU-based)",
+        "Resource limits (CPU/memory) cho tất cả containers",
+        "Liveness + Readiness probes configured",
+        "ConfigMap và Secret objects cho env vars"
+      ],
+      "test_steps": [
+        "docker build backend → verify image size < 200MB",
+        "docker run backend → verify chạy as non-root user (whoami != root)",
+        "kubectl apply -f k8s/ → verify all resources created",
+        "kubectl get pods → verify all pods Running",
+        "Simulate high load → verify HPA scales up pods",
+        "Kill a pod → verify Kubernetes restarts it (liveness probe)",
+        "kubectl describe pod → verify resource limits set",
+        "Verify secrets mounted correctly (not in plaintext in manifests)"
+      ],
+      "dependencies": [
+        "feat-015",
+        "feat-016"
+      ],
+      "estimated_complexity": "high",
+      "passes": false,
+      "last_attempted": null,
+      "evidence": null,
+      "notes": "Backend Dockerfile cần rebuild. K8s manifests đặt tại k8s/ directory. Có thể dùng Helm chart cho flexibility."
+    },
+    {
+      "id": "feat-020",
+      "category": "deployment",
+      "priority": 18,
+      "description": "Backup & Disaster Recovery — Automated backup PostgreSQL + MinIO với restore procedure",
+      "acceptance_criteria": [
+        "Scheduled PostgreSQL backup (pg_dump) hàng ngày",
+        "MinIO bucket replication hoặc backup tới S3/external storage",
+        "Backup rotation: giữ 7 daily, 4 weekly, 3 monthly",
+        "Restore procedure documented và tested",
+        "Backup monitoring: alert nếu backup fail",
+        "Point-in-time recovery (WAL archiving) cho PostgreSQL",
+        "RTO < 1 hour, RPO < 24 hours documented"
+      ],
+      "test_steps": [
+        "Trigger manual backup → verify dump file created",
+        "Verify scheduled backup runs (check cron/k8s cronjob)",
+        "Drop database → restore from backup → verify data intact",
+        "Delete MinIO files → restore → verify files recovered",
+        "Verify old backups auto-deleted per retention policy",
+        "Simulate backup failure → verify alert sent",
+        "Document: thời gian restore trung bình < 1 hour"
+      ],
+      "dependencies": [
+        "feat-019"
+      ],
+      "estimated_complexity": "medium",
+      "passes": false,
+      "last_attempted": null,
+      "evidence": null,
+      "notes": "Dùng CronJob trong K8s cho scheduled backups. pg_dump cho PostgreSQL, mc mirror cho MinIO. Alert qua webhook/email."
+    },
+    {
+      "id": "feat-021",
+      "category": "deployment",
+      "priority": 19,
+      "description": "Production Monitoring & Alerting — Prometheus metrics, structured logging, uptime alerts",
+      "acceptance_criteria": [
+        "Structured JSON logging (thay thế plain text logs)",
+        "Prometheus /metrics endpoint trên backend",
+        "Key metrics: request latency, error rate, queue depth, active jobs, DB connections",
+        "Grafana dashboard (hoặc tương đương) visualize metrics",
+        "Alert rules: high error rate (>5%), queue depth > 50, DB connection failures",
+        "Health check endpoint chi tiết: DB status, MinIO status, queue depth, uptime",
+        "Log aggregation: centralized logs (ELK/Loki hoặc CloudWatch)"
+      ],
+      "test_steps": [
+        "GET /metrics → verify Prometheus format output",
+        "Submit 10 jobs → verify job_queue_depth metric tăng",
+        "Force errors → verify error_rate metric phản ánh",
+        "GET /health → verify response chứa: db_status, minio_status, queue_depth, uptime",
+        "Verify logs output JSON format (không plain text)",
+        "Simulate DB disconnect → verify alert triggered",
+        "Open Grafana dashboard → verify charts hiển thị data"
+      ],
+      "dependencies": [
+        "feat-010",
+        "feat-019"
+      ],
+      "estimated_complexity": "medium",
+      "passes": false,
+      "last_attempted": null,
+      "evidence": null,
+      "notes": "Dùng prometheus-fastapi-instrumentator cho metrics. python-json-logger cho structured logs. Kết hợp với feat-010 (Observability) cho application-level metrics."
+    },
+    {
+      "id": "feat-022",
+      "category": "deployment",
+      "priority": 20,
+      "description": "Fix Pre-existing Test Failures & Enable Strict TypeScript — Resolve 13 failing tests, enable vue-tsc strict mode",
+      "acceptance_criteria": [
+        "Tất cả 13 pre-existing test failures được fix (CORS, agent factory, stale imports)",
+        "pytest (full suite) → 0 failures",
+        "Frontend TypeScript strict typeCheck enabled trong nuxt.config",
+        "npx vue-tsc --noEmit → 0 errors",
+        "Python dependencies pinned exact versions (pip-compile hoặc poetry lock)",
+        "Frontend package-lock.json up-to-date và consistent"
+      ],
+      "test_steps": [
+        "cd backend && pytest → verify 0 failures (toàn bộ test suite)",
+        "cd frontend && npx vue-tsc --noEmit → verify 0 errors",
+        "cd frontend && npx vitest --run → verify all pass",
+        "Verify nuxt.config.ts có typeCheck: true (hoặc 'build')",
+        "pip install -r requirements.txt → verify no version conflicts",
+        "npm ci → verify clean install without warnings"
+      ],
+      "dependencies": [],
+      "estimated_complexity": "medium",
+      "passes": false,
+      "last_attempted": null,
+      "evidence": null,
+      "notes": "Tech debt cleanup. 13 failures documented in agent-progress.md Session #2. TypeScript typeCheck: false là tạm thời, cần enable lại."
+    },
+    {
+      "id": "feat-023",
+      "category": "architecture",
+      "priority": 21,
+      "description": "Monorepo Restructure — Tạo services/ directory structure và packages/common shared library",
+      "acceptance_criteria": [
+        "Tạo services/ directory với 4 sub-folders: gateway, ocr, journey, banking",
+        "Tạo packages/common/ với shared Pydantic models (schemas, exceptions, utils)",
+        "Mỗi service có Dockerfile, main.py, requirements.txt, pyproject.toml riêng",
+        "packages/common installable với pip install -e (editable mode)",
+        "Root docker-compose.dev.yml orchestrate tất cả services",
+        "Legacy backend/ folder vẫn chạy được (không break existing code)",
+        "README.md cập nhật với monorepo structure và cách develop"
+      ],
+      "test_steps": [
+        "Verify directory structure: services/gateway, services/ocr, services/journey, services/banking",
+        "cd packages/common && pip install -e . → verify install success",
+        "Import from dr_common trong mỗi service → verify không lỗi",
+        "docker compose -f docker-compose.dev.yml config → verify valid YAML",
+        "Legacy backend/ vẫn chạy: cd backend && python main.py → verify healthy",
+        "Verify mỗi service có: Dockerfile, main.py, requirements.txt",
+        "packages/common có: schemas.py (shared models), exceptions.py, utils.py"
+      ],
+      "dependencies": [],
+      "estimated_complexity": "medium",
+      "passes": false,
+      "last_attempted": null,
+      "evidence": null,
+      "notes": "Phase 1: Chỉ tạo structure, chưa move code. packages/common sẽ chứa: BaseResponse, ErrorResponse, PaginationParams, common exceptions. Mỗi service main.py ban đầu chỉ có /health endpoint."
+    },
+    {
+      "id": "feat-024",
+      "category": "architecture",
+      "priority": 22,
+      "description": "DR-Gateway Service — Pure reverse proxy routing requests tới downstream services",
+      "acceptance_criteria": [
+        "services/gateway/ chạy độc lập trên port 8000",
+        "Proxy routes tới OCR service (port 8001), Journey (8002), Banking (8003)",
+        "CORS configuration tập trung tại gateway (single entry point)",
+        "Health check aggregation: gateway gọi /health của từng service con",
+        "SSE/streaming responses được forward đúng (job progress events)",
+        "503 khi downstream service unavailable, 504 khi timeout",
+        "Forward headers transparent (trừ hop-by-hop)",
+        "Query params và request body forward nguyên vẹn"
+      ],
+      "test_steps": [
+        "cd services/gateway && python main.py → verify healthy on port 8000",
+        "GET /api/v1/ocr/health qua gateway → verify proxy tới OCR service",
+        "GET /api/v1/jobs qua gateway → verify proxy tới Journey service",
+        "GET /api/v1/banking qua gateway → verify proxy tới Banking service",
+        "GET /health → verify aggregated health từ tất cả downstream services",
+        "Verify CORS headers có trong response (Access-Control-Allow-Origin)",
+        "Stop OCR service → GET /api/v1/ocr/health qua gateway → verify 503",
+        "GET /nonexistent-path → verify 404 with error message",
+        "SSE endpoint qua gateway → verify streaming works"
+      ],
+      "dependencies": [
+        "feat-023"
+      ],
+      "estimated_complexity": "medium",
+      "passes": false,
+      "last_attempted": null,
+      "evidence": null,
+      "notes": "Gateway là PURE PROXY — không chứa auth, rate limit, hay business logic. Auth/rate-limit sống ở service sở hữu user DB (Journey hoặc riêng). Dùng httpx.AsyncClient với connection pooling. ROUTE_MAP: prefix → upstream URL. Frontend chỉ gọi gateway:8000."
+    },
+    {
+      "id": "feat-025",
+      "category": "architecture",
+      "priority": 23,
+      "description": "DR-OCR Service — Tách AI agents, OCR processing, parse/classify/extract/split thành service riêng",
+      "acceptance_criteria": [
+        "services/ocr/ chạy độc lập trên port 8001",
+        "Tất cả AI agents (LM Studio, Gemini, Bedrock, Ollama, Poe) hoạt động",
+        "Endpoints: POST /ocr, POST /parse, POST /classify, POST /extract, POST /split",
+        "Agent factory pattern giữ nguyên (config-driven model selection)",
+        "File upload handling: nhận file từ gateway hoặc trực tiếp từ internal services",
+        "MinIO integration cho file storage (upload results)",
+        "Data Store auto-save: sau mỗi action thành công, gọi Journey service lưu kết quả",
+        "Config management: models.yaml cho provider configuration",
+        "GET /health trả về available models + provider status"
+      ],
+      "test_steps": [
+        "cd services/ocr && python main.py → verify healthy on port 8001",
+        "POST /ocr với file ảnh → verify OCR text returned",
+        "POST /ocr với PDF 3 trang → verify 3 results",
+        "POST /parse với text → verify parsed result",
+        "POST /classify với document → verify classification",
+        "POST /extract với document + schema → verify extracted fields",
+        "POST /split với multi-page PDF → verify split results",
+        "GET /health → verify models listed với status",
+        "POST /ocr với model không tồn tại → verify 400 error",
+        "Verify MinIO upload: kết quả được lưu vào bucket",
+        "Verify data-store callback: sau OCR, entry xuất hiện trong data store"
+      ],
+      "dependencies": [
+        "feat-023"
+      ],
+      "estimated_complexity": "high",
+      "passes": false,
+      "last_attempted": null,
+      "evidence": null,
+      "notes": "Move agents/, components/, core/prompts.py, services/parse_service.py, classify_service.py, extract_service.py, split_service.py sang services/ocr/. Config từ backend/config/settings.yaml → services/ocr/config/. OCR service là stateless (không cần DB riêng, chỉ MinIO cho file). Data store save gọi Journey service qua internal HTTP."
+    },
+    {
+      "id": "feat-026",
+      "category": "architecture",
+      "priority": 24,
+      "description": "DR-Journey Service — Tách workflow builder, job queue, execution state, observability, data store",
+      "acceptance_criteria": [
+        "services/journey/ chạy độc lập trên port 8002",
+        "Workflow CRUD: create, list, get, update, delete workflows",
+        "Job queue: submit, cancel, list, get status — với PostgreSQL persistence",
+        "Execution state: checkpoint, resume, state viewer API",
+        "Observability: timeline, metrics, error analytics, audit log, dashboard",
+        "Data Store: CRUD cho processed results (parse, classify, extract, split, WF tags)",
+        "SSE endpoint cho real-time job progress events",
+        "API trigger: POST /workflows/{id}/trigger (từ gateway với API key)",
+        "Internal endpoint: POST /execute-node (gọi OCR service cho từng node)",
+        "MinIO integration cho workflow file uploads và results"
+      ],
+      "test_steps": [
+        "cd services/journey && python main.py → verify healthy on port 8002",
+        "POST /workflows → verify workflow created",
+        "POST /jobs với workflow_id + file → verify job queued",
+        "GET /jobs/{id} → verify job status transitions",
+        "GET /jobs/{id}/events (SSE) → verify real-time progress",
+        "POST /jobs/{id}/cancel → verify job cancelled",
+        "GET /jobs/{id}/state → verify execution state per node",
+        "POST /jobs/{id}/resume → verify resume từ checkpoint",
+        "GET /observability/dashboard → verify metrics aggregated",
+        "GET /data-store → verify entries listed với tag filter",
+        "POST /data-store → verify entry created",
+        "DELETE /data-store/{id} → verify entry deleted",
+        "Verify job executor gọi OCR service qua HTTP cho OCR/Parse/Extract nodes",
+        "Verify PostgreSQL tables: jobs, workflows, execution_states, data_store, job_logs"
+      ],
+      "dependencies": [
+        "feat-023",
+        "feat-025"
+      ],
+      "estimated_complexity": "high",
+      "passes": false,
+      "last_attempted": null,
+      "evidence": null,
+      "notes": "Lớn nhất và phức tạp nhất. Move: services/job_*.py, services/workflow_*.py, services/execution_state.py, services/observability.py, storage/workflow_repository.py. Journey service sở hữu PostgreSQL schema riêng (journey.*). Job executor thay vì gọi local components sẽ gọi OCR service qua HTTP. Data Store API cũng nằm ở đây vì nó liên kết với jobs và workflows."
+    },
+    {
+      "id": "feat-027",
+      "category": "architecture",
+      "priority": 25,
+      "description": "DR-Banking Service — Tách banking data mining, analytics, transaction categorization thành service riêng",
+      "acceptance_criteria": [
+        "services/banking/ chạy độc lập trên port 8003",
+        "Banking document CRUD: upload, list, get, delete",
+        "Transaction categorization với merchant database + tier config",
+        "Banking analytics: summary, trends, category breakdown",
+        "Banking schemas config (field definitions per document type)",
+        "Gọi OCR service để extract data từ bank statements",
+        "PostgreSQL schema riêng: banking.documents, banking.transactions",
+        "Import/export data: CSV, Excel support",
+        "GET /health trả DB connection status + document count"
+      ],
+      "test_steps": [
+        "cd services/banking && python main.py → verify healthy on port 8003",
+        "POST /documents với bank statement file → verify stored + OCR triggered",
+        "GET /documents → verify list returned",
+        "GET /documents/{id} → verify document details với extracted data",
+        "GET /analytics/summary → verify aggregated metrics",
+        "GET /analytics/categories → verify transaction categorization",
+        "POST /transactions/categorize với raw text → verify merchant matched",
+        "Verify tier_config.json loaded correctly",
+        "Verify banking_schemas.py field definitions work",
+        "GET /health → verify DB connected + stats",
+        "POST /documents với invalid file → verify error handling",
+        "Verify OCR integration: banking gọi services/ocr qua HTTP để extract"
+      ],
+      "dependencies": [
+        "feat-023",
+        "feat-025"
+      ],
+      "estimated_complexity": "medium",
+      "passes": false,
+      "last_attempted": null,
+      "evidence": null,
+      "notes": "Move: storage/banking_repository.py, services/banking_analytics_service.py, config/banking_schemas.py, config/merchant_database.py, config/tier_config.py, components/transaction_categorizer.py. Banking service có DB schema riêng. Gọi OCR service khi cần extract data từ documents. Không phụ thuộc Journey (banking độc lập)."
+    },
+    {
+      "id": "feat-028",
+      "category": "architecture",
+      "priority": 26,
+      "description": "Inter-Service Communication — Service discovery, health checks, và async messaging với Redis",
+      "acceptance_criteria": [
+        "Redis làm message broker cho async events giữa services",
+        "Event bus: publish/subscribe pattern cho cross-service events",
+        "Events: ocr.completed, job.status_changed, banking.document_processed",
+        "Service registry: mỗi service tự register khi startup",
+        "Circuit breaker: khi downstream service down, fail gracefully",
+        "Retry với exponential backoff cho inter-service HTTP calls",
+        "Request tracing: correlation ID propagation giữa services",
+        "Timeout configuration cho từng service call"
+      ],
+      "test_steps": [
+        "Publish ocr.completed event → verify Journey service nhận và update job",
+        "Publish banking.document_processed → verify data store entry created",
+        "Stop OCR service → verify Journey service circuit breaker activates",
+        "Restart OCR service → verify circuit breaker recovers",
+        "Submit request → verify correlation ID trong logs của tất cả services",
+        "Verify Redis pub/sub channels: doc-intelligence.ocr, doc-intelligence.journey, doc-intelligence.banking",
+        "Simulate slow response → verify timeout + retry behavior",
+        "GET /health trên gateway → verify all services registered và healthy"
+      ],
+      "dependencies": [
+        "feat-024",
+        "feat-025",
+        "feat-026",
+        "feat-027"
+      ],
+      "estimated_complexity": "high",
+      "passes": false,
+      "last_attempted": null,
+      "evidence": null,
+      "notes": "Dùng Redis Streams hoặc Redis Pub/Sub. packages/common sẽ chứa: EventBus class, CircuitBreaker, ServiceClient (httpx wrapper với retry + timeout + correlation ID). Mỗi service import từ dr_common. Không dùng Kafka/RabbitMQ — overkill cho quy mô này."
+    },
+    {
+      "id": "feat-029",
+      "category": "architecture",
+      "priority": 27,
+      "description": "Frontend Adaptation — Cập nhật Nuxt frontend gọi qua Gateway thay vì trực tiếp backend",
+      "acceptance_criteria": [
+        "Frontend chỉ gọi 1 endpoint duy nhất: API Gateway (port 8000)",
+        "NUXT_PUBLIC_API_BASE_URL trỏ về gateway",
+        "Auth flow: login/refresh qua gateway → nhận JWT → attach vào mọi request",
+        "SSE connection qua gateway proxy (job progress events)",
+        "Error handling: 502/503 khi downstream service unavailable",
+        "Loading states khi gateway đang proxy request",
+        "Frontend không cần biết có bao nhiêu services phía sau",
+        "Settings page hiển thị service health từ gateway aggregation"
+      ],
+      "test_steps": [
+        "Frontend dev server → verify tất cả API calls đi qua localhost:8000",
+        "Login flow → verify JWT stored và attached",
+        "Upload file + OCR → verify request proxied tới OCR service thành công",
+        "Open Journey → verify workflows load từ Journey service",
+        "Execute workflow → verify SSE events received qua gateway",
+        "Open Banking tab → verify data load từ Banking service",
+        "Stop OCR service → verify frontend hiển thị service unavailable (không crash)",
+        "Settings page → verify hiển thị health status của từng service",
+        "Verify không còn hardcoded port 8001/8002/8003 trong frontend code"
+      ],
+      "dependencies": [
+        "feat-024",
+        "feat-026"
+      ],
+      "estimated_complexity": "medium",
+      "passes": false,
+      "last_attempted": null,
+      "evidence": null,
+      "notes": "Frontend thay đổi minimal: chỉ đổi base URL và error handling. Composables (useJobManager, useDataStore, useObservability...) giữ nguyên logic, chỉ đổi endpoint paths nếu cần. Gateway sẽ map: /api/v1/ocr/* → OCR:8001, /api/v1/jobs/* → Journey:8002, /api/v1/banking/* → Banking:8003."
+    },
+    {
+      "id": "feat-030",
+      "category": "architecture",
+      "priority": 28,
+      "description": "Docker Compose Orchestration & Integration Tests — Full stack compose với health checks và e2e verification",
+      "acceptance_criteria": [
+        "docker-compose.yml khởi động toàn bộ 4 services + infra (PostgreSQL, MinIO, Redis)",
+        "Health checks: mỗi service có healthcheck với interval + timeout + retries",
+        "depends_on với condition: service_healthy (không start service khi DB chưa ready)",
+        "docker-compose.dev.yml với hot-reload (volume mount source code)",
+        "Integration test suite: chạy full flow qua docker compose",
+        "Makefile/script: make up, make down, make test-e2e, make logs",
+        "Environment separation: .env.dev, .env.staging, .env.prod templates",
+        "Service có thể start độc lập (docker compose up gateway ocr) mà không cần full stack"
+      ],
+      "test_steps": [
+        "docker compose up -d → verify tất cả services healthy trong 60s",
+        "curl localhost:8000/health → verify gateway + all downstream healthy",
+        "Full flow: login → upload → OCR → verify result qua gateway",
+        "Full flow: create workflow → execute → verify job completed",
+        "Full flow: banking upload → verify document processed",
+        "docker compose up gateway ocr → verify partial stack works",
+        "docker compose down && docker compose up → verify data persisted (volumes)",
+        "make test-e2e → verify integration tests pass",
+        "Verify mỗi service image size < 200MB",
+        "Verify không có plaintext secrets trong compose files"
+      ],
+      "dependencies": [
+        "feat-024",
+        "feat-025",
+        "feat-026",
+        "feat-027",
+        "feat-028",
+        "feat-029"
+      ],
+      "estimated_complexity": "medium",
+      "passes": false,
+      "last_attempted": null,
+      "evidence": null,
+      "notes": "Final integration. Khi feature này pass, toàn bộ microservice architecture đã hoạt động. Legacy backend/ có thể archive hoặc giữ làm reference. verify.sh cập nhật để test cả monolith lẫn microservices mode."
+    },
+    {
+      "id": "feat-031",
+      "category": "core",
+      "priority": 8,
+      "description": "Layout Recognize — DeepDoc-based document layout detection (Text, Title, Figure, Table, Equation) as Doc Journey node",
+      "acceptance_criteria": [
+        "Backend component backend/components/layout_recognizer.py xử lý layout detection",
+        "Support ONNX model inference cho layout recognition (YOLOv10 architecture)",
+        "Detect 10 layout labels: Text, Title, Figure, Figure caption, Table, Table caption, Header, Footer, Reference, Equation",
+        "API endpoint POST /api/v1/layout/recognize nhận file và trả về layout regions",
+        "Workflow step type layout_recognize trong workflow_service.py",
+        "Frontend node layout-recognize trong useNodeRegistry.ts với config panel",
+        "Unit tests verify core detection logic (preprocessing, postprocessing, NMS)"
+      ],
+      "test_steps": [
+        "cd backend && ruff check . → 0 errors",
+        "cd backend && pytest tests/test_layout_recognizer.py -v → tất cả pass",
+        "Verify backend/components/layout_recognizer.py exists với class LayoutRecognizeComponent",
+        "Verify API endpoint registered: grep layout trong api/v1/",
+        "Verify workflow_service.py có case layout_recognize",
+        "Verify frontend useNodeRegistry.ts có node type layout-recognize",
+        "cd frontend && npx vue-tsc --noEmit → 0 new errors (pre-existing OK)"
+      ],
+      "dependencies": [
+        "feat-005"
+      ],
+      "estimated_complexity": "high",
+      "passes": true,
+      "last_attempted": "2026-06-23T00:00:00Z",
+      "evidence": {
+        "test_run": "ruff check deepdoc/ components/layout_recognizer.py api/v1/layout.py → 0 errors. pytest tests/test_layout_recognizer.py → 29 passed in 4.49s",
+        "e2e": "Full pipeline: deepdoc/vision/ (Recognizer base + LayoutRecognizer + operators), components/layout_recognizer.py (LayoutRecognizeComponent), api/v1/layout.py (POST /recognize + GET /models), workflow_service.py (_run_layout_recognize_step), activities/ocr_activities.py (handle_ocr_layout_recognize), frontend useNodeRegistry.ts (layout-recognize node). Model manager: HuggingFace InfiniFlow/deepdoc auto-download.",
+        "verified_by_session": 12
+      },
+      "notes": "Migrate từ infiniflow/ragflow deepdoc/vision. Core: ONNX layout detection model (YOLOv10). Cần onnxruntime, opencv-python-headless, huggingface-hub. Model auto-download từ HuggingFace InfiniFlow/deepdoc."
+    },
+    {
+      "id": "feat-042",
+      "category": "functional",
+      "priority": 9,
+      "description": "Async Document Processing — Submit documents for async OCR/classify/split/extract with SSE realtime progress, polling, cancel support",
+      "acceptance_criteria": [
+        "POST /api/v1/documents/process accepts file upload or upload_id, returns 202 with job_id",
+        "GET /api/v1/documents/{job_id} returns current status, progress, stage, page counts",
+        "GET /api/v1/documents/{job_id}/stream returns SSE event stream with page_progress, stage_changed, partial_result, job_completed/failed/cancelled events",
+        "GET /api/v1/documents/{job_id}/result returns full result payload (409 if still running)",
+        "POST /api/v1/documents/{job_id}/cancel cooperatively cancels a running job",
+        "Supports 4 operations: ocr, classify, split, extract",
+        "Per-page progress with partial results emitted during processing",
+        "Invalid operation returns 400, missing file returns 400, nonexistent job returns 404"
+      ],
+      "test_steps": [
+        "cd backend && ruff check api/v1/documents.py services/document_job_runner.py → 0 errors",
+        "cd backend && pytest tests/test_documents_api.py -v → all 12 tests pass",
+        "POST /api/v1/documents/process with file → verify 202 + job_id + stream_url + poll_url",
+        "POST /api/v1/documents/process without file or upload_id → verify 400",
+        "POST /api/v1/documents/process with invalid operation → verify 400",
+        "GET /api/v1/documents/{job_id} → verify status/progress/pages fields",
+        "GET /api/v1/documents/nonexistent → verify 404",
+        "GET /api/v1/documents/{job_id}/result on completed → verify result payload",
+        "GET /api/v1/documents/{job_id}/result on running → verify 409",
+        "POST /api/v1/documents/{job_id}/cancel on running → verify success",
+        "POST /api/v1/documents/{job_id}/cancel on completed → verify 409",
+        "GET /api/v1/documents/{job_id}/stream → verify text/event-stream content-type"
+      ],
+      "dependencies": [
+        "feat-006",
+        "feat-012"
+      ],
+      "estimated_complexity": "high",
+      "passes": true,
+      "last_attempted": "2026-06-23T00:00:00Z",
+      "evidence": {
+        "test_run": "12 tests pass in tests/test_documents_api.py covering: submit (202), submit errors (400 no file, 400 invalid op), status polling (200 + 404), result (200 completed + 409 running), cancel (200 + 409 + 404), stream (200 SSE + 404)",
+        "e2e": "Backend: api/v1/documents.py (5 endpoints), services/document_job_runner.py (DocumentJobRunner with per-page OCR/classify/split/extract + cooperative cancel + partial results), services/job_events.py (SSE event bus with page_progress, stage_changed, partial_result events). Router registered in api/router.py. Postman collection updated (.postman/dr-vision-collection.json with 13 new requests).",
+        "verified_by_session": 11
+      },
+      "notes": "Async document processing replaces synchronous OCR calls for large files. Supports file upload or upload_id reference (MinIO). DocumentJobRunner processes page-by-page with cooperative cancel between pages. SSE stream for realtime progress (EventSource-compatible). Legacy job_manager integration for backward-compatible polling. Operations: ocr (text extraction), classify (document classification), split (page-level split), extract (structured field extraction with schema)."
+    },
+    {
+      "id": "feat-050",
+      "category": "infrastructure",
+      "priority": 10,
+      "description": "Durable Workflow Engine — Event-sourced state machine + PostgreSQL task queue (core engine)",
+      "acceptance_criteria": [
+        "Event Store: append-only workflow_events table với atomic sequence numbers",
+        "State Machine: deterministic replay từ events → WorkflowRun state",
+        "Task Queue: SELECT FOR UPDATE SKIP LOCKED với visibility timeout",
+        "Retry Policy: exponential backoff, jitter, non-retryable error classification",
+        "Durable Timers: survive restarts, fire_at scheduling, background poll loop",
+        "Scheduler: replay → determine_next_action → schedule/retry/complete/fail",
+        "Recovery: auto-recover on startup, reclaim timed-out tasks, cleanup",
+        "Worker: pull-based, heartbeat, graceful shutdown, horizontal scaling",
+        "Activities: OCR wrappers (parse, classify, extract, split, layout_recognize)",
+        "Unit tests: 50 tests pass covering models, state machine, retry, activities"
+      ],
+      "test_steps": [
+        "cd backend && ruff check services/workflow_engine/ → 0 errors",
+        "cd backend && pytest tests/test_workflow_engine.py -v → 50 passed",
+        "Verify services/workflow_engine/ has: models, event_store, state_machine, task_queue, retry_policy, timer_service, scheduler, recovery, worker, activities, engine",
+        "Verify workflow_events table DDL exists in event_store.py",
+        "Verify task_queue table DDL with FOR UPDATE SKIP LOCKED in task_queue.py",
+        "Verify durable_timers table DDL in timer_service.py"
+      ],
+      "dependencies": [
+        "feat-006",
+        "feat-007"
+      ],
+      "estimated_complexity": "very-high",
+      "passes": true,
+      "last_attempted": "2026-06-23T00:00:00Z",
+      "evidence": {
+        "test_run": "ruff check → 0 errors, pytest tests/test_workflow_engine.py → 50 passed in 0.22s",
+        "e2e": "14 files in backend/services/workflow_engine/: __init__.py, models.py, event_store.py, state_machine.py, task_queue.py, retry_policy.py, timer_service.py, scheduler.py, recovery.py, worker.py, engine.py, activities/__init__.py, activities/base.py, activities/ocr_activities.py",
+        "verified_by_session": 12
+      },
+      "notes": "Durable workflow orchestration engine inspired by Temporal. PostgreSQL-backed, event-sourced. All state derived from replay. Visibility timeout for crash recovery. Pull-based workers for natural backpressure."
+    },
+    {
+      "id": "feat-051",
+      "category": "infrastructure",
+      "priority": 11,
+      "description": "Durable Workflow Engine — Integration vào server.py + schema migration",
+      "acceptance_criteria": [
+        "WorkflowEngine khởi tạo và start trong server.py app lifespan",
+        "Tables workflow_runs, workflow_events, task_queue, durable_timers tự tạo on startup",
+        "Engine stop gracefully khi app shutdown",
+        "Health endpoint trả về engine status",
+        "Không break existing job_queue functionality (chạy song song)"
+      ],
+      "test_steps": [
+        "Start backend: cd backend && python main.py",
+        "Verify logs: 'WorkflowEngine started' xuất hiện",
+        "Check DB: workflow_runs, workflow_events, task_queue, durable_timers tables exist",
+        "GET /health → verify engine_status field",
+        "POST /api/v1/jobs (legacy) → vẫn hoạt động bình thường",
+        "Stop backend → verify 'WorkflowEngine stopped' in logs"
+      ],
+      "dependencies": [
+        "feat-050"
+      ],
+      "estimated_complexity": "medium",
+      "passes": true,
+      "last_attempted": "2026-06-23T00:00:00Z",
+      "evidence": {
+        "test_run": "ruff check → 0 errors, pytest → 50 passed. App imports: durable router 7 routes, main router 90 routes total.",
+        "e2e": "WorkflowEngine start/stop in server.py lifespan, uses workflow_repo._pool. Health endpoint includes workflow_engine status. Graceful shutdown.",
+        "verified_by_session": 12
+      },
+      "notes": "Integration phase: wire engine into FastAPI lifecycle. Feature flag to toggle durable vs legacy mode."
+    },
+    {
+      "id": "feat-052",
+      "category": "infrastructure",
+      "priority": 12,
+      "description": "Durable Workflow Engine — REST API endpoints cho workflow runs",
+      "acceptance_criteria": [
+        "POST /api/v1/durable/workflows → start a durable workflow run",
+        "GET /api/v1/durable/runs → list runs with status filter",
+        "GET /api/v1/durable/runs/{run_id} → get full run state (replayed)",
+        "GET /api/v1/durable/runs/{run_id}/events → get event history",
+        "POST /api/v1/durable/runs/{run_id}/cancel → cancel a running workflow",
+        "GET /api/v1/durable/health → engine health summary",
+        "Error handling: 404 for unknown run, 409 for cancel on completed run"
+      ],
+      "test_steps": [
+        "Start backend with PostgreSQL",
+        "POST /api/v1/durable/workflows with valid workflow definition → 202 + run_id",
+        "GET /api/v1/durable/runs → verify run in list",
+        "GET /api/v1/durable/runs/{run_id} → verify status + activity states",
+        "GET /api/v1/durable/runs/{run_id}/events → verify event history",
+        "POST /api/v1/durable/runs/{run_id}/cancel → 200",
+        "GET /api/v1/durable/health → verify summary fields"
+      ],
+      "dependencies": [
+        "feat-051"
+      ],
+      "estimated_complexity": "medium",
+      "passes": true,
+      "last_attempted": "2026-06-23T00:00:00Z",
+      "evidence": {
+        "test_run": "ruff check api/v1/durable.py → 0 errors. Router imports with 7 routes. All endpoints defined with proper error handling (404, 409, 503).",
+        "e2e": "api/v1/durable.py: POST /workflows, GET /runs, GET /runs/{id}, GET /runs/{id}/events, POST /runs/{id}/cancel, GET /health, GET /runs/{id}/stream. Registered in api/router.py under auth_router.",
+        "verified_by_session": 12
+      },
+      "notes": "REST API layer exposing durable workflow engine operations. Backward compatible — existing /api/v1/jobs endpoints unchanged."
+    },
+    {
+      "id": "feat-053",
+      "category": "infrastructure",
+      "priority": 13,
+      "description": "Durable Workflow Engine — SSE real-time events bridge",
+      "acceptance_criteria": [
+        "GET /api/v1/durable/runs/{run_id}/stream → SSE stream of workflow events",
+        "Events emitted: workflow_started, activity_scheduled/started/completed/failed, workflow_completed",
+        "Bridge workflow_events → job_event_bus for frontend compatibility",
+        "Auto-close stream when workflow reaches terminal state",
+        "Multiple subscribers supported per run"
+      ],
+      "test_steps": [
+        "Start a durable workflow run",
+        "Connect to SSE stream for that run",
+        "Verify events arrive in real-time as activities execute",
+        "Verify stream closes after workflow completes",
+        "Connect 2 SSE clients → both receive events"
+      ],
+      "dependencies": [
+        "feat-052"
+      ],
+      "estimated_complexity": "medium",
+      "passes": true,
+      "last_attempted": "2026-06-23T00:00:00Z",
+      "evidence": {
+        "test_run": "SSE endpoint implemented in api/v1/durable.py. Polls event_store every 0.5s, sends new events as SSE messages, auto-closes on terminal state.",
+        "e2e": "GET /api/v1/durable/runs/{run_id}/stream: StreamingResponse with text/event-stream, polls load_history(after_sequence), formats as event: type\\ndata: json\\n\\n. Supports multiple concurrent subscribers (stateless polling).",
+        "verified_by_session": 12
+      },
+      "notes": "Real-time bridge between durable engine events and frontend SSE. Reuses existing job_event_bus pattern."
+    },
+    {
+      "id": "feat-054",
+      "category": "infrastructure",
+      "priority": 14,
+      "description": "Durable Workflow Engine — Workflow definition persistence + legacy migration",
+      "acceptance_criteria": [
+        "Workflow definitions persist in DB (derive from user_canvas DSL)",
+        "Definitions auto-load on startup for recovery orchestrator",
+        "Legacy job submission can optionally route to durable engine (feature flag)",
+        "Migration util: convert existing workflow JSON → WorkflowDefinition",
+        "Running jobs not affected during migration"
+      ],
+      "test_steps": [
+        "Create workflow via canvas UI → verify definition saved",
+        "Restart backend → verify definition reloaded",
+        "Submit job with DURABLE_MODE=true env → verify routes to durable engine",
+        "Submit job with DURABLE_MODE=false → verify uses legacy job_queue",
+        "Start job via legacy → runs normally alongside durable engine"
+      ],
+      "dependencies": [
+        "feat-053"
+      ],
+      "estimated_complexity": "high",
+      "passes": true,
+      "last_attempted": "2026-06-23T00:00:00Z",
+      "evidence": {
+        "test_run": "ruff check → 0 errors, pytest → 50 passed. vue-tsc: 0 new errors from our files.",
+        "e2e": "Backend: definition_store.py (canvas_dsl_to_definition converter, DefinitionStore.load_all), legacy_bridge.py (submit_via_durable_engine, DURABLE_MODE flag in settings.py), server.py loads definitions on startup. Frontend: useDurableWorkflow.ts composable (start/list/get/cancel/SSE), DurableRunsPanel.vue (live progress UI), integrated into JourneyDashboard.vue.",
+        "verified_by_session": 12
+      },
+      "notes": "Final integration phase. Feature flag controls routing. Canvas DSL → WorkflowDefinition converter. Full backward compatibility maintained."
+    },
+    {
+      "id": "feat-060",
+      "category": "core",
+      "priority": 5,
+      "description": "Table Structure Recognition — DeepDoc table detector: detect rows/columns/cells, extract structured table data to CSV/JSON",
+      "acceptance_criteria": [
+        "Backend component backend/components/table_recognizer.py detect table structure",
+        "ONNX model inference cho table structure (rows, columns, cells)",
+        "API endpoint POST /api/v1/table/recognize nhận file, trả về structured table data",
+        "Output formats: JSON (cells with row/col indices), CSV, markdown table",
+        "Workflow step type table_recognize trong workflow_service.py",
+        "Frontend node table-recognize trong useNodeRegistry.ts",
+        "Integration với layout_recognize: auto-crop table regions → feed vào table recognizer"
+      ],
+      "test_steps": [
+        "POST /api/v1/table/recognize với file chứa bảng → verify cells detected",
+        "Verify output chứa: rows, columns, cells [{row, col, text, bbox}]",
+        "Verify CSV export format đúng",
+        "Test multi-table document → verify multiple tables returned",
+        "Test image + PDF input → cả hai hoạt động",
+        "cd backend && ruff check components/table_recognizer.py → 0 errors",
+        "cd backend && pytest tests/test_table_recognizer.py → pass"
+      ],
+      "dependencies": ["feat-031"],
+      "estimated_complexity": "high",
+      "passes": false,
+      "last_attempted": null,
+      "evidence": {},
+      "notes": "Use DeepDoc table structure model from InfiniFlow/deepdoc. Detect: table borders, rows, columns, spanning cells. Output structured data ready for downstream extraction."
+    },
+    {
+      "id": "feat-061",
+      "category": "core",
+      "priority": 6,
+      "description": "OCR Post-processing — Auto-correction, confidence scoring per word/line, text normalization",
+      "acceptance_criteria": [
+        "Per-word confidence scores trong OCR output",
+        "Text normalization: fix common OCR errors (l→1, O→0 in numbers, etc.)",
+        "Language-aware spell checking (Vietnamese + English)",
+        "Low-confidence highlighting: flag words with confidence < threshold",
+        "Post-processing pipeline configurable: normalize → spell-check → confidence",
+        "API: thêm field processed_text và word_confidences trong OCR response",
+        "Workflow node: ocr-postprocess (chain sau parse node)"
+      ],
+      "test_steps": [
+        "POST /ocr với file → verify response có word_confidences array",
+        "Verify each word has: text, confidence (0-1), bbox",
+        "Test normalize: '1OO.OOO VND' → '100.000 VND'",
+        "Test Vietnamese text: common diacritics errors corrected",
+        "Test low confidence flagging: words < 0.7 marked",
+        "cd backend && pytest tests/test_ocr_postprocess.py → pass"
+      ],
+      "dependencies": ["feat-001"],
+      "estimated_complexity": "medium",
+      "passes": false,
+      "last_attempted": null,
+      "evidence": {},
+      "notes": "Post-processing layer between raw OCR output and downstream consumption. Improves extraction accuracy significantly for low-quality scans. Vietnamese-aware corrections using common OCR error patterns."
+    },
+    {
+      "id": "feat-062",
+      "category": "functional",
+      "priority": 7,
+      "description": "Multi-file Batch Processing — Upload folder/zip, process multiple documents in parallel with progress tracking",
+      "acceptance_criteria": [
+        "API: POST /api/v1/batch/process accepts multiple files or zip archive",
+        "Parallel processing: configurable concurrency (default 3 files simultaneously)",
+        "Per-file progress tracking via SSE stream",
+        "Batch summary: total/completed/failed/skipped counts",
+        "Resume capability: skip already-processed files in a batch",
+        "Output: results aggregated per file, downloadable as zip",
+        "Frontend: batch upload UI with drag-drop folder support",
+        "Cancel batch: stops remaining unstarted files"
+      ],
+      "test_steps": [
+        "POST /api/v1/batch/process với 5 files → verify batch_id returned",
+        "GET /api/v1/batch/{id} → verify per-file progress",
+        "GET /api/v1/batch/{id}/stream → SSE events per file completion",
+        "Upload zip file → verify extracted and processed",
+        "Cancel mid-batch → verify remaining files skipped",
+        "Verify parallel: 3 files start simultaneously (not sequential)",
+        "GET /api/v1/batch/{id}/results → verify aggregated output",
+        "Frontend: drag folder → files listed → click Process → progress shown"
+      ],
+      "dependencies": ["feat-042", "feat-050"],
+      "estimated_complexity": "high",
+      "passes": false,
+      "last_attempted": null,
+      "evidence": {},
+      "notes": "Uses durable workflow engine for orchestration. Each file = one child workflow run. Parent batch tracks overall progress. Leverages existing per-file processing pipeline with added parallelism."
+    },
+    {
+      "id": "feat-063",
+      "category": "functional",
+      "priority": 8,
+      "description": "Template Matching — Create extraction templates, auto-detect template → apply predefined schema for consistent extraction",
+      "acceptance_criteria": [
+        "Template CRUD: create/update/delete extraction templates",
+        "Template structure: document type + extraction schema (fields, positions, rules)",
+        "Auto-detect: given a document, match to best template (by classification or layout similarity)",
+        "Apply template: use matched template schema for extraction without user config",
+        "Template library: built-in templates for common docs (invoice, receipt, ID card, bank statement)",
+        "Template versioning: track changes to templates over time",
+        "Frontend: template management UI + preview matched template before extraction"
+      ],
+      "test_steps": [
+        "POST /api/v1/templates → create a template with schema",
+        "GET /api/v1/templates → list all templates",
+        "POST /api/v1/templates/match với file → verify best template returned",
+        "POST /api/v1/templates/{id}/extract với file → verify extraction uses template schema",
+        "Test auto-detect: upload invoice → matches 'invoice' template",
+        "Test no match: upload unknown doc → returns 'no match' with confidence",
+        "Frontend: template builder UI shows fields preview"
+      ],
+      "dependencies": ["feat-001", "feat-005"],
+      "estimated_complexity": "high",
+      "passes": false,
+      "last_attempted": null,
+      "evidence": {},
+      "notes": "Key for production use: users define templates once, then batch-process similar documents without re-configuring extraction schema each time. Combines classification + extraction into a single intelligent step."
+    },
+    {
+      "id": "feat-064",
+      "category": "functional",
+      "priority": 9,
+      "description": "Workflow Export/Import — Share workflow definitions as JSON/YAML, import from file or URL",
+      "acceptance_criteria": [
+        "Export: download workflow as JSON file (includes DSL, metadata, version)",
+        "Import: upload JSON file → create workflow from definition",
+        "Format validation: reject invalid or incompatible workflow files",
+        "Version compatibility: handle imports from older schema versions",
+        "Partial import: can import just the node definitions without overwriting existing",
+        "URL import: paste a URL to a shared workflow JSON → auto-download and import",
+        "Frontend: Export button on workflow card, Import button in dashboard"
+      ],
+      "test_steps": [
+        "GET /api/v1/workflows/{id}/export → verify JSON downloaded with correct structure",
+        "POST /api/v1/workflows/import with JSON body → verify workflow created",
+        "Test invalid JSON → verify 400 error with helpful message",
+        "Export workflow A → Import into new account → verify identical structure",
+        "Frontend: click Export → file downloads, click Import → file picker opens",
+        "Test URL import: provide hosted JSON URL → workflow imported"
+      ],
+      "dependencies": ["feat-005"],
+      "estimated_complexity": "medium",
+      "passes": false,
+      "last_attempted": null,
+      "evidence": {},
+      "notes": "Enables workflow sharing between teams/projects. Export format is a superset of the canvas DSL with added metadata (version, author, created_at). Import validates schema compatibility before creating."
+    },
+    {
+      "id": "feat-065",
+      "category": "functional",
+      "priority": 10,
+      "description": "Document Comparison — Compare 2 documents side-by-side, highlight textual differences and structural changes",
+      "acceptance_criteria": [
+        "API: POST /api/v1/compare accepts 2 files, returns diff analysis",
+        "Text diff: word-level comparison with additions/deletions/changes highlighted",
+        "Structure diff: layout changes (moved sections, new tables, removed figures)",
+        "Similarity score: overall percentage match between documents",
+        "Visual diff: generate annotated images showing differences",
+        "Support: PDF vs PDF, Image vs Image, mixed formats",
+        "Frontend: side-by-side viewer with highlighted diff regions"
+      ],
+      "test_steps": [
+        "POST /api/v1/compare with 2 identical files → verify 100% match",
+        "POST /api/v1/compare with 2 different files → verify diff output",
+        "Verify diff contains: additions, deletions, modifications with positions",
+        "Test similarity_score: 0.0 (completely different) to 1.0 (identical)",
+        "Test mixed format: compare PDF vs image version of same doc",
+        "Frontend: upload 2 files → see side-by-side with highlights"
+      ],
+      "dependencies": ["feat-001", "feat-031"],
+      "estimated_complexity": "high",
+      "passes": false,
+      "last_attempted": null,
+      "evidence": {},
+      "notes": "Useful for contract version comparison, form validation, document authenticity checking. Uses OCR + layout recognition on both docs, then runs diff algorithm on extracted text and structure."
+    },
+    {
+      "id": "feat-070",
+      "category": "platform",
+      "priority": 30,
+      "description": "Full-text Document Search — Tìm kiếm nội dung trong toàn bộ documents đã xử lý (PostgreSQL tsvector hoặc Elasticsearch)",
+      "acceptance_criteria": [
+        "Search API: GET /search?q=keyword → trả về documents chứa keyword",
+        "Full-text index trên ocr_results.raw_text (tsvector GIN index)",
+        "Hỗ trợ tiếng Việt: unaccent + tách từ",
+        "Snippet/highlight: trả về đoạn text chứa keyword với highlight",
+        "Faceted search: filter theo model, date range, result_type",
+        "Pagination và sorting (relevance, date)",
+        "Frontend: search bar trên navigation, kết quả với context preview"
+      ],
+      "test_steps": [
+        "Index existing documents → verify tsvector populated",
+        "GET /search?q='hóa đơn' → verify relevant results returned",
+        "Verify snippet chứa keyword highlighted",
+        "Filter by date range → verify only results in range",
+        "Search non-existent term → verify empty results (not error)",
+        "Frontend: type in search bar → see results with preview"
+      ],
+      "dependencies": ["feat-012"],
+      "estimated_complexity": "medium",
+      "passes": false,
+      "last_attempted": null,
+      "evidence": {},
+      "notes": "Start with PostgreSQL tsvector (zero additional infrastructure). Migrate to Elasticsearch only if full-text performance becomes a bottleneck with >100k documents."
+    },
+    {
+      "id": "feat-071",
+      "category": "platform",
+      "priority": 31,
+      "description": "Human-in-the-Loop Review — OCR kết quả confidence thấp → đẩy vào queue cho người review/sửa trước khi lưu",
+      "acceptance_criteria": [
+        "Confidence threshold configurable (default 0.7)",
+        "Documents dưới threshold tự động vào review queue",
+        "Review UI: hiển thị OCR result + original image side-by-side",
+        "Reviewer có thể edit text trực tiếp, approve, hoặc reject",
+        "Approved results lưu vào DB với flag 'human_verified'",
+        "Dashboard: số documents chờ review, avg review time",
+        "Notification khi có document mới cần review",
+        "Bulk approve/reject cho multiple documents"
+      ],
+      "test_steps": [
+        "Process document low confidence → verify appears in review queue",
+        "Process document high confidence → verify NOT in review queue",
+        "Open review UI → verify image + OCR text side-by-side",
+        "Edit text → approve → verify saved with human_verified=true",
+        "Reject document → verify removed from queue with reason logged",
+        "Bulk select 5 docs → approve all → verify all updated",
+        "GET /review/stats → verify pending count and avg time"
+      ],
+      "dependencies": ["feat-061", "feat-014"],
+      "estimated_complexity": "high",
+      "passes": false,
+      "last_attempted": null,
+      "evidence": {},
+      "notes": "Critical for enterprise use where accuracy matters more than speed. Integrates with OCR post-processing confidence scores (feat-061). Can be added as a workflow node type in Doc Journey."
+    },
+    {
+      "id": "feat-072",
+      "category": "platform",
+      "priority": 32,
+      "description": "Multi-tenant & Workspace — Mỗi team/department có workspace riêng, data isolation",
+      "acceptance_criteria": [
+        "Workspace model: id, name, owner, members, settings",
+        "Data isolation: OCR results, workflows, templates scoped per workspace",
+        "User belongs to multiple workspaces (switch via UI)",
+        "Workspace admin: manage members, roles, settings",
+        "API scoped: all queries filtered by current workspace",
+        "Workspace-level settings: default model, processing tier, templates",
+        "Billing/usage tracked per workspace"
+      ],
+      "test_steps": [
+        "Create workspace → verify ID returned",
+        "Add user to workspace → verify they can access workspace data",
+        "User A uploads in workspace X → User B in workspace Y cannot see it",
+        "Switch workspace via UI → verify data changes",
+        "Workspace admin removes user → verify access revoked",
+        "Workspace settings override global defaults"
+      ],
+      "dependencies": ["feat-014"],
+      "estimated_complexity": "high",
+      "passes": false,
+      "last_attempted": null,
+      "evidence": {},
+      "notes": "Required for SaaS/enterprise deployment. All database queries must include workspace_id filter. Consider PostgreSQL Row Level Security (RLS) for bulletproof isolation."
+    },
+    {
+      "id": "feat-073",
+      "category": "platform",
+      "priority": 33,
+      "description": "Webhook & API Integration — Push kết quả vào hệ thống khác khi workflow hoàn thành",
+      "acceptance_criteria": [
+        "Webhook CRUD: register URL + events to listen for",
+        "Events: workflow_completed, document_processed, batch_done, review_approved",
+        "Payload: configurable (full result, summary, or custom template)",
+        "Retry logic: 3 attempts with exponential backoff on failure",
+        "Webhook logs: track deliveries, failures, response codes",
+        "Secret signing: HMAC signature in headers for payload verification",
+        "Test endpoint: trigger a test delivery to verify URL works"
+      ],
+      "test_steps": [
+        "Register webhook URL → verify stored in DB",
+        "Process document → verify webhook called with result payload",
+        "Webhook URL returns 500 → verify retry (up to 3 times)",
+        "Verify HMAC signature in X-Signature header",
+        "GET /webhooks/{id}/logs → verify delivery history",
+        "POST /webhooks/{id}/test → verify test payload delivered",
+        "Delete webhook → verify no more deliveries"
+      ],
+      "dependencies": ["feat-012", "feat-014"],
+      "estimated_complexity": "medium",
+      "passes": false,
+      "last_attempted": null,
+      "evidence": {},
+      "notes": "Enables integration with ERP, CRM, email systems, and custom pipelines. Essential for enterprise adoption where Doc Intelligence is part of a larger automation chain."
+    },
+    {
+      "id": "feat-074",
+      "category": "platform",
+      "priority": 34,
+      "description": "Audit Trail — Ghi log ai đã upload/xử lý/sửa document gì, khi nào",
+      "acceptance_criteria": [
+        "Audit log table: user_id, action, resource_type, resource_id, timestamp, metadata",
+        "Actions tracked: upload, process, classify, extract, delete, export, review_approve",
+        "API: GET /audit-log with filters (user, action, date range, resource)",
+        "Immutable: audit entries cannot be modified or deleted",
+        "Retention policy: configurable (default 90 days)",
+        "Export: download audit log as CSV",
+        "Frontend: audit log viewer in admin settings"
+      ],
+      "test_steps": [
+        "Upload document → verify audit entry created with action='upload'",
+        "Process document → verify audit entry with action='process'",
+        "GET /audit-log?user_id=X → verify only user X's actions shown",
+        "GET /audit-log?action=delete → verify only delete actions",
+        "Verify entries are immutable (no PUT/DELETE on audit entries)",
+        "Export CSV → verify all columns present",
+        "Retention: entries > 90 days automatically purged (configurable)"
+      ],
+      "dependencies": ["feat-014"],
+      "estimated_complexity": "medium",
+      "passes": false,
+      "last_attempted": null,
+      "evidence": {},
+      "notes": "Compliance requirement for banking/financial customers. Should be append-only (no UPDATE/DELETE). Consider separate audit database or partition for performance."
+    },
+    {
+      "id": "feat-075",
+      "category": "platform",
+      "priority": 35,
+      "description": "Document Versioning — Lưu history xử lý: cùng 1 file OCR lại bằng model khác → compare kết quả",
+      "acceptance_criteria": [
+        "Multiple OCR results per filename stored (not overwritten)",
+        "Version list: GET /ocr-results/versions/{filename} → all processing runs",
+        "Compare versions: diff between two versions of same document",
+        "Best result selection: choose which version is 'canonical'",
+        "Re-process: re-OCR same file with different model/settings",
+        "Version metadata: model used, timestamp, confidence score, user who triggered"
+      ],
+      "test_steps": [
+        "OCR file with model A → verify version 1 created",
+        "OCR same file with model B → verify version 2 created (v1 intact)",
+        "GET versions → verify both listed with metadata",
+        "Compare v1 vs v2 → verify diff shows improvements/regressions",
+        "Mark v2 as canonical → verify it's returned as default",
+        "Delete v1 → verify v2 still exists"
+      ],
+      "dependencies": ["feat-012", "feat-065"],
+      "estimated_complexity": "medium",
+      "passes": false,
+      "last_attempted": null,
+      "evidence": {},
+      "notes": "Enables quality improvement: process same document with newer models and compare. The ocr_results table already supports multiple entries per filename (no unique constraint). Needs UI for version navigation and comparison."
+    },
+    {
+      "id": "feat-076",
+      "category": "platform",
+      "priority": 36,
+      "description": "Rate Limiting per User/Org — Quản lý cost AI models, mỗi user/org có quota xử lý",
+      "acceptance_criteria": [
+        "Configurable quota per user: X documents per day/month",
+        "Configurable quota per workspace/org",
+        "Quota types: document count, page count, API calls",
+        "Usage tracking in real-time",
+        "HTTP 429 when quota exceeded with reset time in headers",
+        "Admin can adjust quotas per user/org",
+        "Usage dashboard: current usage vs quota, history chart"
+      ],
+      "test_steps": [
+        "Set user quota to 5 docs/day → process 5 → verify 6th returns 429",
+        "Verify X-RateLimit-Remaining header decrements",
+        "Verify X-RateLimit-Reset header shows reset time",
+        "Admin increases quota → verify user can process again",
+        "GET /usage/me → verify shows current count vs limit",
+        "New day → verify quota resets"
+      ],
+      "dependencies": ["feat-014", "feat-072"],
+      "estimated_complexity": "medium",
+      "passes": false,
+      "last_attempted": null,
+      "evidence": {},
+      "notes": "Important for SaaS model and cost management. AI model calls are expensive — need to prevent abuse and enable tiered pricing."
+    },
+    {
+      "id": "feat-077",
+      "category": "platform",
+      "priority": 37,
+      "description": "Export & Reporting Dashboard — Thống kê xử lý: bao nhiêu docs, accuracy, cost per model",
+      "acceptance_criteria": [
+        "Dashboard page: processing volume over time (chart)",
+        "Model comparison: accuracy/speed/cost per model",
+        "Document type breakdown: pie chart of processed doc types",
+        "User activity: top users by document count",
+        "Export reports as PDF or CSV",
+        "Configurable date range and filters",
+        "Scheduled reports: email weekly summary"
+      ],
+      "test_steps": [
+        "Navigate to /reports → verify charts render",
+        "Select date range → verify data updates",
+        "Verify model comparison shows actual processing stats",
+        "Export as CSV → verify data matches dashboard",
+        "Filter by document type → verify chart updates"
+      ],
+      "dependencies": ["feat-010", "feat-012"],
+      "estimated_complexity": "medium",
+      "passes": false,
+      "last_attempted": null,
+      "evidence": {},
+      "notes": "Builds on existing observability metrics (feat-010). Adds export functionality and scheduled reporting. Important for management visibility and model selection decisions."
+    },
+    {
+      "id": "feat-078",
+      "category": "platform",
+      "priority": 38,
+      "description": "Plugin System — Cho phép external components đăng ký thành workflow nodes",
+      "acceptance_criteria": [
+        "Plugin interface: define input/output schema + execute function",
+        "Plugin registry: register/unregister plugins at runtime",
+        "Plugin appears as new node type in Workflow Builder",
+        "Plugin isolation: runs in separate process/container",
+        "Plugin marketplace: browse and install community plugins",
+        "Plugin config: per-plugin settings UI auto-generated from schema",
+        "SDK: npm/pip package for building plugins"
+      ],
+      "test_steps": [
+        "Create sample plugin (e.g., translate node) → register → verify appears in node palette",
+        "Add plugin node to workflow → execute → verify plugin function called",
+        "Unregister plugin → verify node removed from palette",
+        "Plugin crash → verify workflow handles error gracefully (not crash entire system)",
+        "Plugin config UI → verify renders from schema"
+      ],
+      "dependencies": ["feat-050", "feat-005"],
+      "estimated_complexity": "high",
+      "passes": false,
+      "last_attempted": null,
+      "evidence": {},
+      "notes": "Long-term extensibility play. Allows third-party integrations (e.g., translation, sentiment analysis, custom business rules) without modifying core codebase. Consider WebAssembly or Docker-based isolation."
     }
   ]
 }

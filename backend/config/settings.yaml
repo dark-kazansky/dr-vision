@@ -1,5 +1,5 @@
-# Dr.Vision Configuration File
-# This file contains all configurable settings for the Dr.Vision OCR application.
+# Doc Intelligence Configuration File
+# This file contains all configurable settings for the Doc Intelligence OCR application.
 # Settings can be overridden using environment variables (see documentation).
 
 # =============================================================================
@@ -263,11 +263,11 @@ rate_limit:
   enabled: true
 
   # Sustained request rate per client IP (tokens refill at this rate)
-  requests_per_minute: 30
+  requests_per_minute: 120
 
   # Maximum burst capacity (bucket size) — allows short bursts above the
   # sustained rate before throttling kicks in
-  burst_size: 10
+  burst_size: 50
 
 # =============================================================================
 # Background Tasks Configuration

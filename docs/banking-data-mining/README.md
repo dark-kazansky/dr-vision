@@ -2,7 +2,7 @@
 
 ## Giới thiệu
 
-Tài liệu này mô tả kế hoạch triển khai tính năng Data Mining cho lĩnh vực ngân hàng trên nền tảng Dr.Vision. Hệ thống tận dụng pipeline xử lý tài liệu hiện có (OCR → Classification → Extraction → Splitting) để khai thác dữ liệu từ các tài liệu ngân hàng.
+Tài liệu này mô tả kế hoạch triển khai tính năng Data Mining cho lĩnh vực ngân hàng trên nền tảng Doc Intelligence. Hệ thống tận dụng pipeline xử lý tài liệu hiện có (OCR → Classification → Extraction → Splitting) để khai thác dữ liệu từ các tài liệu ngân hàng.
 
 ## Mục tiêu
 

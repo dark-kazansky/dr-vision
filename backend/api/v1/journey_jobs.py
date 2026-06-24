@@ -14,7 +14,8 @@ import json
 import logging
 from typing import AsyncGenerator, Optional
 
-from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
+from auth.dependencies import get_current_user, get_api_key_or_current_user
 from fastapi.responses import StreamingResponse
 
 from api.v1.schemas.jobs import (
@@ -66,7 +67,7 @@ def _job_to_response(job: JobRecord) -> JobResponse:
     )
 
 
-@router.post("/jobs", response_model=JobSubmitResponse)
+@router.post("/jobs", response_model=JobSubmitResponse, dependencies=[Depends(get_current_user)])
 async def submit_job(
     file: UploadFile = File(...),
     workflow: str = Form(...),
@@ -209,7 +210,7 @@ async def submit_job(
     )
 
 
-@router.get("/jobs", response_model=JobListResponse)
+@router.get("/jobs", response_model=JobListResponse, dependencies=[Depends(get_current_user)])
 async def list_jobs(
     status: Optional[str] = None,
     workflow_id: Optional[str] = None,
@@ -305,7 +306,7 @@ async def list_jobs(
     )
 
 
-@router.get("/jobs/{job_id}", response_model=JobResponse)
+@router.get("/jobs/{job_id}", response_model=JobResponse, dependencies=[Depends(get_current_user)])
 async def get_job(job_id: str) -> JobResponse:
     """
     Get full job details including per-node progress.
@@ -319,7 +320,7 @@ async def get_job(job_id: str) -> JobResponse:
     return _job_to_response(job)
 
 
-@router.post("/jobs/{job_id}/cancel", response_model=JobCancelResponse)
+@router.post("/jobs/{job_id}/cancel", response_model=JobCancelResponse, dependencies=[Depends(get_current_user)])
 async def cancel_job(job_id: str) -> JobCancelResponse:
     """
     Cancel a queued or running job.
@@ -345,7 +346,50 @@ async def cancel_job(job_id: str) -> JobCancelResponse:
     )
 
 
-@router.get("/jobs/{job_id}/stream")
+@router.delete("/jobs/{job_id}", dependencies=[Depends(get_current_user)])
+async def delete_job(job_id: str):
+    """
+    Delete a completed, failed, or cancelled job.
+
+    Removes the job from the queue/database. Only terminal jobs can be deleted.
+    Running or queued jobs must be cancelled first.
+    """
+    job = await job_queue.get_job(job_id)
+
+    # Try DB if not in memory
+    if job is None:
+        try:
+            from server import workflow_repo
+            if workflow_repo and workflow_repo._pool:
+                await workflow_repo.delete_job(job_id)
+                return {"success": True, "job_id": job_id, "message": "Job deleted"}
+        except Exception as e:
+            logger.warning("DB delete failed: %s", e)
+        raise HTTPException(status_code=404, detail=f"Job not found: {job_id}")
+
+    if job.status in (JobStatus.RUNNING, JobStatus.QUEUED):
+        raise HTTPException(
+            status_code=409,
+            detail=f"Cannot delete job in '{job.status}' state. Cancel it first.",
+        )
+
+    # Remove from in-memory queue
+    async with job_queue._lock:
+        job_queue._jobs.pop(job_id, None)
+        job_queue._cancellation_tokens.pop(job_id, None)
+
+    # Remove from DB
+    try:
+        from server import workflow_repo
+        if workflow_repo and workflow_repo._pool:
+            await workflow_repo.delete_job(job_id)
+    except Exception as e:
+        logger.warning("Failed to delete job from DB: %s", e)
+
+    return {"success": True, "job_id": job_id, "message": "Job deleted"}
+
+
+@router.get("/jobs/{job_id}/stream", dependencies=[Depends(get_current_user)])
 async def stream_job_progress(job_id: str, request: Request) -> StreamingResponse:
     """
     Server-Sent Events (SSE) stream for real-time job progress.
@@ -465,7 +509,7 @@ async def stream_job_progress(job_id: str, request: Request) -> StreamingRespons
     )
 
 
-@router.post("/workflows/{workflow_id}/trigger", response_model=JobSubmitResponse)
+@router.post("/workflows/{workflow_id}/trigger", response_model=JobSubmitResponse, dependencies=[Depends(get_api_key_or_current_user)])
 async def trigger_workflow_by_id(
     workflow_id: str,
     file: UploadFile = File(...),

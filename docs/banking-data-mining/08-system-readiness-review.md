@@ -2,7 +2,7 @@
 
 ## Tổng Quan Hệ Thống Hiện Tại
 
-Dr.Vision là nền tảng xử lý tài liệu **production-ready** với:
+Doc Intelligence là nền tảng xử lý tài liệu **production-ready** với:
 - **11+ API endpoints** hoàn chỉnh
 - **4 core components** (Parser, Classifier, Extractor, Splitter)
 - **5 AI providers** (Google Gemini, POE, AWS Bedrock, LM Studio, Ollama)

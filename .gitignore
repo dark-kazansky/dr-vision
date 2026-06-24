@@ -1,4 +1,8 @@
-# Python
+# ═══════════════════════════════════════════════════════════════════════════════
+# Dr.Vision — .gitignore
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# ─── Python ───────────────────────────────────────────────────────────────────
 __pycache__/
 *.py[cod]
 *$py.class
@@ -21,73 +25,82 @@ wheels/
 *.egg
 MANIFEST
 
-# Virtual Environment
+# ─── Virtual Environments ─────────────────────────────────────────────────────
 .venv/
 venv/
 ENV/
 env/
+.conda/
 
-# Testing
+# ─── Testing & Quality ────────────────────────────────────────────────────────
 .pytest_cache/
 .coverage
 htmlcov/
 .tox/
 .hypothesis/
+.ruff_cache/
 
-# IDEs
+# ─── IDEs & Editors ──────────────────────────────────────────────────────────
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
+.kiro/
 
-# Environment variables
+# ─── Environment Variables (secrets) ─────────────────────────────────────────
 .env
 .env.local
+.env.prod
+.env.staging
 .env.*.local
-backend/.env
+!.env.example
+!backend/.env.example
+!frontend/.env.example
 
-# Uploads and temporary files
-uploads/
-
-# Data directory - ignore uploaded files and results but keep structure
-backend/data/uploaded/*
-!backend/data/uploaded/.gitkeep
-backend/data/classified/*
-!backend/data/classified/.gitkeep
-backend/data/extracted/*
-!backend/data/extracted/.gitkeep
-backend/data/parsed/*
-!backend/data/parsed/.gitkeep
-backend/data/raw_ocr/*
-!backend/data/raw_ocr/.gitkeep
-backend/data/splited/*
-!backend/data/splited/.gitkeep
-backend/uploads/
-*.tmp
-*.log
-.env
-# OS
+# ─── OS Files ─────────────────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
+*.tmp
 
-# Documentation (temporary/outdated)
-document/
+# ─── Backend: Runtime Data ────────────────────────────────────────────────────
+backend/uploads/*
+!backend/uploads/.gitkeep
+backend/data/uploaded/*
+!backend/data/uploaded/.gitkeep
 
-# Test files
-test_*.png
-test_*.jpg
-test_*.pdf
-Screenshot*.png
+# ─── AI Model Files (downloaded at runtime) ──────────────────────────────────
+backend/models/
+*.onnx
+*.pt
+*.pth
+*.bin
+*.h5
+*.pkl
+*.safetensors
 
-# Build artifacts
-*.pyc
-*.pyo
-.kiro/*
-tests/*
-__pycache__/*
+# ─── Frontend: Build Artifacts ────────────────────────────────────────────────
+frontend/.nuxt/
+frontend/.output/
+frontend/node_modules/
 
-# Harness artifacts (evidence logs, not source code)
-artifacts/logs/*.log
-artifacts/screenshots/*.png
+# ─── Local Data (never tracked) ──────────────────────────────────────────────
+data/
+dataResult/
+
+# ─── Notebooks & Experiments ──────────────────────────────────────────────────
+*.ipynb
+notebooks/
+experiments/
+
+# ─── Logs & Artifacts ─────────────────────────────────────────────────────────
+*.log
+artifacts/logs/*
+!artifacts/logs/.gitkeep
+artifacts/screenshots/*
+!artifacts/screenshots/.gitkeep
+
+# ─── Build & Deploy Artifacts ─────────────────────────────────────────────────
+*.tar.gz
+*.zip
 .dev-server.pid

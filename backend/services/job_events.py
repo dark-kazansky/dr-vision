@@ -33,6 +33,11 @@ class JobEventType(str, Enum):
     NODE_RETRYING = "node_retrying"
     NODE_SKIPPED = "node_skipped"
 
+    # --- feat-042: Document processing granular events ---
+    PAGE_PROGRESS = "page_progress"
+    STAGE_CHANGED = "stage_changed"
+    PARTIAL_RESULT = "partial_result"
+
 
 class JobEvent:
     """A single event in the job lifecycle."""
@@ -231,6 +236,50 @@ class JobEventBus:
         """Remove all subscribers for a completed job."""
         async with self._lock:
             self._subscribers.pop(job_id, None)
+
+    # --- feat-042: Document processing granular event helpers ---
+
+    async def emit_page_progress(
+        self,
+        job_id: str,
+        page: int,
+        total_pages: int,
+        stage: str,
+    ) -> None:
+        """Emit per-page progress during document processing."""
+        progress = page / total_pages if total_pages > 0 else 0.0
+        await self.emit(JobEvent(
+            JobEventType.PAGE_PROGRESS, job_id,
+            {"page": page, "total_pages": total_pages, "stage": stage, "progress": progress},
+        ))
+
+    async def emit_stage_changed(
+        self,
+        job_id: str,
+        stage: str,
+        stage_index: int,
+        total_stages: int,
+    ) -> None:
+        """Emit when the processing pipeline moves to a new stage."""
+        await self.emit(JobEvent(
+            JobEventType.STAGE_CHANGED, job_id,
+            {"stage": stage, "stage_index": stage_index, "total_stages": total_stages},
+        ))
+
+    async def emit_partial_result(
+        self,
+        job_id: str,
+        page: int,
+        text: Optional[str] = None,
+        data: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """Emit a partial result (e.g., text from one page) while processing continues."""
+        payload: Dict[str, Any] = {"page": page}
+        if text is not None:
+            payload["text"] = text
+        if data is not None:
+            payload["data"] = data
+        await self.emit(JobEvent(JobEventType.PARTIAL_RESULT, job_id, payload))
 
 
 # ---------------------------------------------------------------------------

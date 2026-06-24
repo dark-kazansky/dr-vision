@@ -1,6 +1,6 @@
-# Dr.Vision Agents
+# Doc Intelligence Agents
 
-This directory contains the agent system for Dr.Vision. Agents are responsible for communicating with AI models (LLMs, VLMs, OCR models) through standardized interfaces.
+This directory contains the agent system for Doc Intelligence. Agents are responsible for communicating with AI models (LLMs, VLMs, OCR models) through standardized interfaces.
 
 ## Architecture
 

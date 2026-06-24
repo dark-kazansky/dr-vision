@@ -24,10 +24,11 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from storage.workflow_repository import WorkflowRepository
 
-DATABASE_URL = os.environ.get(
-    "DATABASE_URL",
-    "postgresql://drvision:drvision_dev@localhost:5433/drvision"
-)
+DATABASE_URL = os.environ.get("DATABASE_URL")
+if not DATABASE_URL:
+    print("ERROR: DATABASE_URL environment variable is required.")
+    print("Set it in your .env file or export it: export DATABASE_URL=postgresql://user:pass@localhost:5433/db")
+    sys.exit(1)
 
 
 def gen_id() -> str:

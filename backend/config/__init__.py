@@ -1,5 +1,5 @@
 """
-Configuration module for Dr.Vision.
+Configuration module for Doc Intelligence.
 
 This module provides configuration management including:
 - Config class for loading and accessing settings
