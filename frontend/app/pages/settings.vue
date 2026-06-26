@@ -63,7 +63,7 @@ const { tierConfig, fetchTierConfig } = useTierConfig()
 
 const activeTab = ref<'providers' | 'tiers' | 'queue'>('providers')
 
-const tabs = [
+const tabs: { id: 'providers' | 'tiers' | 'queue'; label: string }[] = [
   { id: 'providers', label: 'Providers' },
   { id: 'tiers', label: 'Tier Config' },
   { id: 'queue', label: 'Job Queue' },

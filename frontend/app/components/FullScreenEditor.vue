@@ -220,8 +220,6 @@ const parsedHtml = computed(() => {
         breaks: true,
         gfm: true,
         pedantic: false,
-        headerIds: false,
-        mangle: false
       }) as string
       return html
     } catch (error) {
@@ -240,7 +238,7 @@ const parsedHtml = computed(() => {
     let nonTableHtml = ''
     
     for (let i = 0; i < lines.length; i++) {
-      const line = lines[i].trim()
+      const line = (lines[i] ?? '').trim()
       
       if (line.includes('|')) {
         if (!inTable) {
@@ -252,18 +250,18 @@ const parsedHtml = computed(() => {
           continue
         }
         
-        const cells = line.split('|').filter(cell => cell.trim())
-        const isHeader = i === 0 || (i === 1 && /^\|[\s\-:]+\|$/.test(lines[i - 1]))
-        
+        const cells = line.split('|').filter((cell: string) => cell.trim())
+        const isHeader = i === 0 || (i === 1 && /^\|[\s\-:]+\|$/.test(lines[i - 1] ?? ''))
+
         if (isHeader && tableHtml === '<table><tbody>') {
           tableHtml = '<table><thead><tr>'
-          cells.forEach(cell => {
+          cells.forEach((cell: string) => {
             tableHtml += `<th>${cell.trim()}</th>`
           })
           tableHtml += '</tr></thead><tbody>'
         } else {
           tableHtml += '<tr>'
-          cells.forEach(cell => {
+          cells.forEach((cell: string) => {
             tableHtml += `<td>${cell.trim()}</td>`
           })
           tableHtml += '</tr>'
@@ -345,7 +343,7 @@ const handleRawTextChange = () => {
     clearTimeout(updateTimeout.value)
   }
   
-  updateTimeout.value = setTimeout(() => {
+  updateTimeout.value = window.setTimeout(() => {
     emit('update', rawText.value)
   }, 300)
 }

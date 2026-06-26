@@ -10,9 +10,8 @@ Validates Requirement 7.2:
 """
 
 import logging
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
-import pytest
 from fastapi.middleware.cors import CORSMiddleware
 
 
@@ -21,7 +20,7 @@ class TestCORSFallbackOnConfigFailure:
 
     def test_cors_falls_back_to_localhost_on_config_error(self):
         """When Config.load() raises, CORS origins should be ['http://localhost:3000']."""
-        with patch("main.Config") as MockConfig:
+        with patch("config.manager.Config") as MockConfig:
             MockConfig.load.side_effect = Exception("Config file missing")
 
             # Re-execute the CORS setup logic from main.py
@@ -35,7 +34,7 @@ class TestCORSFallbackOnConfigFailure:
 
     def test_cors_does_not_fallback_to_wildcard(self):
         """Fallback must never be ['*'] — that would be insecure."""
-        with patch("main.Config") as MockConfig:
+        with patch("config.manager.Config") as MockConfig:
             MockConfig.load.side_effect = RuntimeError("YAML parse error")
 
             try:
@@ -53,19 +52,17 @@ class TestCORSFallbackLogging:
 
     def test_warning_logged_on_config_failure(self, caplog):
         """A warning should be logged when CORS config loading fails."""
-        with patch("main.Config") as MockConfig:
+        with patch("config.manager.Config") as MockConfig:
             MockConfig.load.side_effect = Exception("Config unavailable")
 
             with caplog.at_level(logging.WARNING):
                 try:
-                    config = MockConfig.load()
-                    cors_origins = config.fastapi_config.get("cors_origins", ["*"])
+                    MockConfig.load()
                 except Exception:
                     logging.warning(
                         "CORS configuration loading failed. "
                         "Falling back to restrictive default: ['http://localhost:3000']"
                     )
-                    cors_origins = ["http://localhost:3000"]
 
             assert any("CORS configuration loading failed" in r.message for r in caplog.records)
             assert any("http://localhost:3000" in r.message for r in caplog.records)

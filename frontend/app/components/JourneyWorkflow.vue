@@ -246,12 +246,12 @@
                 :key="`output-${index}`"
                 class="connection-point output-point"
                 :class="{ 'connecting': connectingFrom?.nodeId === node.id && connectingFrom?.outputIndex === index }"
-                :style="{ top: `${getConditionOutputPosition(node, index)}%` }"
-                @mousedown="handleOutputMouseDown($event, node.id, index)"
-                @click="handleOutputClick($event, node.id, index)"
-                :title="`Output ${index + 1}: ${condition.operator} ${condition.value || condition.valueMin + '-' + condition.valueMax}`">
+                :style="{ top: `${getConditionOutputPosition(node, Number(index))}%` }"
+                @mousedown="handleOutputMouseDown($event, node.id, Number(index))"
+                @click="handleOutputClick($event, node.id, Number(index))"
+                :title="`Output ${Number(index) + 1}: ${condition.operator} ${condition.value || `${condition.valueMin}-${condition.valueMax}`}`">
                 <div class="connection-dot"></div>
-                <span class="output-label">{{ index + 1 }}</span>
+                <span class="output-label">{{ Number(index) + 1 }}</span>
               </div>
               <!-- Else output (when no conditions match) -->
               <div 
@@ -409,7 +409,7 @@
                     class="rule-description-input"
                     :disabled="isProcessing"
                   />
-                  <button class="rule-remove-btn" @click="removeRule(index)" :disabled="isProcessing">
+                  <button class="rule-remove-btn" @click="removeRule(Number(index))" :disabled="isProcessing">
                     <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                     </svg>
@@ -561,7 +561,7 @@
                       class="field-description-input"
                       :disabled="isProcessing"
                     />
-                    <button class="field-remove-btn" @click="removeSchemaField(index)" :disabled="isProcessing">
+                    <button class="field-remove-btn" @click="removeSchemaField(Number(index))" :disabled="isProcessing">
                       <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                       </svg>
@@ -614,7 +614,7 @@
                     class="category-description-input"
                     :disabled="isProcessing"
                   />
-                  <button class="category-remove-btn" @click="removeCategory(index)" :disabled="isProcessing">
+                  <button class="category-remove-btn" @click="removeCategory(Number(index))" :disabled="isProcessing">
                     <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                     </svg>
@@ -645,7 +645,7 @@
                 <tbody class="conditions-table-body">
                   <tr v-for="(condition, index) in getSelectedNodeObject.config?.conditions || []" :key="index" class="condition-table-row">
                     <td class="order-cell">
-                      <span class="order-number">{{ index + 1 }}</span>
+                      <span class="order-number">{{ Number(index) + 1 }}</span>
                     </td>
                     <td class="table-cell">
                       <select 
@@ -685,7 +685,7 @@
                       />
                     </td>
                     <td class="delete-cell">
-                      <button class="delete-btn-x" @click="removeCondition(index)" :disabled="isProcessing || (getSelectedNodeObject.config?.conditions || []).length <= 1">
+                      <button class="delete-btn-x" @click="removeCondition(Number(index))" :disabled="isProcessing || (getSelectedNodeObject.config?.conditions || []).length <= 1">
                         ×
                       </button>
                     </td>
@@ -728,7 +728,7 @@
                     class="rule-value-input"
                     disabled
                   />
-                  <button class="rule-remove-btn" @click="removeValidationRule(index)" disabled>
+                  <button class="rule-remove-btn" @click="removeValidationRule(Number(index))" disabled>
                     <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                     </svg>
@@ -1469,7 +1469,7 @@ const handleExecuteAsJob = async () => {
   }
 
   try {
-    const job = await submitJob(file, steps, {
+    const job = await submitJob(file!, steps, {
       workflowId: props.workflowId || undefined,
       workflowName: workflowNameValue.value || 'Untitled Workflow',
       maxRetries: 3,
@@ -1707,7 +1707,7 @@ const handleCanvasMouseUp = () => {
   if (isDraggingConnection.value) {
     // If near an input node, create connection
     if (nearbyInputNode.value && connectingFrom.value) {
-      const fromNode = nodes.value.find(n => n.id === connectingFrom.value.nodeId)
+      const fromNode = nodes.value.find(n => n.id === connectingFrom.value!.nodeId)
       const toNode = nodes.value.find(n => n.id === nearbyInputNode.value)
       
       if (fromNode && toNode && fromNode.id !== toNode.id) {
@@ -1900,8 +1900,8 @@ const updateNodeDimensions = (nodeId?: string) => {
       const topMatch = style.match(/top:\s*(\d+(?:\.\d+)?)px/)
       const leftMatch = style.match(/left:\s*(\d+(?:\.\d+)?)px/)
       if (topMatch && leftMatch) {
-        const top = parseFloat(topMatch[1])
-        const left = parseFloat(leftMatch[1])
+        const top = parseFloat(topMatch[1]!)
+        const left = parseFloat(leftMatch[1]!)
         const node = nodes.value.find(n => Math.abs(n.y - top) < 1 && Math.abs(n.x - left) < 1)
         if (node && (!nodeId || node.id === nodeId)) {
           const width = htmlEl.offsetWidth
@@ -2157,10 +2157,10 @@ const generateSchema = async () => {
     const apiBaseUrl = config.public.apiBaseUrl as string
     
     const formData = new FormData()
-    formData.append('file', file)
+    formData.append('file', file!)
     formData.append('tier', node.tier)
     formData.append('prompt', node.config.schemaPrompt)
-    
+
     const response = await $fetch<any>(`${apiBaseUrl}/generate-schema`, {
       method: 'POST',
       body: formData
@@ -2214,7 +2214,7 @@ const generateAllSchemas = async () => {
     
     try {
       const formData = new FormData()
-      formData.append('file', file)
+      formData.append('file', file!)
       formData.append('tier', node.tier)
       formData.append('prompt', node.config.schemaPrompt)
       

@@ -8,7 +8,6 @@ Validates Requirements 4.1, 4.2, 4.3:
 
 import io
 import pytest
-from unittest.mock import AsyncMock
 from fastapi import UploadFile, HTTPException
 
 from core.middleware import FileSizeValidator

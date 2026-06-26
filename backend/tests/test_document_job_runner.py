@@ -11,10 +11,7 @@ Tests:
 8. OCR page-by-page (scanned PDF) → emits per-page events
 """
 
-import asyncio
-import os
-import tempfile
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -237,9 +234,8 @@ class TestRunCancel:
         mock_pdf.close = MagicMock()
 
         call_count = 0
-        original_extract = None
 
-        async def _extract_that_cancels(pdf_path, page_num):
+        async def _extract_that_cancels(_fn, pdf_path, page_num):
             nonlocal call_count
             call_count += 1
             if call_count >= 3:

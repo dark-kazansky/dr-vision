@@ -8,11 +8,9 @@ Validates Requirements 16.1, 16.2, 16.3:
 
 import os
 import logging
-import tempfile
 
-import pytest
 
-from routes import _safe_remove
+from services.parse_service import _safe_remove
 
 
 class TestSafeRemove:

@@ -9,10 +9,7 @@ Validates:
 - Completed node ID retrieval
 """
 
-import asyncio
 import pytest
-import pytest_asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
 
 from services import execution_state
 

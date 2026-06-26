@@ -28,7 +28,7 @@ export default defineNuxtConfig({
   
   typescript: {
     strict: true,
-    typeCheck: false  // Disabled for now due to vite-plugin-checker issue
+    typeCheck: true
   },
   
   vite: {

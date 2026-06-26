@@ -10,7 +10,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from functions.parser import Parser, ParseResult
+from components.parser import Parser
 
 
 def _make_mock_pdf(page_count=1, page_text="Sample text"):

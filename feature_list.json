@@ -670,9 +670,9 @@
       ],
       "dependencies": [],
       "estimated_complexity": "medium",
-      "passes": false,
-      "last_attempted": null,
-      "evidence": null,
+      "passes": true,
+      "last_attempted": "2026-06-27",
+      "evidence": "Backend: 581/581 pytest pass (from 37 collection errors + 18 failures). Fixes: pyproject.toml pythonpath, 4 stale test imports (functions.*→components.*, routes→services.parse_service), agent_factory mock target (core→agents.factory), auth dev-bypass removed, HealthResponse.workflow_engine field, CORS patch target, banking DB URL (drvision→docintel), document_job_runner cancel signature, secrets_management compose default, test_documents_api dependency_overrides. Frontend: vue-tsc 0 errors (from ~64), typeCheck: true enabled in nuxt.config. Python deps pinned exact versions. npm ci clean.",
       "notes": "Tech debt cleanup. 13 failures documented in agent-progress.md Session #2. TypeScript typeCheck: false là tạm thời, cần enable lại."
     },
     {

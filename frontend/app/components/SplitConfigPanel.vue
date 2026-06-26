@@ -596,7 +596,7 @@ const addQuickCategory = (name: string, description: string) => {
   const exists = categories.value.some(cat => cat.name.toLowerCase() === name.toLowerCase())
   if (!exists && categories.value.length < 50) {
     const lastCategory = categories.value[categories.value.length - 1]
-    if (lastCategory.name === '' && lastCategory.description === '') {
+    if (lastCategory && lastCategory.name === '' && lastCategory.description === '') {
       lastCategory.name = name
       lastCategory.description = description
     } else {

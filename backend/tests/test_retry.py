@@ -6,7 +6,6 @@ Validates: Requirements 14.1, 14.2, 14.3
 - Re-raises with descriptive message after all retries exhausted
 """
 
-import time
 from unittest.mock import patch
 
 import pytest

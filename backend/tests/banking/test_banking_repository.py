@@ -2,7 +2,7 @@
 Tests for BankingRepository — PostgreSQL storage layer.
 
 Requires a running PostgreSQL instance. By default uses:
-    postgresql://drvision:drvision_dev@localhost:5433/drvision
+    postgresql://docintel:docintel_dev@localhost:5433/docintel
 
 Override with DATABASE_URL environment variable.
 
@@ -19,13 +19,13 @@ import pytest_asyncio
 # Skip entire module if asyncpg is not installed or DB is unreachable
 asyncpg = pytest.importorskip("asyncpg")
 
-from storage.banking_repository import BankingRepository
+from storage.banking_repository import BankingRepository  # noqa: E402
 
 pytestmark = pytest.mark.asyncio
 
 DATABASE_URL = os.environ.get(
     "DATABASE_URL",
-    "postgresql://drvision:drvision_dev@localhost:5433/drvision",
+    "postgresql://docintel:docintel_dev@localhost:5433/docintel",
 )
 
 

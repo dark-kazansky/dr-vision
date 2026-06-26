@@ -5,6 +5,74 @@
 
 ---
 
+## Session #15: 2026-06-27 · Thực hiện bởi: opencode (glm-5.2)
+
+### Mục tiêu ban đầu:
+Fix pre-existing test failures & enable strict TypeScript (feat-022).
+
+### Đã làm:
+**Backend — từ 37 collection errors + 18 failures → 581/581 pass:**
+- `pyproject.toml`: thêm `pythonpath = ["."]` (root cause của 37 collection errors)
+- 4 stale test imports: `functions.parser→components.parser`, `functions.splitter→components.splitter`, `functions.extractor→components.extractor`, `routes→services.parse_service`
+- `test_agent_factory_config.py`: patch target `core.agent_factory.X→agents.factory.X` (shim không export agent classes)
+- `auth/dependencies.py`: **xóa TEMPORARY DEV BYPASS** (line 43-53) — luôn return admin hardcoded, vô hiệu hóa toàn bộ auth (feat-014 critical bug từ Session #14)
+- `core/schemas.py` + `server.py`: thêm `workflow_engine` field vào `HealthResponse` (Pydantic không support item assignment)
+- `test_cors_fallback.py`: patch target `main.Config→config.manager.Config` (main.py refactor, không còn import Config)
+- `tests/banking/test_banking_repository.py`: DB URL default `drvision→docintel` (match docker-compose)
+- `test_document_job_runner.py`: cancel test signature `_extract_that_cancels` nhận 3 args (asyncio.to_thread mock)
+- `test_secrets_management.py`: docker-compose default `drvision_dev→docintel_dev`
+- `test_documents_api.py`: dùng `app.dependency_overrides[get_current_user]` thay vì patch (FastAPI Depends capture reference tại import time)
+
+**Frontend — từ ~64 vue-tsc errors → 0 errors, typeCheck: true enabled:**
+- `formatPageRanges.ts`, `formatPageRanges.test.ts`: noUncheckedIndexedAccess guards
+- `useAuth.ts`: guard `payload` undefined trước `atob`
+- `useOCR.ts`: thêm `results?: any[]` vào OCRResult
+- `useNodeRegistry.ts` via `types/workflow.ts`: thêm `'checkbox'` vào ConfigField type union
+- `settings.vue`: type `tabs` array explicit union
+- `SplitConfigPanel.vue`, `ClassifyConfigPanel.vue`: guard `lastCategory`/`lastRule` undefined
+- `JobPanel.vue`: wrap `fetchJobHistory` trong arrow function (onClick type mismatch)
+- `useJourney.ts`: non-null assertions cho array index access
+- `index.vue`: cast status Record<string,string>, guard string|undefined destructuring, typed callback params, xóa `headerIds`/`mangle` (marked V5 removed), guard File|undefined
+- `SchemaBuilder.vue`, `ConfigPanel.vue`, `FullScreenEditor.vue`: noUncheckedIndexedAccess guards, `window.setTimeout` cho browser type
+- `ProviderSelector.vue`: `navigateTo('/settings')` thay vì `activeView` không tồn tại
+- `JourneyWorkflow.vue`: `Number(index)` cho v-for index (Vue typed string|number), template literal cho value, File|undefined guards, `connectingFrom.value!`
+- `nuxt.config.ts`: `typeCheck: false → true`
+
+**Dependencies:**
+- `requirements.txt`: pin 14 unpinned packages (`>=` → `==` exact versions)
+- `npm ci --dry-run`: clean, no warnings (package-lock.json consistent)
+
+### Verification results:
+- `cd backend && pytest`: **581 passed, 0 failures** ✅
+- `cd backend && ruff check tests/ server.py core/schemas.py auth/dependencies.py`: **All checks passed** ✅ (92 pre-existing ruff errors trong agents/ etc ngoài scope feat-022)
+- `cd frontend && npx vue-tsc --noEmit`: **0 errors** ✅
+- `cd frontend && npx vitest --run`: **18 passed** ✅
+- `nuxt.config.ts` có `typeCheck: true` ✅
+- `pip install -r requirements.txt`: no version conflicts ✅
+- `npm ci`: clean install ✅
+
+### Session status: DONE ✅ (feat-022 passes: true)
+
+### Ghi chú quan trọng:
+- **CRITICAL FIX**: Xóa auth dev-bypass (feat-014 critical bug) — auth giờ hoạt động đúng. Các endpoint protected thực sự require token.
+- 20 features mark `passes: true` trước đây không thể verify vì tests không chạy được. Giờ đã verify được.
+- 92 pre-existing ruff errors trong `agents/`, `core/`, `services/`, `api/` etc là tech debt ngoài scope feat-022 (spec chỉ yêu cầu fix 13 failing tests + TS strict).
+- DB credentials: test banking cần PostgreSQL chạy với `docintel:docintel_dev` (docker-compose up -d postgres).
+
+### Commits trong session này:
+(Chưa commit — chờ developer review)
+
+### Session tiếp theo NÊN:
+1. Fix 92 pre-existing ruff errors trong agents/core/services/api (tech debt cleanup)
+2. Bắt đầu feat-016 (HTTPS & Reverse Proxy) hoặc feat-017 (Database Migrations)
+3. Update feature_list.json evidence cho các features đã verify nhờ fix tests
+
+### Session tiếp theo KHÔNG NÊN:
+- Không refactor auth/dependencies.py (vừa fix, cần ổn định)
+- Không touch test files đã pass
+
+---
+
 ## Session #14: 2026-06-26 · Thực hiện bởi: opencode (glm-5.2)
 
 ### Mục tiêu ban đầu:

@@ -223,7 +223,7 @@ class TestDockerComposeProd:
             Path(__file__).parent.parent.parent / "docker-compose.yml"
         ).read_text()
         # Dev compose uses ${VAR:-default} syntax
-        assert "${POSTGRES_PASSWORD:-drvision_dev}" in content
+        assert "${POSTGRES_PASSWORD:-docintel_dev}" in content
         assert "${MINIO_ROOT_USER:-minioadmin}" in content
 
 

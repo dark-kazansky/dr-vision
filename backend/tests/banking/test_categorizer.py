@@ -2,13 +2,11 @@
 Tests for TransactionCategorizer component.
 """
 
-import pytest
 from components.transaction_categorizer import (
-    CategorizeResult,
     CategorizedTransaction,
     TransactionCategorizer,
 )
-from config.merchant_database import lookup_merchant, MerchantInfo
+from config.merchant_database import lookup_merchant
 
 
 # =============================================================================

@@ -696,7 +696,7 @@ const addQuickRule = (type: string, description: string) => {
   if (!exists && classificationRules.value.length < 20) {
     // If there's an empty rule at the end, replace it
     const lastRule = classificationRules.value[classificationRules.value.length - 1]
-    if (lastRule.type === '' && lastRule.description === '') {
+    if (lastRule && lastRule.type === '' && lastRule.description === '') {
       lastRule.type = type
       lastRule.description = description
     } else {

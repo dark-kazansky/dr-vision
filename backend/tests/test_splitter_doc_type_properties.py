@@ -9,7 +9,7 @@ import json
 from hypothesis import given, settings, assume
 from hypothesis import strategies as st
 
-from functions.splitter import (
+from components.splitter import (
     ChunkCategory,
     DocumentTypeItem,
     Splitter,

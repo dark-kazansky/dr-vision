@@ -36,7 +36,7 @@ export interface NodeTypeDefinition {
 export interface ConfigField {
   key: string
   label: string
-  type: 'text' | 'number' | 'select' | 'boolean' | 'json' | 'textarea' | 'array'
+  type: 'text' | 'number' | 'select' | 'boolean' | 'json' | 'textarea' | 'array' | 'checkbox'
   options?: { label: string; value: string }[]
   default?: any
   required?: boolean

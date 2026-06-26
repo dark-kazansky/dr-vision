@@ -110,7 +110,7 @@ class TestGetParser:
         mock_create.return_value = MagicMock()
         parser = get_parser(config=config, tier="Normal")
 
-        from functions.parser import Parser
+        from components.parser import Parser
         assert isinstance(parser, Parser)
 
     @patch("core.dependencies.AgentFactory.create_from_config")
@@ -149,7 +149,7 @@ class TestGetClassifier:
         mock_create.return_value = MagicMock()
         classifier = get_classifier(config=config, tier="Normal")
 
-        from functions.classifier import Classifier
+        from components.classifier import Classifier
         assert isinstance(classifier, Classifier)
 
     @patch("core.dependencies.AgentFactory.create_llm_agent")
@@ -172,7 +172,7 @@ class TestGetExtractor:
         mock_create.return_value = MagicMock()
         extractor = get_extractor(config=config, tier="Normal")
 
-        from functions.extractor import Extractor
+        from components.extractor import Extractor
         assert isinstance(extractor, Extractor)
 
     @patch("core.dependencies.AgentFactory.create_llm_agent")

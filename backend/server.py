@@ -354,7 +354,7 @@ def create_app() -> FastAPI:
         health = system_service.get_health(config)
         # Add workflow engine status
         engine = getattr(app.state, "workflow_engine", None)
-        health["workflow_engine"] = {
+        health.workflow_engine = {
             "status": "running" if engine and engine.is_running else "unavailable",
         }
         return health

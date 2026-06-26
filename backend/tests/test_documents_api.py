@@ -20,6 +20,7 @@ import pytest
 from fastapi import FastAPI
 
 from api.v1.documents import router
+from auth.dependencies import get_current_user
 from services.document_job_runner import (
     DocumentJobConfig,
     DocumentJobRecord,
@@ -38,6 +39,7 @@ def app():
     """Create a FastAPI app with the documents router, auth bypassed."""
     test_app = FastAPI()
     test_app.include_router(router)
+    test_app.dependency_overrides[get_current_user] = lambda: "testuser"
     return test_app
 
 

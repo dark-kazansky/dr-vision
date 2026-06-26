@@ -287,7 +287,7 @@ function formatNumber(num: number): string {
   // Convert to string and split by decimal point
   const parts = num.toString().split('.')
   // Add thousand separators to integer part
-  parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+  parts[0] = (parts[0] ?? '').replace(/\B(?=(\d{3})+(?!\d))/g, '.')
   // Join back with decimal point if exists
   return parts.join(',')
 }

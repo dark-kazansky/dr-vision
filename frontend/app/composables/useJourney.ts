@@ -227,7 +227,7 @@ export function useJourney() {
       const allFileResults: any[] = []
       
       for (let fileIndex = 0; fileIndex < files.length; fileIndex++) {
-        const file = files[fileIndex]
+        const file = files[fileIndex]!
         console.log(`Processing file ${fileIndex + 1}/${files.length}: ${file.name}`)
         
         // Reset node results for this file
@@ -358,7 +358,7 @@ export function useJourney() {
     // Fallback: get last processed node result
     const nodeIds = Array.from(nodeResults.keys())
     if (nodeIds.length > 0) {
-      return nodeResults.get(nodeIds[nodeIds.length - 1])
+      return nodeResults.get(nodeIds[nodeIds.length - 1]!)
     }
     
     return null

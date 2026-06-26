@@ -22,7 +22,9 @@ describe('Feature: dual-split-modes, Property 3: Page range formatting', () => {
     const segments = body.split(',').map(s => s.trim())
     for (const seg of segments) {
       if (seg.includes('–')) {
-        const [start, end] = seg.split('–').map(Number)
+        const parts = seg.split('–').map(Number)
+        const start = parts[0]!
+        const end = parts[1]!
         for (let i = start; i <= end; i++) {
           pages.push(i)
         }
@@ -58,7 +60,9 @@ describe('Feature: dual-split-modes, Property 3: Page range formatting', () => {
           const segments = body.split(',').map(s => s.trim())
           for (const seg of segments) {
             if (seg.includes('–')) {
-              const [start, end] = seg.split('–').map(Number)
+              const parts = seg.split('–').map(Number)
+              const start = parts[0]!
+              const end = parts[1]!
               // Range must span at least 2 consecutive numbers
               expect(end).toBeGreaterThan(start)
             }

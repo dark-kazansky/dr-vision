@@ -9,7 +9,7 @@ Validates: Requirements 8.1, 8.4
 import json
 
 import pytest
-from hypothesis import given, settings, assume
+from hypothesis import given, settings
 from hypothesis import strategies as st
 from pydantic import ValidationError
 

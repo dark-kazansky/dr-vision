@@ -40,18 +40,6 @@ async def get_current_user(
 
     Raises 401 if token is missing, invalid, or user is inactive.
     """
-    # TEMPORARY BYPASS FOR DEV: Always return an admin user to skip login
-    return UserInDB(
-        id="dev-bypass",
-        email="dev@bypass",
-        full_name="Dev Bypass User",
-        role="admin",
-        is_active=True,
-        password_hash="",
-        created_at=__import__("datetime").datetime.now(__import__("datetime").timezone.utc),
-        updated_at=__import__("datetime").datetime.now(__import__("datetime").timezone.utc),
-    )
-
     if credentials is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

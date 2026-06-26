@@ -19,6 +19,7 @@ export const useAuth = () => {
     if (!accessToken.value) return null
     try {
       const payload = accessToken.value.split('.')[1]
+      if (!payload) return null
       const decoded = JSON.parse(atob(payload))
       return {
         id: decoded.sub,

@@ -6,7 +6,7 @@ response serialization, and data transfer objects in the Doc Intelligence applic
 """
 
 from pydantic import BaseModel, Field, validator
-from typing import Optional, List, Dict, Any, Literal
+from typing import Optional, List, Dict, Any
 from enum import Enum
 
 
@@ -218,6 +218,10 @@ class HealthResponse(BaseModel):
     available_models: List[str] = Field(
         ..., 
         description="List of model IDs that are currently available for OCR processing"
+    )
+    workflow_engine: Optional[Dict[str, str]] = Field(
+        default=None,
+        description="Workflow engine status (added by /health endpoint)"
     )
 
 

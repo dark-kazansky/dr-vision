@@ -8,7 +8,6 @@ This test is EXPECTED TO FAIL on unfixed code. Failure confirms the bug exists:
 Validates: Requirements 1.1, 1.2, 1.3
 """
 
-import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 

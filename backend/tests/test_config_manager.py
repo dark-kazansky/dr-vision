@@ -6,11 +6,9 @@ Validates Requirements 2.1, 2.2, 2.3:
 - Instance state stored on instance, not as mutable class-level attribute
 """
 
-import os
 import pytest
-import tempfile
 import yaml
-from config.manager import Config, ConfigurationError
+from config.manager import Config
 
 
 SAMPLE_CONFIG = {

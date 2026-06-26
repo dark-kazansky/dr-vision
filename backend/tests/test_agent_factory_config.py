@@ -69,31 +69,31 @@ def config(config_file):
 class TestConfigBasedProviderResolution:
     """Requirement 10.1: Look up provider from config when no explicit provider."""
 
-    @patch("core.agent_factory.GoogleLLMAgent")
+    @patch("agents.factory.GoogleLLMAgent")
     def test_resolves_google_provider_from_config(self, mock_cls, config):
         from core.agent_factory import AgentFactory
 
         mock_cls.return_value = MagicMock()
-        agent = AgentFactory.create_llm_agent("gemini-2.5-flash", config=config)
+        AgentFactory.create_llm_agent("gemini-2.5-flash", config=config)
         mock_cls.assert_called_once()
         call_kwargs = mock_cls.call_args
         assert call_kwargs[1]["model_id"] == "gemini-2.5-flash"
 
-    @patch("core.agent_factory.POELLMAgent")
+    @patch("agents.factory.POELLMAgent")
     def test_resolves_poe_provider_from_config(self, mock_cls, config):
         from core.agent_factory import AgentFactory
 
         mock_cls.return_value = MagicMock()
-        agent = AgentFactory.create_llm_agent("assistant", config=config)
+        AgentFactory.create_llm_agent("assistant", config=config)
         mock_cls.assert_called_once()
         assert mock_cls.call_args[1]["model_id"] == "assistant"
 
-    @patch("core.agent_factory.LMStudioLLMAgent")
+    @patch("agents.factory.LMStudioLLMAgent")
     def test_resolves_lmstudio_provider_from_config(self, mock_cls, config):
         from core.agent_factory import AgentFactory
 
         mock_cls.return_value = MagicMock()
-        agent = AgentFactory.create_llm_agent("deepseek-ocr", config=config)
+        AgentFactory.create_llm_agent("deepseek-ocr", config=config)
         mock_cls.assert_called_once()
         assert mock_cls.call_args[1]["model_id"] == "deepseek-ocr"
 
@@ -126,33 +126,33 @@ class TestModelNotFoundError:
 class TestConfigParameterAcceptance:
     """Requirement 10.3: Accepts optional config parameter."""
 
-    @patch("core.agent_factory.POELLMAgent")
+    @patch("agents.factory.POELLMAgent")
     def test_explicit_provider_overrides_config(self, mock_cls, config):
         """When provider is explicitly given, config lookup is skipped."""
         from core.agent_factory import AgentFactory
 
         mock_cls.return_value = MagicMock()
-        agent = AgentFactory.create_llm_agent(
+        AgentFactory.create_llm_agent(
             "gemini-2.5-flash", provider="poe", config=config
         )
         # Should use POE even though config says google_studio
         mock_cls.assert_called_once()
 
-    @patch("core.agent_factory.POELLMAgent")
+    @patch("agents.factory.POELLMAgent")
     def test_legacy_fallback_when_no_config(self, mock_cls):
         """When config is None, falls back to hardcoded auto-detect."""
         from core.agent_factory import AgentFactory
 
         mock_cls.return_value = MagicMock()
-        agent = AgentFactory.create_llm_agent("assistant")
+        AgentFactory.create_llm_agent("assistant")
         # 'assistant' is in the hardcoded poe list
         mock_cls.assert_called_once()
 
-    @patch("core.agent_factory.LMStudioLLMAgent")
+    @patch("agents.factory.LMStudioLLMAgent")
     def test_legacy_fallback_default_lmstudio(self, mock_cls):
         """Unknown model with no config defaults to lmstudio (legacy)."""
         from core.agent_factory import AgentFactory
 
         mock_cls.return_value = MagicMock()
-        agent = AgentFactory.create_llm_agent("some-unknown-model")
+        AgentFactory.create_llm_agent("some-unknown-model")
         mock_cls.assert_called_once()

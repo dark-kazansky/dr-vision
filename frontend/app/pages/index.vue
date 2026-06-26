@@ -896,13 +896,13 @@
                     <div class="card-header-right">
                       <div class="status-pill" :class="provider.status">
                         <span class="status-dot"></span>
-                        {{ {
+                        {{ ({
                           not_configured: 'Not Configured',
                           configured: 'Configured',
                           ready: 'Ready',
                           timeout: 'Time Out',
                           error: 'Error'
-                        }[provider.status] ?? provider.status }}
+                        } as Record<string, string>)[provider.status] ?? provider.status }}
                       </div>
                       <!-- Gear icon to open config modal -->
                       <button
@@ -1785,7 +1785,7 @@ const getModelsForProvider = (providerId: string | null | undefined) => {
 const onTierSelectChange = (feature: string, tier: string, value: string) => {
   if (!tierEdits.value[feature]) tierEdits.value[feature] = {}
   const [provider, model] = value.includes('::') ? value.split('::') : ['', value]
-  tierEdits.value[feature][tier] = { provider, model }
+  tierEdits.value[feature][tier] = { provider: provider ?? '', model: model ?? '' }
 }
 
 const getProviderName = (providerId: string | null | undefined) => {
@@ -2072,7 +2072,7 @@ const resultPages = computed(() => {
   // Check if text contains page markers (from process_all_pages)
   if (text.includes('--- Page')) {
     // Split by page markers
-    const pages = text.split(/--- Page \d+ ---\n/).filter(p => p.trim())
+    const pages = text.split(/--- Page \d+ ---\n/).filter((p: string) => p.trim())
     return pages
   }
   
@@ -2135,7 +2135,7 @@ const parsedResultHtml = computed(() => {
       const tables: string[] = []
       const markers: string[] = []
       
-      let processedText = text.replace(/<table[\s\S]*?<\/table>/gi, (match) => {
+      let processedText = text.replace(/<table[\s\S]*?<\/table>/gi, (match: string) => {
         const index = tables.length
         tables.push(match)
         // Use a unique marker that won't be escaped by marked
@@ -2194,13 +2194,11 @@ const parsedResultHtml = computed(() => {
   if (hasMarkdownSyntax) {
     try {
       // Configure marked for CommonMark compliance
-      html = marked.parse(text, {
-        breaks: true,
-        gfm: true, // GitHub Flavored Markdown (superset of CommonMark)
-        pedantic: false,
-        headerIds: false,
-        mangle: false
-      }) as string
+        html = marked.parse(text, {
+          breaks: true,
+          gfm: true, // GitHub Flavored Markdown (superset of CommonMark)
+          pedantic: false,
+        }) as string
       
       // Cache and return
       parsedHtmlCache.value.set(cacheKey, html)
@@ -2234,18 +2232,18 @@ const parsedResultHtml = computed(() => {
           continue
         }
         
-        const cells = line.split('|').filter(cell => cell.trim())
-        const isHeader = i === 0 || (i === 1 && /^\|[\s\-:]+\|$/.test(lines[i - 1]))
-        
+        const cells = line.split('|').filter((cell: string) => cell.trim())
+        const isHeader = i === 0 || (i === 1 && /^\|[\s\-:]+\|$/.test(lines[i - 1] ?? ''))
+
         if (isHeader && tableHtml === '<table><tbody>') {
           tableHtml = '<table><thead><tr>'
-          cells.forEach(cell => {
+          cells.forEach((cell: string) => {
             tableHtml += `<th>${cell.trim()}</th>`
           })
           tableHtml += '</tr></thead><tbody>'
         } else {
           tableHtml += '<tr>'
-          cells.forEach(cell => {
+          cells.forEach((cell: string) => {
             tableHtml += `<td>${cell.trim()}</td>`
           })
           tableHtml += '</tr>'
@@ -2348,7 +2346,8 @@ const handleUpload = async (newFiles: File[]) => {
     const uniqueNewFiles = newFiles.filter(f => !result.duplicates.includes(f.name))
     
     newlyAddedFiles.forEach((fileItem, index) => {
-      uploadedFiles.value.set(fileItem.id, uniqueNewFiles[index])
+      const file = uniqueNewFiles[index]
+      if (file) uploadedFiles.value.set(fileItem.id, file)
     })
   }
 }
@@ -2710,7 +2709,7 @@ const handleEditorUpdate = (text: string) => {
     if (resultPages.value.length > 0) {
       resultPages.value[pageIndex] = text
       // Reconstruct the full text with page markers
-      const updatedPages = resultPages.value.map((page, idx) => {
+      const updatedPages = resultPages.value.map((page: string, idx: number) => {
         if (idx === 0) return page
         return `--- Page ${idx + 1} ---\n${page}`
       })

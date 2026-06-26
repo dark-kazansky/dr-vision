@@ -134,7 +134,7 @@
           <template v-for="(field, index) in flattenedSchema" :key="index">
             <tr class="schema-row">
               <td class="hierarchy-cell">
-                <div class="hierarchy-controls" :style="{ paddingLeft: `${field.level * 1.5}rem` }">
+                <div class="hierarchy-controls" :style="{ paddingLeft: `${(field.level || 0) * 1.5}rem` }">
                   <button
                     type="button"
                     class="add-field-inline"
@@ -200,7 +200,7 @@
               <td class="action-cell">
                 <div class="action-buttons">
                   <button
-                    v-if="field.level > 0"
+                    v-if="(field.level || 0) > 0"
                     type="button"
                     class="outdent-button"
                     :disabled="disabled"
@@ -357,11 +357,11 @@ const unflattenSchema = (flat: SchemaField[]): SchemaField[] => {
     const level = field.level || 0
     
     // Pop stack until we find the right parent level
-    while (stack.length > 0 && stack[stack.length - 1].level >= level) {
+    while (stack.length > 0 && (stack[stack.length - 1]!.level || 0) >= level) {
       stack.pop()
     }
-    
-    const parent = stack[stack.length - 1].parent
+
+    const parent = stack.length > 0 ? stack[stack.length - 1]!.parent : null
     
     // Create clean field without UI-specific properties
     const cleanField: SchemaField = {
@@ -378,9 +378,9 @@ const unflattenSchema = (flat: SchemaField[]): SchemaField[] => {
       stack.push({ level, parent: cleanField.properties })
     }
     
-    parent.push(cleanField)
+    if (parent) parent.push(cleanField)
   }
-  
+
   return result
 }
 
@@ -580,7 +580,7 @@ const addFieldAfter = (index: number) => {
     type: 'string',
     description: '',
     required: false,
-    level: currentField.level || 0
+    level: currentField?.level || 0
   }
   
   // Insert after current field in flattened array
@@ -595,12 +595,12 @@ const addFieldAfter = (index: number) => {
 const removeField = (index: number) => {
   // Remove field and all its children
   const field = flattenedSchema.value[index]
-  const level = field.level || 0
+  const level = field?.level || 0
   let removeCount = 1
-  
+
   // Count children to remove
   for (let i = index + 1; i < flattenedSchema.value.length; i++) {
-    if ((flattenedSchema.value[i].level || 0) > level) {
+    if ((flattenedSchema.value[i]?.level || 0) > level) {
       removeCount++
     } else {
       break
@@ -614,7 +614,8 @@ const removeField = (index: number) => {
 }
 
 const toggleRequired = (index: number) => {
-  flattenedSchema.value[index].required = !flattenedSchema.value[index].required
+  const field = flattenedSchema.value[index]
+  if (field) field.required = !field.required
   localSchema.value = unflattenSchema(flattenedSchema.value)
   updateFlattenedSchema()
   handleFieldChange()
@@ -622,8 +623,9 @@ const toggleRequired = (index: number) => {
 
 const toggleExpand = (index: number) => {
   const field = flattenedSchema.value[index]
+  if (!field) return
   const newExpandedState = !field.expanded
-  
+
   // Update the expanded state in the flattened array
   field.expanded = newExpandedState
   
@@ -643,75 +645,75 @@ const toggleExpand = (index: number) => {
     return false
   }
   
-  updateExpandedInNested(localSchema.value, field.name, field.level || 0)
-  
+  updateExpandedInNested(localSchema.value, field!.name, field!.level || 0)
+
   // Re-flatten to show/hide children
   updateFlattenedSchema()
 }
 
 const canIndent = (index: number): boolean => {
   if (index === 0) return false
-  const currentLevel = flattenedSchema.value[index].level || 0
-  const prevLevel = flattenedSchema.value[index - 1].level || 0
+  const currentLevel = flattenedSchema.value[index]!.level || 0
+  const prevLevel = flattenedSchema.value[index - 1]!.level || 0
   return currentLevel <= prevLevel
 }
 
 const indentField = (index: number) => {
   if (!canIndent(index)) return
-  
-  const field = flattenedSchema.value[index]
-  const prevField = flattenedSchema.value[index - 1]
-  
+
+  const field = flattenedSchema.value[index]!
+  const prevField = flattenedSchema.value[index - 1]!
+
   // Increase level
   field.level = (prevField.level || 0) + 1
-  
+
   // Make previous field an object if it isn't already
   if (prevField.type !== 'object') {
     prevField.type = 'object'
   }
-  
+
   // Update all children of this field
   const currentLevel = field.level - 1
   for (let i = index + 1; i < flattenedSchema.value.length; i++) {
-    const childField = flattenedSchema.value[i]
+    const childField = flattenedSchema.value[i]!
     if ((childField.level || 0) > currentLevel) {
       childField.level = (childField.level || 0) + 1
     } else {
       break
     }
   }
-  
+
   localSchema.value = unflattenSchema(flattenedSchema.value)
   updateFlattenedSchema()
   handleFieldChange()
 }
 
 const outdentField = (index: number) => {
-  const field = flattenedSchema.value[index]
+  const field = flattenedSchema.value[index]!
   if ((field.level || 0) === 0) return
-  
+
   // Decrease level
   const oldLevel = field.level || 0
   field.level = oldLevel - 1
-  
+
   // Update all children of this field
   for (let i = index + 1; i < flattenedSchema.value.length; i++) {
-    const childField = flattenedSchema.value[i]
+    const childField = flattenedSchema.value[i]!
     if ((childField.level || 0) > oldLevel) {
       childField.level = (childField.level || 0) - 1
     } else {
       break
     }
   }
-  
+
   localSchema.value = unflattenSchema(flattenedSchema.value)
   updateFlattenedSchema()
   handleFieldChange()
 }
 
 const handleTypeChange = (index: number) => {
-  const field = flattenedSchema.value[index]
-  
+  const field = flattenedSchema.value[index]!
+
   // If changing to object type, initialize properties if needed
   if (field.type === 'object' && !field.properties) {
     field.expanded = true

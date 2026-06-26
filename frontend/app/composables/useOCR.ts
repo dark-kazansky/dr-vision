@@ -24,6 +24,7 @@ export interface OCRResult {
   pages?: number
   filename?: string
   model?: string
+  results?: any[]
 }
 
 export interface OCRConfig {

@@ -7,16 +7,17 @@ export function formatPageRanges(pages: number[]): string {
 
   const sorted = [...pages].sort((a, b) => a - b)
   const ranges: string[] = []
-  let start = sorted[0]
-  let end = sorted[0]
+  let start = sorted[0]!
+  let end = sorted[0]!
 
   for (let i = 1; i < sorted.length; i++) {
-    if (sorted[i] === end + 1) {
-      end = sorted[i]
+    const current = sorted[i]!
+    if (current === end + 1) {
+      end = current
     } else {
       ranges.push(start === end ? `${start}` : `${start}–${end}`)
-      start = sorted[i]
-      end = sorted[i]
+      start = current
+      end = current
     }
   }
   ranges.push(start === end ? `${start}` : `${start}–${end}`)
