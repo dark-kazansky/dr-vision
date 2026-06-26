@@ -27,8 +27,11 @@ GET /api/v1/search?q=...           — full-text search over OCR raw_text
 
 from typing import Optional
 
+import logging
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/search", tags=["Search"])
 
@@ -60,11 +63,15 @@ async def search(
 ) -> JSONResponse:
     """Full-text search across OCR document content (feat-070)."""
     repo = _get_repo(request)
-    results = await repo.search_text(
-        query=q,
-        limit=limit,
-        offset=offset,
-        date_from=date_from,
-        date_to=date_to,
-    )
-    return JSONResponse({"success": True, **results})
+    try:
+        results = await repo.search_text(
+            query=q,
+            limit=limit,
+            offset=offset,
+            date_from=date_from,
+            date_to=date_to,
+        )
+        return JSONResponse({"success": True, **results})
+    except Exception as exc:
+        logger.exception("search_endpoint_failed q=%r err=%r", q, exc)
+        raise

@@ -364,10 +364,13 @@ class OcrResultRepository:
         # ts_headline options:
         #   StartSel/StopSel = control chars \x01/\x02 (frontend converts to <mark>)
         #   MaxWords/MinWords/MaxFragments tune snippet length
+        # The whole option string is an E'...' escape literal so that \x01
+        # is interpreted by PostgreSQL as a control character. We build it
+        # with doubled single quotes inside (SQL escape) so the inner
+        # StartSel=E'\x01' survives Python's string processing.
         headline_opts = (
-            "StartSel=E'\\x01', StopSel=E'\\x02', "
-            "MaxWords=35, MinWords=15, MaxFragments=3, "
-            "FragmentDelimiter=' … '"
+            "E'StartSel=E''\\x01'', StopSel=E''\\x02'', "
+            "MaxWords=35, MinWords=15, MaxFragments=3'"
         )
 
         select_sql = f"""
