@@ -42,6 +42,7 @@ from api.v1 import (
     templates,
     compare,
     ocr_results,
+    search,
 )
 
 # ─── Authenticated Router ─────────────────────────────────────────────────────
@@ -80,6 +81,9 @@ auth_router.include_router(uploads.router)
 auth_router.include_router(data_store.router)
 auth_router.include_router(saved_files.router)
 auth_router.include_router(ocr_results.router)
+
+# Full-text search across stored OCR content (feat-070)
+auth_router.include_router(search.router)
 
 # System & observability
 auth_router.include_router(system.router)

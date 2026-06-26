@@ -46,6 +46,16 @@ CREATE TABLE IF NOT EXISTS ocr_results (
 );
 """
 
+# Additive ALTER: add a generated tsvector column for full-text search.
+# Uses the 'simple' text-search config (language-agnostic, preserves diacritics,
+# no stemming) so Vietnamese and other non-English content matches correctly.
+# GENERATED ALWAYS AS ... STORED auto-maintains the column from raw_text.
+_ADD_SEARCH_TSV_COLUMN = """
+ALTER TABLE ocr_results
+ADD COLUMN IF NOT EXISTS search_tsv tsvector
+GENERATED ALWAYS AS (to_tsvector('simple', coalesce(raw_text, ''))) STORED;
+"""
+
 _CREATE_INDEXES = [
     "CREATE INDEX IF NOT EXISTS idx_ocr_filename ON ocr_results(filename);",
     "CREATE INDEX IF NOT EXISTS idx_ocr_model ON ocr_results(model_id);",
@@ -54,6 +64,8 @@ _CREATE_INDEXES = [
         "CREATE INDEX IF NOT EXISTS idx_ocr_result_type "
         "ON ocr_results USING gin ((result_data -> 'type'));"
     ),
+    # GIN index over the generated tsvector column powers full-text search.
+    "CREATE INDEX IF NOT EXISTS idx_ocr_search_tsv ON ocr_results USING gin(search_tsv);",
 ]
 
 
@@ -104,6 +116,8 @@ class OcrResultRepository:
             raise RuntimeError("Not connected")
         async with self._pool.acquire() as conn:
             await conn.execute(_CREATE_OCR_RESULTS_TABLE)
+            # Additive migration: add tsvector column before the GIN index.
+            await conn.execute(_ADD_SEARCH_TSV_COLUMN)
             for idx_sql in _CREATE_INDEXES:
                 await conn.execute(idx_sql)
         logger.info("OCR results schema initialized")
@@ -278,6 +292,127 @@ class OcrResultRepository:
             "total": total,
             "limit": limit,
             "offset": offset,
+        }
+
+    async def search_text(
+        self,
+        query: str,
+        limit: int = 20,
+        offset: int = 0,
+        date_from: Optional[str] = None,
+        date_to: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Full-text search across OCR result ``raw_text`` using PostgreSQL tsvector.
+
+        Uses ``websearch_to_tsquery`` which accepts user input safely (supports
+        quoted phrases, ``OR``, ``-`` negation) and never raises on syntax.
+        Results are ranked with ``ts_rank`` and a snippet is produced with
+        ``ts_headline``. Highlight delimiters use control characters
+        (``\\x01`` / ``\\x02``) so the frontend can escape HTML first, then
+        convert the delimiters to ``<mark>`` tags (XSS-safe highlighting).
+
+        Args:
+            query: Free-text search query.
+            limit: Maximum number of hits to return (1..200).
+            offset: Pagination offset.
+            date_from: Optional ISO 8601 timestamp; only results created at or
+                after this moment are returned.
+            date_to: Optional ISO 8601 timestamp; only results created at or
+                before this moment are returned.
+
+        Returns:
+            ``{"items", "total", "limit", "offset", "query"}`` where each item
+            has the standard OCR result fields plus ``rank`` (float) and
+            ``snippet`` (str with ``\\x01``/``\\x02`` highlight markers).
+        """
+        if not self._pool:
+            raise RuntimeError("Not connected")
+
+        empty_result: Dict[str, Any] = {
+            "items": [],
+            "total": 0,
+            "limit": limit,
+            "offset": offset,
+            "query": query,
+        }
+
+        stripped = (query or "").strip()
+        if not stripped:
+            return empty_result
+
+        # Build optional date filters with positional parameters.
+        # Parameter layout: $1 = tsquery string, then date_from, date_to,
+        # then limit, offset. We assemble the WHERE clause dynamically.
+        conditions = ["search_tsv @@ q"]
+        params: list = [stripped]
+        next_idx = 2
+        if date_from:
+            conditions.append(f"created_at >= ${next_idx}")
+            params.append(date_from)
+            next_idx += 1
+        if date_to:
+            conditions.append(f"created_at <= ${next_idx}")
+            params.append(date_to)
+            next_idx += 1
+        where_sql = " AND ".join(conditions)
+
+        # Position of limit/offset params comes after the date params.
+        limit_idx = next_idx
+        offset_idx = next_idx + 1
+
+        # ts_headline options:
+        #   StartSel/StopSel = control chars \x01/\x02 (frontend converts to <mark>)
+        #   MaxWords/MinWords/MaxFragments tune snippet length
+        headline_opts = (
+            "StartSel=E'\\x01', StopSel=E'\\x02', "
+            "MaxWords=35, MinWords=15, MaxFragments=3, "
+            "FragmentDelimiter=' … '"
+        )
+
+        select_sql = f"""
+            SELECT
+                id,
+                filename,
+                model_id,
+                provider,
+                tier,
+                created_at,
+                ts_rank(search_tsv, q) AS rank,
+                ts_headline('simple', raw_text, q, '{headline_opts}') AS snippet
+            FROM ocr_results, websearch_to_tsquery('simple', $1) AS q
+            WHERE {where_sql}
+            ORDER BY rank DESC, created_at DESC
+            LIMIT ${limit_idx} OFFSET ${offset_idx}
+        """
+        count_sql = f"""
+            SELECT COUNT(*) FROM ocr_results, websearch_to_tsquery('simple', $1) AS q
+            WHERE {where_sql}
+        """
+
+        async with self._pool.acquire() as conn:
+            rows = await conn.fetch(select_sql, *params, limit, offset)
+            total = await conn.fetchval(count_sql, *params)
+
+        items = []
+        for r in rows:
+            items.append({
+                "id": str(r["id"]),
+                "filename": r["filename"],
+                "model_id": r["model_id"],
+                "provider": r["provider"],
+                "tier": r["tier"],
+                "created_at": r["created_at"].isoformat() if r["created_at"] else None,
+                "rank": float(r["rank"]),
+                "snippet": r["snippet"],
+            })
+
+        return {
+            "items": items,
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+            "query": query,
         }
 
     async def delete_result(self, result_id: str) -> bool:

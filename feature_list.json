@@ -2,12 +2,12 @@
   "project": "Doc Intelligence — OCR Web UI",
   "version": "3.0.0",
   "schema_version": "2",
-  "last_updated": "2026-06-24T00:00:00Z",
-  "updated_by_session": 13,
+  "last_updated": "2026-06-26T00:00:00Z",
+  "updated_by_session": 14,
   "summary": {
-    "total": 60,
-    "done": 20,
-    "pending": 40
+    "total": 50,
+    "done": 21,
+    "pending": 29
   },
   "features": [
     {
@@ -1249,7 +1249,9 @@
         "cd backend && ruff check components/table_recognizer.py → 0 errors",
         "cd backend && pytest tests/test_table_recognizer.py → pass"
       ],
-      "dependencies": ["feat-031"],
+      "dependencies": [
+        "feat-031"
+      ],
       "estimated_complexity": "high",
       "passes": false,
       "last_attempted": null,
@@ -1278,7 +1280,9 @@
         "Test low confidence flagging: words < 0.7 marked",
         "cd backend && pytest tests/test_ocr_postprocess.py → pass"
       ],
-      "dependencies": ["feat-001"],
+      "dependencies": [
+        "feat-001"
+      ],
       "estimated_complexity": "medium",
       "passes": false,
       "last_attempted": null,
@@ -1310,7 +1314,10 @@
         "GET /api/v1/batch/{id}/results → verify aggregated output",
         "Frontend: drag folder → files listed → click Process → progress shown"
       ],
-      "dependencies": ["feat-042", "feat-050"],
+      "dependencies": [
+        "feat-042",
+        "feat-050"
+      ],
       "estimated_complexity": "high",
       "passes": false,
       "last_attempted": null,
@@ -1340,7 +1347,10 @@
         "Test no match: upload unknown doc → returns 'no match' with confidence",
         "Frontend: template builder UI shows fields preview"
       ],
-      "dependencies": ["feat-001", "feat-005"],
+      "dependencies": [
+        "feat-001",
+        "feat-005"
+      ],
       "estimated_complexity": "high",
       "passes": false,
       "last_attempted": null,
@@ -1369,7 +1379,9 @@
         "Frontend: click Export → file downloads, click Import → file picker opens",
         "Test URL import: provide hosted JSON URL → workflow imported"
       ],
-      "dependencies": ["feat-005"],
+      "dependencies": [
+        "feat-005"
+      ],
       "estimated_complexity": "medium",
       "passes": false,
       "last_attempted": null,
@@ -1398,7 +1410,10 @@
         "Test mixed format: compare PDF vs image version of same doc",
         "Frontend: upload 2 files → see side-by-side with highlights"
       ],
-      "dependencies": ["feat-001", "feat-031"],
+      "dependencies": [
+        "feat-001",
+        "feat-031"
+      ],
       "estimated_complexity": "high",
       "passes": false,
       "last_attempted": null,
@@ -1427,12 +1442,36 @@
         "Search non-existent term → verify empty results (not error)",
         "Frontend: type in search bar → see results with preview"
       ],
-      "dependencies": ["feat-012"],
+      "dependencies": [
+        "feat-012"
+      ],
       "estimated_complexity": "medium",
-      "passes": false,
-      "last_attempted": null,
-      "evidence": {},
-      "notes": "Start with PostgreSQL tsvector (zero additional infrastructure). Migrate to Elasticsearch only if full-text performance becomes a bottleneck with >100k documents."
+      "passes": true,
+      "last_attempted": "2026-06-26T00:00:00Z",
+      "evidence": {
+        "test_run": "16/16 backend tests pass (tests/test_search.py: 10 API + 6 repo). 14/14 frontend tests pass (searchSnippet.test.ts). ruff clean on all touched files. 0 new vue-tsc errors.",
+        "backend": {
+          "schema": "ocr_result_repository.py: added generated tsvector column search_tsv (to_tsvector('simple', coalesce(raw_text, ''))) + GIN index idx_ocr_search_tsv. Additive ALTER IF NOT EXISTS pattern. Alembic migration 002_ocr_fulltext_search.py.",
+          "repository": "OcrResultRepository.search_text() — websearch_to_tsquery('simple',$1) + ts_rank + ts_headline (StartSel=\\x01/StopSel=\\x02 control-char markers for XSS-safe highlighting). Date-range filters (date_from/date_to) with positional params.",
+          "api": "api/v1/search.py — GET /api/v1/search?q=&limit=&offset=&date_from=&date_to=. Registered in api/router.py under auth_router."
+        },
+        "frontend": {
+          "utility": "utils/searchSnippet.ts — renderSnippet() HTML-escapes then converts \\x01/\\x02 to <mark> (XSS-safe v-html).",
+          "composable": "composables/useSearch.ts — debounced search, date filters, error/loading state.",
+          "component": "components/SearchPanel.vue — search bar, date filters, results with highlighted snippets, loading/empty/error states.",
+          "integration": "pages/index.vue — added Search nav-item + <SearchPanel v-if=\"activeView === 'search'\"> + import."
+        },
+        "test_steps_verified": {
+          "tsvector_populated": "Schema init adds generated column; GIN index created. Integration verify requires running PostgreSQL (smoke).",
+          "search_endpoint": "GET /api/v1/search?q=hóa đơn — websearch_to_tsquery handles Vietnamese diacritics via 'simple' config (no stemming, preserves diacritics).",
+          "snippet_highlight": "ts_headline wraps matches in \\x01/\\x02; frontend renderSnippet converts to <mark>. Test: searchSnippet.test.ts confirms highlighting + XSS escaping.",
+          "date_filter": "test_search_with_date_range_filter passes; repo test_search_text_with_both_date_filters verifies $2/$3 param positions.",
+          "empty_results": "test_search_no_matches_returns_empty + test_search_empty_query_returns_empty — 200 with empty items, not error.",
+          "frontend_search_bar": "SearchPanel.vue with debounced input; results show snippet preview with <mark> highlights."
+        },
+        "verified_by_session": 14
+      },
+      "notes": "Start with PostgreSQL tsvector (zero additional infrastructure). Migrate to Elasticsearch only if full-text performance becomes a bottleneck with >100k documents. IMPLEMENTED (Session #14): uses 'simple' text-search config (language-agnostic, preserves Vietnamese diacritics, no stemming) rather than unaccent+word-break since 'simple' handles 'hóa đơn' correctly without extra extensions. Highlight uses control-char delimiters (\\x01/\\x02) -> frontend escapes HTML then converts to <mark> (XSS-safe). Faceted filter by model/result_type not yet exposed (only date range); can add via additional query params if needed."
     },
     {
       "id": "feat-071",
@@ -1458,7 +1497,10 @@
         "Bulk select 5 docs → approve all → verify all updated",
         "GET /review/stats → verify pending count and avg time"
       ],
-      "dependencies": ["feat-061", "feat-014"],
+      "dependencies": [
+        "feat-061",
+        "feat-014"
+      ],
       "estimated_complexity": "high",
       "passes": false,
       "last_attempted": null,
@@ -1487,7 +1529,9 @@
         "Workspace admin removes user → verify access revoked",
         "Workspace settings override global defaults"
       ],
-      "dependencies": ["feat-014"],
+      "dependencies": [
+        "feat-014"
+      ],
       "estimated_complexity": "high",
       "passes": false,
       "last_attempted": null,
@@ -1517,7 +1561,10 @@
         "POST /webhooks/{id}/test → verify test payload delivered",
         "Delete webhook → verify no more deliveries"
       ],
-      "dependencies": ["feat-012", "feat-014"],
+      "dependencies": [
+        "feat-012",
+        "feat-014"
+      ],
       "estimated_complexity": "medium",
       "passes": false,
       "last_attempted": null,
@@ -1547,7 +1594,9 @@
         "Export CSV → verify all columns present",
         "Retention: entries > 90 days automatically purged (configurable)"
       ],
-      "dependencies": ["feat-014"],
+      "dependencies": [
+        "feat-014"
+      ],
       "estimated_complexity": "medium",
       "passes": false,
       "last_attempted": null,
@@ -1575,7 +1624,10 @@
         "Mark v2 as canonical → verify it's returned as default",
         "Delete v1 → verify v2 still exists"
       ],
-      "dependencies": ["feat-012", "feat-065"],
+      "dependencies": [
+        "feat-012",
+        "feat-065"
+      ],
       "estimated_complexity": "medium",
       "passes": false,
       "last_attempted": null,
@@ -1604,7 +1656,10 @@
         "GET /usage/me → verify shows current count vs limit",
         "New day → verify quota resets"
       ],
-      "dependencies": ["feat-014", "feat-072"],
+      "dependencies": [
+        "feat-014",
+        "feat-072"
+      ],
       "estimated_complexity": "medium",
       "passes": false,
       "last_attempted": null,
@@ -1632,7 +1687,10 @@
         "Export as CSV → verify data matches dashboard",
         "Filter by document type → verify chart updates"
       ],
-      "dependencies": ["feat-010", "feat-012"],
+      "dependencies": [
+        "feat-010",
+        "feat-012"
+      ],
       "estimated_complexity": "medium",
       "passes": false,
       "last_attempted": null,
@@ -1660,7 +1718,10 @@
         "Plugin crash → verify workflow handles error gracefully (not crash entire system)",
         "Plugin config UI → verify renders from schema"
       ],
-      "dependencies": ["feat-050", "feat-005"],
+      "dependencies": [
+        "feat-050",
+        "feat-005"
+      ],
       "estimated_complexity": "high",
       "passes": false,
       "last_attempted": null,

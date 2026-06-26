@@ -172,6 +172,13 @@
           </svg>
           Data
         </a>
+        <a href="#" class="nav-item" :class="{ active: activeView === 'search' }" @click.prevent="activeView = 'search'">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8"></circle>
+            <path d="m21 21-4.3-4.3"></path>
+          </svg>
+          Search
+        </a>
         <a href="#" class="nav-item" :class="{ active: activeView === 'journey' }" @click.prevent="activeView = 'journey'">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M12 12H3"></path>
@@ -778,6 +785,9 @@
         v-if="activeView === 'data'"
         :providers="providers"
       />
+
+      <!-- Document Search View (feat-070) -->
+      <SearchPanel v-if="activeView === 'search'" />
 
       <!-- Settings View -->
       <div v-if="activeView === 'settings'" class="content-wrapper settings-view">
@@ -1443,6 +1453,7 @@ import HelpDialog from '~/components/HelpDialog.vue'
 import DeployDialog from '~/components/DeployDialog.vue'
 import ModelSelector from '~/components/ModelSelector.vue'
 import DataStorePanel from '~/components/DataStorePanel.vue'
+import SearchPanel from '~/components/SearchPanel.vue'
 
 // Composables
 const {
