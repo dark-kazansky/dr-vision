@@ -1253,10 +1253,14 @@
         "feat-031"
       ],
       "estimated_complexity": "high",
-      "passes": false,
-      "last_attempted": null,
-      "evidence": {},
-      "notes": "Use DeepDoc table structure model from InfiniFlow/deepdoc. Detect: table borders, rows, columns, spanning cells. Output structured data ready for downstream extraction."
+      "passes": true,
+      "last_attempted": "2026-06-27T00:00:00Z",
+      "evidence": {
+        "test_run": "ruff check components/table_recognizer.py api/v1/table.py → 0 errors. pytest tests/test_table_recognizer.py → 20 passed in 1.59s",
+        "e2e": "Backend: components/table_recognizer.py (516 lines, TableRecognizeComponent with full-page + pre-cropped modes, layout integration), api/v1/table.py (4 endpoints: POST /recognize, POST /recognize/csv, GET /models, POST /convert-markdown), workflow_service.py (_run_table_recognize_step), job_executor.py, workflow_engine/activities/ocr_activities.py (handle_table_recognize). Output formats: JSON (cells with row/col/bbox/text/is_header/rowspan/colspan), CSV, Markdown, HTML. Frontend: useNodeRegistry.ts (table-recognize node).",
+        "verified_by_session": 15
+      },
+      "notes": "Full implementation via DeepDoc TableStructureRecognizer (ONNX). Auto-downloads model from HuggingFace InfiniFlow/deepdoc. Two modes: full-page (uses layout detection to find table regions, then extracts structure) and pre-cropped (directly processes cropped table images). Bonus: MarkItDown integration for native-format files (XLSX/DOCX/CSV/HTML)."
     },
     {
       "id": "feat-061",
@@ -1284,10 +1288,14 @@
         "feat-001"
       ],
       "estimated_complexity": "medium",
-      "passes": false,
-      "last_attempted": null,
-      "evidence": {},
-      "notes": "Post-processing layer between raw OCR output and downstream consumption. Improves extraction accuracy significantly for low-quality scans. Vietnamese-aware corrections using common OCR error patterns."
+      "passes": true,
+      "last_attempted": "2026-06-27T00:00:00Z",
+      "evidence": {
+        "test_run": "ruff check components/ocr_postprocessor.py api/v1/parse.py services/parse_service.py tests/test_ocr_postprocessor.py → 0 errors. pytest tests/test_ocr_postprocessor.py → 26 passed (was 18, +8 new tests for /ocr endpoint integration). Full suite: 589 passed. vue-tsc → 0 errors.",
+        "e2e": "Backend: components/ocr_postprocessor.py (489 lines, OCRPostProcessor with 7-stage pipeline), api/v1/postprocess.py (standalone POST /postprocess endpoint), NEW: integrated into /ocr endpoint via postprocess param — api/v1/parse.py (3 new Form params: postprocess, postprocess_language, postprocess_confidence_threshold), services/parse_service.py (_run_postprocess helper + sync path + background worker path). Response includes processed_text, word_confidences, postprocess_stats, postprocess_corrections when postprocess=true. Workflow node ocr-postprocess already existed.",
+        "verified_by_session": 15
+      },
+      "notes": "Post-processing layer integrated into /ocr response. Pipeline: Unicode NFC → whitespace → number correction (O→0, l→1) → Vietnamese diacritics → currency normalization → custom rules → per-word confidence scoring. LIMITATION: word_confidences does not include bbox — OCR agents (LM Studio, Gemini, Bedrock, Ollama) return plain text only (OCRResponse has no word-level positions). Adding bbox would require extending all OCR agents to return word-level coordinates, which is a separate larger effort."
     },
     {
       "id": "feat-062",

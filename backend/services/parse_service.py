@@ -72,6 +72,38 @@ def _run_extraction_sync(text: str, extraction_schema: str, extraction_target: s
         return {"success": False, "error": f"Extraction failed: {str(e)}"}
 
 
+def _run_postprocess(
+    raw_text: str,
+    language: str,
+    confidence_threshold: float,
+) -> dict:
+    """Run OCR post-processing on raw OCR text and return response fields.
+
+    Returns a dict with keys: ``processed_text``, ``word_confidences``,
+    ``postprocess_stats``, ``postprocess_corrections``. On failure, returns
+    a dict with ``postprocess_error``.
+    """
+    try:
+        from components.ocr_postprocessor import OCRPostProcessor
+
+        processor = OCRPostProcessor(
+            language=language,
+            confidence_threshold=confidence_threshold,
+        )
+        result = processor.process(raw_text)
+        if not result.success:
+            return {"postprocess_error": result.error}
+        return {
+            "processed_text": result.processed_text,
+            "word_confidences": [w.to_dict() for w in result.word_confidences],
+            "postprocess_stats": result.stats,
+            "postprocess_corrections": [c.to_dict() for c in result.corrections],
+        }
+    except Exception as e:
+        logger.warning("OCR post-processing failed: %s", e)
+        return {"postprocess_error": str(e)}
+
+
 def _background_parse_worker(
     file_path: str,
     filename: str,
@@ -85,6 +117,9 @@ def _background_parse_worker(
     config: Config,
     job_id: str,
     provider: Optional[str] = None,
+    postprocess: bool = False,
+    postprocess_language: str = "vi",
+    postprocess_confidence_threshold: float = 0.7,
 ) -> None:
     """Worker function executed in a background thread for large PDFs."""
     try:
@@ -139,6 +174,11 @@ def _background_parse_worker(
             "model": model_id,
         }
 
+        if postprocess:
+            response_data.update(_run_postprocess(
+                result.text, postprocess_language, postprocess_confidence_threshold
+            ))
+
         if extraction_enabled and extraction_schema:
             response_data["extraction"] = _run_extraction_sync(
                 text, extraction_schema, extraction_target or "document", extractor_model or "qwen3-max", config
@@ -177,6 +217,9 @@ async def parse_document(
     extractor_model: Optional[str],
     config: Config,
     provider: Optional[str] = None,
+    postprocess: bool = False,
+    postprocess_language: str = "vi",
+    postprocess_confidence_threshold: float = 0.7,
 ) -> dict:
     """
     Validate, save, and OCR a document.
@@ -220,6 +263,7 @@ async def parse_document(
                         file_path, file.filename, model_id, force_ocr, parse_formatting,
                         extraction_enabled, extraction_target, extraction_schema,
                         extractor_model, config, job_id, provider,
+                        postprocess, postprocess_language, postprocess_confidence_threshold,
                     ),
                     daemon=True,
                 )
@@ -275,6 +319,11 @@ async def parse_document(
             "filename": file.filename,
             "model": model_id,
         }
+
+        if postprocess:
+            response_data.update(_run_postprocess(
+                result.text, postprocess_language, postprocess_confidence_threshold
+            ))
 
         if extraction_enabled and extraction_schema:
             try:

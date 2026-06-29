@@ -12,6 +12,7 @@ COPY package.json package-lock.json* ./
 RUN npm ci --prefer-offline
 
 COPY . .
+RUN npx nuxt prepare
 RUN npm run build
 
 # --- Stage 2: Runtime ---

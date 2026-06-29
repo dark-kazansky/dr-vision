@@ -30,6 +30,9 @@ async def parse_document(
     extraction_target: Optional[str] = Form(None),
     extraction_schema: Optional[str] = Form(None),
     extractor_model: Optional[str] = Form("qwen3-max"),
+    postprocess: bool = Form(False),
+    postprocess_language: str = Form("vi"),
+    postprocess_confidence_threshold: float = Form(0.7),
     config: Config = Depends(get_config),
 ) -> JSONResponse:
     """
@@ -38,6 +41,11 @@ async def parse_document(
     Supports both ``/ocr`` (legacy) and ``/parse`` paths.
     For large PDFs (above the configured threshold) the job is dispatched to a
     background thread and a ``job_id`` is returned for polling.
+
+    When ``postprocess=True``, the raw OCR text is run through the
+    OCR post-processor (normalisation, number/diacritics correction,
+    per-word confidence scoring). The response then includes
+    ``processed_text``, ``word_confidences``, and ``postprocess_stats``.
     """
     result = await parse_service.parse_document(
         file=file,
@@ -50,5 +58,8 @@ async def parse_document(
         extractor_model=extractor_model,
         provider=provider,
         config=config,
+        postprocess=postprocess,
+        postprocess_language=postprocess_language,
+        postprocess_confidence_threshold=postprocess_confidence_threshold,
     )
     return JSONResponse(result)

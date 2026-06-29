@@ -38,7 +38,9 @@ RUN rm -rf tests/ .pytest_cache/ .ruff_cache/ .hypothesis/ __pycache__/ \
     .env .env.example Dockerfile Dockerfile.dev .dockerignore
 
 # Non-root user for security
-RUN useradd -r -s /bin/false appuser && chown -R appuser:appuser /app
+RUN useradd -r -s /bin/false appuser \
+    && mkdir -p /backend/data/uploaded \
+    && chown -R appuser:appuser /app /backend
 USER appuser
 
 # Health check
