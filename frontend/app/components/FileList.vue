@@ -84,9 +84,8 @@ const formatSize = (bytes: number): string => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: white;
+  background: var(--color-cream);
   border-radius: 0.5rem;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .file-list-header {
@@ -94,20 +93,20 @@ const formatSize = (bytes: number): string => {
   justify-content: space-between;
   align-items: center;
   padding: 1rem;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--color-sand);
 }
 
 .file-list-header h3 {
   margin: 0;
   font-size: 1rem;
   font-weight: 600;
-  color: #2d3748;
+  color: var(--text-primary);
 }
 
 .clear-button {
   background: none;
   border: none;
-  color: #e53e3e;
+  color: #c54444;
   font-size: 0.875rem;
   cursor: pointer;
   padding: 0.25rem 0.5rem;
@@ -120,7 +119,7 @@ const formatSize = (bytes: number): string => {
 .empty-state {
   padding: 2rem;
   text-align: center;
-  color: #a0aec0;
+  color: var(--text-tertiary);
 }
 
 .file-items {
@@ -141,19 +140,19 @@ const formatSize = (bytes: number): string => {
 }
 
 .file-item:hover {
-  background-color: #f7fafc;
+  background-color: var(--bg-tertiary);
 }
 
 .file-item.selected {
-  background-color: #ebf8ff;
-  border-color: #4299e1;
+  background-color: var(--bg-tertiary);
+  border-color: var(--color-sand);
 }
 
 .file-icon {
   flex-shrink: 0;
   width: 2rem;
   height: 2rem;
-  color: #4299e1;
+  color: var(--accent-orange);
 }
 
 .file-icon svg {
@@ -169,7 +168,7 @@ const formatSize = (bytes: number): string => {
 .file-name {
   font-size: 0.875rem;
   font-weight: 500;
-  color: #2d3748;
+  color: var(--text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -177,7 +176,7 @@ const formatSize = (bytes: number): string => {
 
 .file-meta {
   font-size: 0.75rem;
-  color: #718096;
+  color: var(--text-tertiary);
   margin-top: 0.125rem;
 }
 
@@ -196,12 +195,12 @@ const formatSize = (bytes: number): string => {
 
 .status-pending {
   background-color: #edf2f7;
-  color: #4a5568;
+  color: var(--text-secondary);
 }
 
 .status-processing {
-  background-color: #fef5e7;
-  color: #d69e2e;
+  background-color: rgba(255, 79, 0, 0.1);
+  color: var(--accent-orange);
 }
 
 .status-completed {
@@ -221,13 +220,13 @@ const formatSize = (bytes: number): string => {
   padding: 0;
   background: none;
   border: none;
-  color: #a0aec0;
+  color: var(--text-tertiary);
   cursor: pointer;
   transition: color 0.2s;
 }
 
 .remove-button:hover {
-  color: #e53e3e;
+  color: #c54444;
 }
 
 .remove-button svg {

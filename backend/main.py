@@ -33,6 +33,7 @@ logging.basicConfig(
 )
 
 from routes import router
+from routes_workflows import router as workflows_router, runs_router as workflow_runs_router
 from core import Config, ConfigurationError
 from core.middleware import RequestLoggingMiddleware
 from core.rate_limiter import RateLimiter
@@ -140,6 +141,8 @@ except Exception:
 
 # Register routes
 app.include_router(router)
+app.include_router(workflows_router)
+app.include_router(workflow_runs_router)
 
 
 # Root endpoint

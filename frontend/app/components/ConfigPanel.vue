@@ -437,8 +437,8 @@ const handleCancel = () => {
 }
 
 .config-panel {
-  --accent-orange: #FF6F3C;
-  background: white;
+  --accent-orange: #ff4f00;
+  background: var(--color-cream);
   border-radius: 0;
   padding: 0;
   box-shadow: none;
@@ -453,7 +453,7 @@ const handleCancel = () => {
   margin: 0 0 1.5rem 0;
   font-size: 1.125rem;
   font-weight: 600;
-  color: #2d3748;
+  color: var(--text-primary);
 }
 
 .config-section {
@@ -471,7 +471,7 @@ const handleCancel = () => {
   margin-bottom: 0.5rem;
   font-size: 0.875rem;
   font-weight: 500;
-  color: #4a5568;
+  color: var(--text-secondary);
 }
 
 .config-checkbox {
@@ -494,15 +494,15 @@ const handleCancel = () => {
 
 .config-checkbox span {
   font-size: 0.875rem;
-  color: #4a5568;
+  color: var(--text-secondary);
 }
 
 /* Config Panel Footer */
 .config-panel-footer {
   padding: 0.5rem 0;
   margin-top: auto;
-  border-top: 1px solid #e2e8f0;
-  background-color: white;
+  border-top: 1px solid var(--color-sand);
+  background-color: var(--color-cream);
   display: flex;
   justify-content: flex-end;
   align-items: center;
@@ -519,8 +519,8 @@ const handleCancel = () => {
   padding: 0.625rem 1.25rem;
   border: none;
   border-radius: 0.5rem;
-  background-color: var(--accent-orange, #FF6F3C);
-  color: white;
+  background-color: var(--accent-orange);
+  color: var(--color-cream);
   font-size: 0.875rem;
   font-weight: 500;
   cursor: pointer;
@@ -532,8 +532,8 @@ const handleCancel = () => {
 }
 
 .run-parse-btn:disabled {
-  background-color: #f3f4f6;
-  color: #9ca3af;
+  background-color: var(--bg-tertiary);
+  color: var(--text-tertiary);
   cursor: not-allowed;
   opacity: 0.6;
 }
@@ -543,10 +543,10 @@ const handleCancel = () => {
   align-items: center;
   gap: 0.5rem;
   padding: 0.625rem 1.25rem;
-  border: 1px solid #dc2626;
+  border: 1px solid #c54444;
   border-radius: 0.5rem;
-  background-color: white;
-  color: #dc2626;
+  background-color: var(--color-cream);
+  color: #c54444;
   font-size: 0.875rem;
   font-weight: 500;
   cursor: pointer;
@@ -554,12 +554,12 @@ const handleCancel = () => {
 }
 
 .cancel-btn:hover {
-  background-color: #dc2626;
-  color: white;
+  background-color: #c54444;
+  color: var(--color-cream);
 }
 
 .cancel-btn:active {
-  background-color: #b91c1c;
+  background-color: #a33636;
 }
 
 .error-message {
@@ -578,7 +578,7 @@ const handleCancel = () => {
 
 .section-divider {
   height: 1px;
-  background-color: #e2e8f0;
+  background-color: var(--color-sand);
   margin-bottom: 1.5rem;
 }
 
@@ -586,15 +586,15 @@ const handleCancel = () => {
   margin: 0 0 1rem 0;
   font-size: 1rem;
   font-weight: 600;
-  color: #2d3748;
+  color: var(--text-primary);
 }
 
 .extraction-config {
   margin-top: 1rem;
   padding: 1rem;
-  background-color: #ffffff;
+  background-color: var(--color-cream);
   border-radius: 0.375rem;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--color-sand);
   width: 100%;
   box-sizing: border-box;
 }
@@ -603,8 +603,8 @@ const handleCancel = () => {
 .view-toggle-group {
   display: flex;
   border-radius: 0.25rem;
-  border: 1px solid #e5e7eb;
-  background-color: #f9fafb;
+  border: 1px solid var(--color-sand);
+  background-color: var(--bg-secondary);
   padding: 0.075rem;
   margin-bottom: 1rem;
   width: fit-content;
@@ -616,7 +616,7 @@ const handleCancel = () => {
   justify-content: center;
   padding: 0.3rem;
   background-color: transparent;
-  color: #6b7280;
+  color: var(--text-secondary);
   border: none;
   cursor: pointer;
   transition: all 0.2s;
@@ -626,13 +626,13 @@ const handleCancel = () => {
 }
 
 .view-toggle-btn:hover {
-  background-color: #e5e7eb;
+  background-color: var(--bg-tertiary);
   color: #4b5563;
 }
 
 .view-toggle-btn.active {
-  background-color: #ffffff;
-  color: #111827;
+  background-color: var(--color-cream);
+  color: var(--text-primary);
   box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
 }
 
@@ -649,21 +649,21 @@ const handleCancel = () => {
 
 .visual-result {
   padding: 1rem;
-  background-color: white;
-  border: 1px solid #e2e8f0;
+  background-color: var(--color-cream);
+  border: 1px solid var(--color-sand);
   border-radius: 0.5rem;
   font-size: 0.875rem;
   line-height: 1.6;
 }
 
 .extraction-visual {
-  color: #111827;
+  color: var(--text-primary);
 }
 
 .result-item {
   margin-bottom: 1.5rem;
   padding-bottom: 1.5rem;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--color-sand);
 }
 
 .result-item:last-child {
@@ -676,7 +676,7 @@ const handleCancel = () => {
   margin: 0 0 1rem 0;
   font-size: 1rem;
   font-weight: 600;
-  color: #111827;
+  color: var(--text-primary);
 }
 
 .object-content {
@@ -724,16 +724,16 @@ const handleCancel = () => {
 
 .field-key {
   font-weight: 600;
-  color: #374151;
+  color: var(--text-secondary);
   min-width: fit-content;
 }
 
 .field-value {
-  color: #111827;
+  color: var(--text-primary);
 }
 
 .field-value.null {
-  color: #9ca3af;
+  color: var(--text-tertiary);
   font-style: italic;
 }
 
@@ -748,12 +748,12 @@ const handleCancel = () => {
 }
 
 .field-value.string {
-  color: #111827;
+  color: var(--text-primary);
 }
 
 .field-value.array,
 .field-value.object {
-  color: #6b7280;
+  color: var(--text-secondary);
   font-size: 0.8125rem;
   font-weight: 500;
 }

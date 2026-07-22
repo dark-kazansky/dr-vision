@@ -18,6 +18,22 @@ from agents import (
 from config import Config
 
 
+def _resolve_bedrock_model(model_id: str) -> str:
+    """Resolve a short model alias to its full ID/ARN from environment variables."""
+    aliases = {
+        'claude-haiku': 'CLAUDE_HAIKU_ID',
+        'claude-sonnet': 'CLAUDE_SONET_ID',
+        'claude-opus': 'CLAUDE_OPUS_ID',
+        'claude-haiku-4-5-20251001-v1:0': 'CLAUDE_HAIKU_ID',
+        'claude-sonnet-4-6': 'CLAUDE_SONET_ID',
+        'claude-opus-4-8': 'CLAUDE_OPUS_ID',
+    }
+    env_key = aliases.get(model_id)
+    if env_key:
+        return os.getenv(env_key, model_id)
+    return model_id
+
+
 class AgentFactory:
     """Factory for creating agent instances."""
     
@@ -110,22 +126,14 @@ class AgentFactory:
             return VLMOCRAdapter(vlm_agent=vlm_agent)
         
         elif provider == 'bedrock' or provider == 'bedrock_runtime':
-            # Resolve model ARN from environment variables
-            bedrock_model_id = model_id
-            if model_id == 'claude-haiku':
-                bedrock_model_id = os.getenv('CLAUDE_HAIKU_ID', model_id)
-            elif model_id == 'claude-sonnet':
-                bedrock_model_id = os.getenv('CLAUDE_SONET_ID', model_id)
-            
-            # Create Bedrock VLM agent
+            bedrock_model_id = _resolve_bedrock_model(model_id)
             vlm_agent = BedrockVLMAgent(
                 model_id=bedrock_model_id,
-                region=os.getenv('BEDROCK_REGION', 'ap-southeast-2'),
+                region=os.getenv('BEDROCK_REGION') or os.getenv('AWS_REGION', 'ap-southeast-1'),
                 max_tokens=max_tokens,
                 temperature=temperature,
                 top_p=top_p
             )
-            # Wrap in adapter
             return VLMOCRAdapter(vlm_agent=vlm_agent)
         
         else:
@@ -209,16 +217,9 @@ class AgentFactory:
             )
         
         elif provider == 'bedrock' or provider == 'bedrock_runtime':
-            # Resolve model ARN from environment variables
-            bedrock_model_id = model_id
-            if model_id == 'claude-haiku':
-                bedrock_model_id = os.getenv('CLAUDE_HAIKU_ID', model_id)
-            elif model_id == 'claude-sonnet':
-                bedrock_model_id = os.getenv('CLAUDE_SONET_ID', model_id)
-            
             return BedrockLLMAgent(
-                model_id=bedrock_model_id,
-                region=os.getenv('BEDROCK_REGION', 'ap-southeast-2'),
+                model_id=_resolve_bedrock_model(model_id),
+                region=os.getenv('BEDROCK_REGION') or os.getenv('AWS_REGION', 'ap-southeast-1'),
                 **kwargs
             )
         
@@ -299,15 +300,9 @@ class AgentFactory:
             )
         
         elif provider == 'bedrock' or provider == 'bedrock_runtime':
-            bedrock_model_id = model_id
-            if model_id == 'claude-haiku':
-                bedrock_model_id = os.getenv('CLAUDE_HAIKU_ID', model_id)
-            elif model_id == 'claude-sonnet':
-                bedrock_model_id = os.getenv('CLAUDE_SONET_ID', model_id)
-            
             return BedrockVLMAgent(
-                model_id=bedrock_model_id,
-                region=os.getenv('BEDROCK_REGION', 'ap-southeast-2'),
+                model_id=_resolve_bedrock_model(model_id),
+                region=os.getenv('BEDROCK_REGION') or os.getenv('AWS_REGION', 'ap-southeast-1'),
                 **kwargs
             )
         
@@ -318,19 +313,45 @@ class AgentFactory:
     def create_from_config(config: Config, model_id: str) -> BaseOCRAgent:
         """
         Create OCR agent from Config instance and model ID.
-        
+
         Args:
             config: Config instance
             model_id: Model ID from configuration
-            
+
         Returns:
             BaseOCRAgent instance
-            
+
         Raises:
             ValueError: If model not found or provider not supported
         """
         model_config = config.get_model_config(model_id)
         if not model_config:
             raise ValueError(f"Model not found: {model_id}")
-        
+
         return AgentFactory.create_ocr_agent(model_config)
+
+    @staticmethod
+    def create_ocr_from_spec(model_id: str, provider: Optional[str], config: Optional[Config] = None) -> BaseOCRAgent:
+        """Create OCR agent from a (model_id, provider) spec. Falls back to config lookup when provider is None."""
+        if provider:
+            return AgentFactory.create_ocr_agent({
+                "model_id": model_id,
+                "provider": provider,
+                "base_url": "",
+                "max_tokens": 4096,
+                "temperature": 0.2,
+                "top_p": 0.9,
+            })
+        if config is not None:
+            return AgentFactory.create_from_config(config, model_id)
+        raise ValueError(f"No provider or config given for model '{model_id}'")
+
+    @staticmethod
+    def create_llm_from_spec(model_id: str, provider: Optional[str], config: Optional[Config] = None, **kwargs) -> BaseLLMAgent:
+        """Create LLM agent from a (model_id, provider) spec. Falls back to config lookup when provider is None."""
+        return AgentFactory.create_llm_agent(model_id, provider=provider, config=config if not provider else None, **kwargs)
+
+    @staticmethod
+    def create_vlm_from_spec(model_id: str, provider: Optional[str], config: Optional[Config] = None, **kwargs) -> BaseVLMAgent:
+        """Create VLM agent from a (model_id, provider) spec. Falls back to config lookup when provider is None."""
+        return AgentFactory.create_vlm_agent(model_id, provider=provider, config=config if not provider else None, **kwargs)

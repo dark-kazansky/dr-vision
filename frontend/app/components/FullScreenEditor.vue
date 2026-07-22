@@ -6,7 +6,7 @@
           <!-- Header with Pagination -->
           <div class="fullscreen-header">
             <div class="header-left">
-              <h2 class="header-title">Dr.Vision Editor</h2>
+              <h2 class="header-title">M<span class="logo-dot">.</span>DocAI Editor</h2>
             </div>
             
             <div class="header-center">
@@ -395,7 +395,7 @@ onMounted(() => {
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(0, 0, 0, 0.8);
+  background-color: rgba(32, 21, 21, 0.8);
   z-index: 10000;
   display: flex;
   align-items: center;
@@ -405,7 +405,7 @@ onMounted(() => {
 .fullscreen-container {
   width: 100%;
   height: 100%;
-  background: white;
+  background: var(--color-cream);
   display: flex;
   flex-direction: column;
 }
@@ -416,8 +416,8 @@ onMounted(() => {
   align-items: center;
   justify-content: space-between;
   padding: 16px 24px;
-  border-bottom: 1px solid #e5e7eb;
-  background-color: white;
+  border-bottom: 1px solid var(--color-sand);
+  background-color: var(--color-cream);
 }
 
 .header-left,
@@ -439,7 +439,7 @@ onMounted(() => {
 .header-title {
   font-size: 18px;
   font-weight: 600;
-  color: #111827;
+  color: var(--text-primary);
   margin: 0;
 }
 
@@ -455,17 +455,17 @@ onMounted(() => {
   justify-content: center;
   width: 32px;
   height: 32px;
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--color-sand);
   border-radius: 6px;
-  background-color: white;
-  color: #374151;
+  background-color: var(--color-cream);
+  color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .pagination-btn:hover:not(:disabled) {
-  background-color: #f3f4f6;
-  border-color: #9ca3af;
+  background-color: var(--bg-tertiary);
+  border-color: var(--color-sand);
 }
 
 .pagination-btn:disabled {
@@ -476,7 +476,7 @@ onMounted(() => {
 .pagination-text {
   font-size: 14px;
   font-weight: 500;
-  color: #374151;
+  color: var(--text-secondary);
   min-width: 100px;
   text-align: center;
 }
@@ -490,14 +490,14 @@ onMounted(() => {
   border: none;
   border-radius: 6px;
   background-color: transparent;
-  color: #6b7280;
+  color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .close-btn:hover {
-  background-color: #f3f4f6;
-  color: #111827;
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
 }
 
 /* Content */
@@ -512,7 +512,7 @@ onMounted(() => {
 .editor-column {
   display: flex;
   flex-direction: column;
-  border-right: 1px solid #e5e7eb;
+  border-right: 1px solid var(--color-sand);
   overflow: hidden;
 }
 
@@ -522,14 +522,14 @@ onMounted(() => {
 
 .column-header {
   padding: 12px 16px;
-  border-bottom: 1px solid #e5e7eb;
-  background-color: #f9fafb;
+  border-bottom: 1px solid var(--color-sand);
+  background-color: var(--bg-secondary);
 }
 
 .column-title {
   font-size: 14px;
   font-weight: 600;
-  color: #374151;
+  color: var(--text-secondary);
   margin: 0;
 }
 
@@ -547,7 +547,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: #f3f4f6;
+  background-color: var(--bg-tertiary);
 }
 
 .pdf-iframe {
@@ -568,7 +568,7 @@ onMounted(() => {
   justify-content: center;
   width: 100%;
   height: 100%;
-  color: #9ca3af;
+  color: var(--text-tertiary);
   font-size: 14px;
 }
 
@@ -585,8 +585,8 @@ onMounted(() => {
   font-size: 13px;
   line-height: 1.6;
   resize: none;
-  background-color: white;
-  color: #111827;
+  background-color: var(--color-cream);
+  color: var(--text-primary);
   cursor: text;
   overflow: auto;
   white-space: pre-wrap;
@@ -598,17 +598,17 @@ onMounted(() => {
 }
 
 .editor-textarea:focus {
-  background-color: #fffef9;
+  background-color: var(--color-cream-alt);
   cursor: text;
 }
 
 .editor-textarea::selection {
-  background-color: #3b82f6;
-  color: white;
+  background-color: var(--accent-orange);
+  color: var(--color-cream);
 }
 
 .editor-textarea::placeholder {
-  color: #9ca3af;
+  color: var(--text-tertiary);
 }
 
 /* Parsed Result */
@@ -617,11 +617,11 @@ onMounted(() => {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   font-size: 14px;
   line-height: 1.6;
-  color: #111827;
+  color: var(--text-primary);
 }
 
 .placeholder-text {
-  color: #9ca3af;
+  color: var(--text-tertiary);
   font-style: italic;
 }
 
@@ -634,7 +634,7 @@ onMounted(() => {
   margin-top: 24px;
   margin-bottom: 12px;
   font-weight: 600;
-  color: #111827;
+  color: var(--text-primary);
 }
 
 .parsed-content p {
@@ -649,13 +649,13 @@ onMounted(() => {
 
 .parsed-content th,
 .parsed-content td {
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--color-sand);
   padding: 8px 12px;
   text-align: left;
 }
 
 .parsed-content th {
-  background-color: #f9fafb;
+  background-color: var(--bg-secondary);
   font-weight: 600;
 }
 

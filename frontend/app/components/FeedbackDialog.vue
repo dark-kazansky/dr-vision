@@ -139,7 +139,7 @@ onMounted(() => {
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(0, 0, 0, 0.5);
+  background-color: rgba(32, 21, 21, 0.5);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -148,9 +148,8 @@ onMounted(() => {
 }
 
 .modal-container {
-  background: white;
-  border-radius: 12px;
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  background: var(--color-cream);
+  border-radius: var(--radius-comfortable);
   max-width: 500px;
   width: 100%;
   max-height: 90vh;
@@ -163,20 +162,20 @@ onMounted(() => {
   align-items: center;
   justify-content: space-between;
   padding: 20px 24px;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--color-sand);
 }
 
 .modal-title {
   font-size: 18px;
   font-weight: 600;
-  color: #111827;
+  color: var(--text-primary);
   margin: 0;
 }
 
 .modal-close {
   background: none;
   border: none;
-  color: #6b7280;
+  color: var(--text-secondary);
   cursor: pointer;
   padding: 4px;
   display: flex;
@@ -187,8 +186,8 @@ onMounted(() => {
 }
 
 .modal-close:hover {
-  background-color: #f3f4f6;
-  color: #111827;
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
 }
 
 .modal-body {
@@ -209,34 +208,33 @@ onMounted(() => {
   display: block;
   font-size: 14px;
   font-weight: 500;
-  color: #374151;
+  color: var(--text-secondary);
   margin-bottom: 8px;
 }
 
 .form-select {
   width: 100%;
   padding: 10px 12px;
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--color-sand);
   border-radius: 8px;
   font-size: 14px;
-  color: #111827;
-  background-color: white;
+  color: var(--text-primary);
+  background-color: var(--color-cream);
   transition: all 0.2s;
 }
 
 .form-select:focus {
   outline: none;
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  border-color: var(--color-orange);
 }
 
 .form-textarea {
   width: 100%;
   padding: 10px 12px;
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--color-sand);
   border-radius: 8px;
   font-size: 14px;
-  color: #111827;
+  color: var(--text-primary);
   font-family: inherit;
   resize: vertical;
   transition: all 0.2s;
@@ -244,12 +242,11 @@ onMounted(() => {
 
 .form-textarea:focus {
   outline: none;
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  border-color: var(--color-orange);
 }
 
 .form-textarea::placeholder {
-  color: #9ca3af;
+  color: var(--text-tertiary);
 }
 
 .error-message {
@@ -278,17 +275,17 @@ onMounted(() => {
   justify-content: flex-end;
   gap: 12px;
   padding: 16px 24px;
-  border-top: 1px solid #e5e7eb;
+  border-top: 1px solid var(--color-sand);
 }
 
 .btn-secondary {
   padding: 10px 20px;
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--color-sand);
   border-radius: 8px;
   font-size: 14px;
   font-weight: 500;
-  color: #374151;
-  background-color: white;
+  color: var(--text-secondary);
+  background-color: var(--color-cream);
   cursor: pointer;
   transition: all 0.2s;
 }
@@ -304,7 +301,7 @@ onMounted(() => {
   border-radius: 8px;
   font-size: 14px;
   font-weight: 500;
-  color: white;
+  color: var(--color-cream);
   background-color: #3b82f6;
   cursor: pointer;
   transition: all 0.2s;

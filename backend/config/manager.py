@@ -86,6 +86,12 @@ class Config:
         # Load YAML file
         config_file = Path(config_path)
         if not config_file.exists():
+            # Fallback: look for the YAML bundled alongside this package.
+            # Lets msbe services boot without the monolith's CWD layout.
+            bundled = Path(__file__).resolve().parent / 'settings.yaml'
+            if bundled.exists():
+                config_file = bundled
+        if not config_file.exists():
             raise ConfigurationError(f"Configuration file not found: {config_path}")
         
         try:

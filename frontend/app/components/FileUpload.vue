@@ -143,23 +143,23 @@ const handleFileSelect = (e: Event) => {
 
 <style scoped>
 .file-upload {
-  border: 2px dashed #cbd5e0;
+  border: 2px dashed var(--color-sand);
   border-radius: 0.5rem;
   padding: 2rem;
   text-align: center;
   transition: all 0.3s ease;
-  background-color: #f7fafc;
+  background-color: var(--color-cream);
   cursor: pointer;
 }
 
 .file-upload:hover {
-  border-color: #4299e1;
-  background-color: #ebf8ff;
+  border-color: var(--color-sand-mid);
+  background-color: var(--color-cream-alt);
 }
 
 .file-upload.drag-over {
-  border-color: #4299e1;
-  background-color: #ebf8ff;
+  border-color: var(--color-orange);
+  background-color: rgba(255, 79, 0, 0.03);
   transform: scale(1.02);
 }
 
@@ -173,19 +173,19 @@ const handleFileSelect = (e: Event) => {
 .upload-icon {
   width: 3rem;
   height: 3rem;
-  color: #4299e1;
+  color: var(--accent-orange);
 }
 
 .upload-title {
   font-size: 1.125rem;
   font-weight: 600;
-  color: #2d3748;
+  color: var(--text-primary);
   margin: 0;
 }
 
 .upload-subtitle {
   font-size: 0.875rem;
-  color: #718096;
+  color: var(--text-tertiary);
   margin: 0;
 }
 
@@ -194,8 +194,8 @@ const handleFileSelect = (e: Event) => {
 }
 
 .upload-button {
-  background-color: #4299e1;
-  color: white;
+  background-color: var(--accent-orange);
+  color: var(--color-cream);
   padding: 0.5rem 1.5rem;
   border-radius: 0.375rem;
   border: none;
@@ -205,11 +205,11 @@ const handleFileSelect = (e: Event) => {
 }
 
 .upload-button:hover {
-  background-color: #3182ce;
+  background-color: #e54700;
 }
 
 .error-message {
-  color: #e53e3e;
+  color: #c54444;
   font-size: 0.875rem;
   margin: 0;
   max-width: 100%;

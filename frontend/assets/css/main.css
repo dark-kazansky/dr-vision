@@ -5,42 +5,57 @@
 /* Global Styles for OCR Web UI */
 
 :root {
-  /* Color Palette */
-  --color-primary: #4299e1;
-  --color-primary-dark: #3182ce;
-  --color-secondary: #667eea;
-  --color-success: #48bb78;
-  --color-warning: #ed8936;
-  --color-error: #e53e3e;
-  
-  /* Neutral Colors */
-  --color-gray-50: #f7fafc;
-  --color-gray-100: #edf2f7;
-  --color-gray-200: #e2e8f0;
-  --color-gray-300: #cbd5e0;
-  --color-gray-400: #a0aec0;
-  --color-gray-500: #718096;
-  --color-gray-600: #4a5568;
-  --color-gray-700: #2d3748;
-  --color-gray-800: #1a202c;
-  --color-gray-900: #171923;
-  
-  /* Spacing */
-  --spacing-xs: 0.25rem;
-  --spacing-sm: 0.5rem;
-  --spacing-md: 1rem;
-  --spacing-lg: 1.5rem;
-  --spacing-xl: 2rem;
-  
-  /* Border Radius */
-  --radius-sm: 0.25rem;
-  --radius-md: 0.375rem;
-  --radius-lg: 0.5rem;
-  
-  /* Shadows */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 1px 3px rgba(0, 0, 0, 0.1);
-  --shadow-lg: 0 4px 6px rgba(0, 0, 0, 0.1);
+  /* Design System Color Palette */
+  --color-cream: #fffefb;
+  --color-cream-alt: #fffdf9;
+  --color-black: #201515;
+  --color-orange: #ff4f00;
+  --color-charcoal: #36342e;
+  --color-gray: #939084;
+  --color-sand: #c5c0b1;
+  --color-sand-light: #eceae3;
+  --color-sand-mid: #b5b2aa;
+
+  /* Semantic Aliases */
+  --bg-primary: #fffefb;
+  --bg-secondary: #fffdf9;
+  --bg-tertiary: #eceae3;
+  --text-primary: #201515;
+  --text-secondary: #36342e;
+  --text-tertiary: #939084;
+  --border-color: #c5c0b1;
+  --border-light: #eceae3;
+  --accent-orange: #ff4f00;
+  --accent-green: #22c55e;
+
+  /* Border Radius Scale */
+  --radius-tight: 3px;
+  --radius-standard: 4px;
+  --radius-content: 5px;
+  --radius-comfortable: 8px;
+  --radius-social: 14px;
+  --radius-pill: 20px;
+
+  /* Spacing (8px base unit) */
+  --space-1: 1px;
+  --space-4: 4px;
+  --space-6: 6px;
+  --space-8: 8px;
+  --space-10: 10px;
+  --space-12: 12px;
+  --space-16: 16px;
+  --space-20: 20px;
+  --space-24: 24px;
+  --space-32: 32px;
+  --space-40: 40px;
+  --space-48: 48px;
+  --space-56: 56px;
+  --space-64: 64px;
+  --space-72: 72px;
+
+  /* Font Tokens */
+  --font-display: 'Degular Display', 'Inter', Helvetica, Arial, sans-serif;
+  --font-editorial: 'GT Alpina', Georgia, 'Times New Roman', serif;
 }
 
 /* Reset and Base Styles */
@@ -50,13 +65,11 @@
 
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
+  font-family: 'Inter', Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  color: var(--color-gray-800);
-  background-color: var(--color-gray-50);
+  color: var(--text-primary);
+  background-color: var(--bg-primary);
 }
 
 /* Typography */
@@ -64,6 +77,7 @@ h1, h2, h3, h4, h5, h6 {
   margin: 0;
   font-weight: 600;
   line-height: 1.2;
+  color: var(--text-primary);
 }
 
 h1 {
@@ -119,16 +133,16 @@ p {
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--color-gray-100);
+  background: var(--color-cream-alt);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--color-gray-300);
-  border-radius: var(--radius-md);
+  background: var(--color-sand);
+  border-radius: 5px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-gray-400);
+  background: var(--color-sand-mid);
 }
 
 /* Focus Styles */
@@ -137,7 +151,7 @@ p {
 }
 
 *:focus-visible {
-  outline: 2px solid var(--color-primary);
+  outline: 2px solid var(--color-orange);
   outline-offset: 2px;
 }
 
@@ -166,10 +180,10 @@ p {
 
 /* Card Styles */
 .card {
-  background: white;
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-md);
-  padding: var(--spacing-lg);
+  background: var(--color-cream);
+  border: 1px solid var(--color-sand);
+  border-radius: var(--radius-content);
+  padding: var(--space-24);
 }
 
 /* Button Base Styles */
@@ -194,16 +208,22 @@ textarea {
   font-family: inherit;
   font-size: 1rem;
   padding: 0.5rem 0.75rem;
-  border: 1px solid var(--color-gray-300);
-  border-radius: var(--radius-md);
+  border: 1px solid var(--color-sand);
+  border-radius: var(--radius-content);
+  background-color: var(--color-cream);
+  color: var(--text-primary);
   transition: border-color 0.2s ease;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-tertiary);
 }
 
 input:focus,
 select:focus,
 textarea:focus {
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.1);
+  border-color: var(--color-orange);
 }
 
 /* Responsive Utilities */

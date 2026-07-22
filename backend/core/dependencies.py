@@ -66,7 +66,7 @@ def get_classifier(
 
     Args:
         config: Application configuration (injected).
-        tier: Processing tier (Rapid, Normal, Advance, Multimodal).
+        tier: Processing tier (Rapid, Normal, Advance).
 
     Returns:
         Classifier instance ready for use.

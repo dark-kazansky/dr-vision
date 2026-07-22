@@ -42,7 +42,7 @@ class BedrockLLMAgent(BaseLLMAgent):
             parts = model_id.split(":")
             if len(parts) >= 4 and parts[3]:
                 return parts[3]
-        return region or os.getenv("BEDROCK_REGION", "ap-southeast-2")
+        return region or os.getenv("BEDROCK_REGION") or os.getenv("AWS_REGION", "ap-southeast-1")
 
     def generate(
         self,

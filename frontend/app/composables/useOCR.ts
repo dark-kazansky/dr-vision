@@ -209,7 +209,6 @@ export function useOCR() {
       formData.append('tier', config.tier)
       formData.append('max_pages', config.maxPages.toString())
       formData.append('classification_rules', JSON.stringify(config.classificationRules))
-      formData.append('is_multimodal', config.isMultimodal.toString())
       
       // Make API request with abort signal
       const response = await $fetch<any>(`${apiBaseUrl}/classify`, {

@@ -10,9 +10,16 @@
       @submit="handleFeedbackSubmit"
     />
     
+    <!-- Key Dialog -->
+    <KeyDialog
+      :is-open="showKeyDialog"
+      @close="showKeyDialog = false"
+      @update="handleKeyUpdate"
+    />
+
     <!-- Help Dialog -->
-    <HelpDialog 
-      :is-open="showHelpDialog" 
+    <HelpDialog
+      :is-open="showHelpDialog"
       :current-tab="getTabName(activeView)"
       @close="showHelpDialog = false"
     />
@@ -41,8 +48,8 @@
     <!-- Top Bar -->
     <div class="top-bar">
       <div class="logo logo-clickable">
-        <img src="/assets/logo.png" alt="Dr.Vision" class="logo-icon" @click="handleRefresh" />
-        <span class="logo-text" @click="handleRefresh">Dr.Vision</span>
+        <img src="/assets/logo.png" alt="M.DocAI" class="logo-icon" @click="handleRefresh" />
+        <span class="logo-text" @click="handleRefresh">M<span class="logo-dot">.</span>DocAI</span>
       </div>
       <div class="top-bar-actions">
         <button class="top-bar-btn" @click="handleDeploy">
@@ -56,6 +63,12 @@
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
           </svg>
           Feedback
+        </button>
+        <button class="top-bar-btn" @click="handleKey">
+          <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.97 5.95M15 7a2 2 0 1 0-4 0m4 0a2 2 0 1 1-4 0m4 0v5m0 0H9m6 0v2a2 2 0 1 1-4 0m4-2v-5" />
+          </svg>
+          Key
         </button>
         <button class="top-bar-btn" @click="handleHelp">
           <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -114,6 +127,18 @@
             <path d="m16 12 5 3-5 3v-6Z"></path>
           </svg>
           Doc Journey
+        </a>
+        <a href="#" class="nav-item" :class="{ active: activeView === 'jobs' }" @click.prevent="activeView = 'jobs'">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="4" width="18" height="4" rx="1"></rect>
+            <rect x="3" y="10" width="18" height="4" rx="1"></rect>
+            <rect x="3" y="16" width="18" height="4" rx="1"></rect>
+            <line x1="7" x2="7.01" y1="6" y2="6"></line>
+            <line x1="7" x2="7.01" y1="12" y2="12"></line>
+            <line x1="7" x2="7.01" y1="18" y2="18"></line>
+          </svg>
+          Jobs
+          <span v-if="runningJobsCount > 0" class="nav-item-badge">{{ runningJobsCount }}</span>
         </a>
       </div>
 
@@ -703,6 +728,9 @@
       
       <!-- Journey View -->
       <JourneyWorkflow v-if="activeView === 'journey'" />
+
+      <!-- Jobs View -->
+      <JobsView v-if="activeView === 'jobs'" />
     </div>
   </div>
 </template>
@@ -715,8 +743,10 @@ import ConfigPanel from '~/components/ConfigPanel.vue'
 import ClassifyConfigPanel from '~/components/ClassifyConfigPanel.vue'
 import SplitConfigPanel from '~/components/SplitConfigPanel.vue'
 import JourneyWorkflow from '~/components/JourneyWorkflow.vue'
+import JobsView from '~/components/JobsView.vue'
 import HelpDialog from '~/components/HelpDialog.vue'
 import DeployDialog from '~/components/DeployDialog.vue'
+import KeyDialog from '~/components/KeyDialog.vue'
 
 // Composables
 const {
@@ -752,6 +782,11 @@ const {
 
 // Local state
 const activeView = ref('parse') // 'parse' or 'extraction'
+
+// Jobs tab badge — running + queued count
+const { stats: jobsStats } = useJobs()
+const runningJobsCount = computed(() => jobsStats.value.running + jobsStats.value.queued)
+
 const selectedFile = ref<any>(null)
 const uploadedFiles = ref<Map<string, File>>(new Map())
 const previewFileUrl = ref<string>('')
@@ -1371,10 +1406,15 @@ const handleRefresh = async () => {
 
 const showFeedbackDialog = ref(false)
 const showHelpDialog = ref(false)
+const showKeyDialog = ref(false)
 const showDeployDialog = ref(false)
 
 const handleFeedback = () => {
   showFeedbackDialog.value = true
+}
+
+const handleKey = () => {
+  showKeyDialog.value = true
 }
 
 const handleHelp = () => {
@@ -1385,13 +1425,20 @@ const handleDeploy = () => {
   showDeployDialog.value = true
 }
 
+const handleKeyUpdate = (token: string) => {
+  // Send the new token to the backend
+  console.log('Updating AWS Bearer Token')
+  // The token will be stored in the backend via an API call
+}
+
 const getTabName = (view: string) => {
   const tabNames: Record<string, string> = {
     'parse': 'Parse',
     'classify': 'Classify',
     'extraction': 'Extract',
     'split': 'Split',
-    'journey': 'Doc Journey'
+    'journey': 'Doc Journey',
+    'jobs': 'Jobs'
   }
   return tabNames[view] || 'Parse'
 }

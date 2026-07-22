@@ -119,20 +119,20 @@ const handleChange = (event: Event) => {
   margin-bottom: 0.5rem;
   font-size: 0.875rem;
   font-weight: 500;
-  color: #4a5568;
+  color: var(--text-secondary);
 }
 
 .help-icon {
   display: inline-flex;
   align-items: center;
   cursor: help;
-  color: #718096;
+  color: var(--text-tertiary);
   transition: color 0.2s;
   position: relative;
 }
 
 .help-icon:hover {
-  color: #4299e1;
+  color: var(--accent-orange);
 }
 
 .help-icon svg {
@@ -196,14 +196,14 @@ const handleChange = (event: Event) => {
 }
 
 .radio-option:hover:not(:has(input:disabled)) {
-  background-color: #f7fafc;
+  background-color: var(--bg-secondary);
 }
 
 .radio-option input[type="radio"] {
   width: 1rem;
   height: 1rem;
   cursor: pointer;
-  accent-color: #4299e1;
+  accent-color: var(--accent-orange);
 }
 
 .radio-option input[type="radio"]:disabled {
@@ -216,11 +216,11 @@ const handleChange = (event: Event) => {
   align-items: center;
   gap: 0.375rem;
   font-size: 0.875rem;
-  color: #2d3748;
+  color: var(--text-primary);
 }
 
 .radio-option:has(input:disabled) .radio-label {
-  color: #a0aec0;
+  color: var(--text-tertiary);
   cursor: not-allowed;
 }
 </style>

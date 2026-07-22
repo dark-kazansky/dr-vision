@@ -144,7 +144,7 @@ const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
 const copied = ref(false)
-const baseUrl = ref('http://localhost:8000')
+const baseUrl = ref('http://mdocai.msb.com.vn:8000')
 
 const parseApiExample = computed(() => `curl -X POST "${baseUrl.value}/api/parse" \\
   -H "Content-Type: multipart/form-data" \\
@@ -225,7 +225,7 @@ const close = () => {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(32, 21, 21, 0.5);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -234,9 +234,8 @@ const close = () => {
 }
 
 .modal-container {
-  background: white;
-  border-radius: 0.75rem;
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+  background: var(--color-cream);
+  border-radius: var(--radius-comfortable);
   max-width: 700px;
   width: 100%;
   max-height: 85vh;
@@ -253,13 +252,13 @@ const close = () => {
   align-items: center;
   justify-content: space-between;
   padding: 1.5rem;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--color-sand);
 }
 
 .modal-title {
   font-size: 1.25rem;
   font-weight: 600;
-  color: #111827;
+  color: var(--text-primary);
   margin: 0;
 }
 
@@ -271,14 +270,14 @@ const close = () => {
   background: transparent;
   border: none;
   border-radius: 0.375rem;
-  color: #6b7280;
+  color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.15s;
 }
 
 .modal-close:hover {
-  background: #f3f4f6;
-  color: #111827;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
 }
 
 .modal-body {
@@ -288,19 +287,19 @@ const close = () => {
 }
 
 .deploy-content {
-  color: #374151;
+  color: var(--text-secondary);
 }
 
 .api-section h3 {
   font-size: 1.125rem;
   font-weight: 600;
-  color: #111827;
+  color: var(--text-primary);
   margin: 0 0 0.5rem 0;
 }
 
 .api-description {
   margin: 0 0 1.5rem 0;
-  color: #6b7280;
+  color: var(--text-secondary);
   line-height: 1.6;
 }
 
@@ -383,16 +382,16 @@ const close = () => {
   justify-content: flex-end;
   gap: 0.75rem;
   padding: 1.5rem;
-  border-top: 1px solid #e5e7eb;
+  border-top: 1px solid var(--color-sand);
 }
 
 .btn-secondary {
   padding: 0.625rem 1.25rem;
   font-size: 0.875rem;
   font-weight: 500;
-  color: #374151;
-  background: white;
-  border: 1px solid #d1d5db;
+  color: var(--text-secondary);
+  background: var(--color-cream);
+  border: 1px solid var(--color-sand);
   border-radius: 0.5rem;
   cursor: pointer;
   transition: all 0.15s;

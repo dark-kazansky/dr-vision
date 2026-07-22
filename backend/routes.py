@@ -13,10 +13,12 @@ import logging
 import os
 import json
 import threading
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
 from core import Config, ConfigurationError
+from config.tier_config import TierConfig
 from core.utils import allowed_file, secure_save_file, validate_file_path
 from core.agent_factory import AgentFactory
 from core.middleware import FileSizeValidator
@@ -186,7 +188,9 @@ async def parse_document(
                 _extractor_model, _config, _job_id,
             ):
                 try:
-                    ocr_agent = AgentFactory.create_from_config(_config, _model_id)
+                    from config.tier_config import TierConfig as _TC
+                    _bm, _bp = _TC.get_parser_model_spec("Normal")
+                    ocr_agent = AgentFactory.create_ocr_from_spec(_bm, _bp, _config)
                     parser = Parser(ocr_agent=ocr_agent)
                     result = parser.parse(_file_path, _force_ocr)
 
@@ -251,7 +255,9 @@ async def parse_document(
                                 fields=fields,
                                 target=ExtractionTarget(_extraction_target or "document"),
                             )
-                            llm_agent = AgentFactory.create_llm_agent(_extractor_model, config=_config)
+                            from config.tier_config import TierConfig as _TC
+                            _em2, _ep2 = _TC.get_extractor_model_spec("Normal")
+                            llm_agent = AgentFactory.create_llm_from_spec(_em2, _ep2, _config)
                             extractor = Extractor(agent=llm_agent)
                             extract_result = extractor.extract(text, extraction_config)
                             if extract_result.success:
@@ -298,7 +304,8 @@ async def parse_document(
 
         # --- Standard synchronous path (below threshold or non-PDF) ---
         # Create OCR agent
-        ocr_agent = AgentFactory.create_from_config(config, model_id)
+        _parser_model_id, _parser_provider = TierConfig.get_parser_model_spec(tier)
+        ocr_agent = AgentFactory.create_ocr_from_spec(_parser_model_id, _parser_provider, config)
         
         # Create parser
         parser = Parser(ocr_agent=ocr_agent)
@@ -383,7 +390,8 @@ async def parse_document(
                 )
                 
                 # Extract data
-                llm_agent = AgentFactory.create_llm_agent(extractor_model, config=config)
+                _ext_model, _ext_provider = TierConfig.get_extractor_model_spec(tier)
+                llm_agent = AgentFactory.create_llm_from_spec(_ext_model, _ext_provider, config)
                 extractor = Extractor(agent=llm_agent)
                 extract_result = await asyncio.to_thread(extractor.extract, text, extraction_config)
                 
@@ -455,7 +463,7 @@ async def classify_document(
         parser_model_id: OCR model ID
         classifier_model_id: LLM model ID for classification (optional, uses tier config if not provided)
         classification_rules: JSON string with classification rules
-        tier: Processing tier (Rapid, Normal, Advance, Multimodal)
+        tier: Processing tier (Rapid, Normal, Advance)
         max_pages: Maximum number of pages to process
         is_multimodal: Whether to use multimodal processing
         config: Configuration instance
@@ -477,9 +485,10 @@ async def classify_document(
     # Use tier config if classifier_model_id not provided
     if not classifier_model_id:
         from config import TierConfig
-        classifier_model_id = TierConfig.get_classifier_llm_model(tier)
+        classifier_model_id, _clf_provider = TierConfig.get_classifier_llm_model_spec(tier)
         logger.info("Using classifier model from tier config: %s for tier: %s", classifier_model_id, tier)
     else:
+        _clf_provider = None
         logger.info("Using provided classifier model: %s", classifier_model_id)
     
     # Validate file
@@ -588,33 +597,20 @@ async def classify_document(
         # Step 1: Parse document
         logger.info("Parsing document with model: %s", parser_model_id)
         
-        # Check if model exists
-        if parser_model_id not in config.models:
-            raise HTTPException(
-                status_code=400, 
-                detail=f"Parser model '{parser_model_id}' not found in configuration. Available models: {', '.join(config.models.keys())}"
-            )
-        
-        ocr_agent = AgentFactory.create_from_config(config, parser_model_id)
+        _p_model, _p_provider = TierConfig.get_parser_model_spec(tier)
+        ocr_agent = AgentFactory.create_ocr_from_spec(_p_model, _p_provider, config)
         parser = Parser(ocr_agent=ocr_agent)
         parse_result = await asyncio.to_thread(parser.parse, file_path)
-        
+
         if not parse_result.success:
             raise HTTPException(status_code=500, detail=f"Parse failed: {parse_result.error}")
-        
+
         logger.info("Parse successful, text length: %d", len(parse_result.text))
-        
+
         # Step 2: Classify
         logger.info("Classifying with model: %s, rules: %d", classifier_model_id, len(rules))
-        
-        # Check if model exists
-        if classifier_model_id not in config.models:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Classifier model '{classifier_model_id}' not found in configuration. Available models: {', '.join(config.models.keys())}"
-            )
-        
-        llm_agent = AgentFactory.create_llm_agent(classifier_model_id, config=config)
+
+        llm_agent = AgentFactory.create_llm_from_spec(classifier_model_id, _clf_provider, config)
         classifier = Classifier(agent=llm_agent)
         classify_result = await asyncio.to_thread(classifier.classify, parse_result.text, rules)
         
@@ -700,7 +696,8 @@ async def classify_text(
     # If an explicit model was provided, create a custom classifier instead of using the injected one
     if classifier_model_id:
         logger.info("Using provided classifier model: %s", classifier_model_id)
-        llm_agent = AgentFactory.create_llm_agent(classifier_model_id, config=config)
+        _cm, _cp = TierConfig.get_classifier_llm_model_spec(tier)
+        llm_agent = AgentFactory.create_llm_from_spec(_cm, _cp, config)
         classifier = Classifier(agent=llm_agent)
     
     # Parse classification rules
@@ -775,9 +772,10 @@ async def generate_schema(
             file_path = await secure_save_file(file, upload_folder)
             
             # Parse file to get sample text
-            ocr_model_id = config.get_available_models()[0] if config.get_available_models() else None
-            if ocr_model_id:
-                ocr_agent = AgentFactory.create_from_config(config, ocr_model_id)
+            from config import TierConfig as _TC2
+            _sgm, _sgp = _TC2.get_parser_model_spec(tier)
+            if _sgm:
+                ocr_agent = AgentFactory.create_ocr_from_spec(_sgm, _sgp, config)
                 parser = Parser(ocr_agent=ocr_agent)
                 parse_result = await asyncio.to_thread(parser.parse, file_path)
                 
@@ -786,10 +784,10 @@ async def generate_schema(
         
         # Get model from extractor tier configuration
         from config import TierConfig
-        model_id = TierConfig.get_extractor_model(tier)
-        
+        model_id, _ext_prov = TierConfig.get_extractor_model_spec(tier)
+
         # Generate schema (non-blocking)
-        llm_agent = AgentFactory.create_llm_agent(model_id, config=config)
+        llm_agent = AgentFactory.create_llm_from_spec(model_id, _ext_prov, config)
         schema_gen = SchemaGenerator(agent=llm_agent)
         result = await asyncio.to_thread(schema_gen.generate, sample_text or "", prompt)
         
@@ -862,14 +860,16 @@ async def extract_data(
     
     try:
         # Step 1: Parse document (non-blocking)
-        ocr_agent = AgentFactory.create_from_config(config, parser_model_id)
+        _pm, _pp = TierConfig.get_parser_model_spec("Normal")
+        ocr_agent = AgentFactory.create_ocr_from_spec(_pm, _pp, config)
         parser = Parser(ocr_agent=ocr_agent)
         parse_result = await asyncio.to_thread(parser.parse, file_path)
-        
+
         if not parse_result.success:
             raise HTTPException(status_code=500, detail=parse_result.error)
-        
-        llm_agent = AgentFactory.create_llm_agent(extractor_model_id, config=config)
+
+        _em, _ep = TierConfig.get_extractor_model_spec("Normal")
+        llm_agent = AgentFactory.create_llm_from_spec(_em, _ep, config)
         
         # Step 2: Generate schema if requested (non-blocking)
         if generate_schema and schema_prompt:
@@ -945,10 +945,10 @@ async def extract_text(
         JSON response with extracted data
     """
     try:
-        # If an explicit model was provided (non-default), create a custom extractor
-        if extractor_model_id != "gemini-2.5-flash":
-            llm_agent = AgentFactory.create_llm_agent(extractor_model_id, config=config)
-            extractor = Extractor(agent=llm_agent)
+        # Always use tier-based extractor
+        _etm, _etp = TierConfig.get_extractor_model_spec(tier)
+        llm_agent = AgentFactory.create_llm_from_spec(_etm, _etp, config)
+        extractor = Extractor(agent=llm_agent)
 
         # Parse schema
         schema_data = json.loads(extraction_schema)
@@ -1050,8 +1050,8 @@ async def split_document(
     
     # Get splitter model from tier configuration
     from config import TierConfig
-    splitter_model_id = TierConfig.get_splitter_model(splitter_tier)
-    
+    splitter_model_id, _spl_prov = TierConfig.get_splitter_model_spec(splitter_tier)
+
     # Save file
     upload_config = config.upload_config
     upload_folder = upload_config.get('folder', 'uploads')
@@ -1059,10 +1059,10 @@ async def split_document(
         file_path = await secure_save_file(file, upload_folder)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to save file: {str(e)}")
-    
+
     try:
         # Use Splitter class for consistent splitting approach
-        vlm_agent = AgentFactory.create_vlm_agent(splitter_model_id, config=config)
+        vlm_agent = AgentFactory.create_vlm_from_spec(splitter_model_id, _spl_prov, config)
         splitter = Splitter(agent=vlm_agent)
         
         if split_mode == "document_type":
@@ -1628,9 +1628,9 @@ async def execute_workflow(
 async def execute_parse_step(file_path: str, tier: str, step_config: dict, config: Config):
     """Execute parse step."""
     from config import TierConfig
-    model_id = TierConfig.get_parser_model(tier)
-    
-    ocr_agent = AgentFactory.create_from_config(config, model_id)
+    model_id, provider = TierConfig.get_parser_model_spec(tier)
+
+    ocr_agent = AgentFactory.create_ocr_from_spec(model_id, provider, config)
     parser = Parser(ocr_agent=ocr_agent)
     
     parse_result = await asyncio.to_thread(parser.parse, file_path)
@@ -1648,19 +1648,19 @@ async def execute_parse_step(file_path: str, tier: str, step_config: dict, confi
 async def execute_classify_step(file_path: str, tier: str, step_config: dict, config: Config):
     """Execute classify step."""
     from config import TierConfig
-    
+
     # Parse document first
-    parser_model_id = TierConfig.get_parser_model(tier)
-    ocr_agent = AgentFactory.create_from_config(config, parser_model_id)
+    parser_model_id, parser_provider = TierConfig.get_parser_model_spec(tier)
+    ocr_agent = AgentFactory.create_ocr_from_spec(parser_model_id, parser_provider, config)
     parser = Parser(ocr_agent=ocr_agent)
     parse_result = await asyncio.to_thread(parser.parse, file_path)
-    
+
     if not parse_result.success:
         raise Exception(f"Parse failed: {parse_result.error}")
-    
+
     # Classify
-    classifier_model_id = TierConfig.get_classifier_llm_model(tier)
-    llm_agent = AgentFactory.create_llm_agent(classifier_model_id, config=config)
+    classifier_model_id, clf_provider = TierConfig.get_classifier_llm_model_spec(tier)
+    llm_agent = AgentFactory.create_llm_from_spec(classifier_model_id, clf_provider, config)
     classifier = Classifier(agent=llm_agent)
     
     rules = [
@@ -1686,19 +1686,19 @@ async def execute_classify_step(file_path: str, tier: str, step_config: dict, co
 async def execute_extract_step(file_path: str, tier: str, step_config: dict, config: Config):
     """Execute extract step."""
     from config import TierConfig
-    
+
     # Parse document first
-    parser_model_id = TierConfig.get_parser_model(tier)
-    ocr_agent = AgentFactory.create_from_config(config, parser_model_id)
+    parser_model_id, parser_provider = TierConfig.get_parser_model_spec(tier)
+    ocr_agent = AgentFactory.create_ocr_from_spec(parser_model_id, parser_provider, config)
     parser = Parser(ocr_agent=ocr_agent)
     parse_result = await asyncio.to_thread(parser.parse, file_path)
-    
+
     if not parse_result.success:
         raise Exception(f"Parse failed: {parse_result.error}")
-    
+
     # Extract
-    extractor_model_id = TierConfig.get_extractor_model(tier)
-    llm_agent = AgentFactory.create_llm_agent(extractor_model_id, config=config)
+    extractor_model_id, ext_provider = TierConfig.get_extractor_model_spec(tier)
+    llm_agent = AgentFactory.create_llm_from_spec(extractor_model_id, ext_provider, config)
     extractor = Extractor(agent=llm_agent)
     
     # Build extraction config
@@ -1730,21 +1730,21 @@ async def execute_extract_step(file_path: str, tier: str, step_config: dict, con
 async def execute_split_step(file_path: str, tier: str, step_config: dict, config: Config):
     """Execute split step."""
     from config import TierConfig
-    
+
     # Get models
-    parser_model_id = TierConfig.get_parser_model(tier)
-    splitter_model_id = TierConfig.get_splitter_model(tier)
-    
+    parser_model_id, parser_provider = TierConfig.get_parser_model_spec(tier)
+    splitter_model_id, spl_provider = TierConfig.get_splitter_model_spec(tier)
+
     # Parse document
-    ocr_agent = AgentFactory.create_from_config(config, parser_model_id)
+    ocr_agent = AgentFactory.create_ocr_from_spec(parser_model_id, parser_provider, config)
     parser = Parser(ocr_agent=ocr_agent)
     parse_result = await asyncio.to_thread(parser.parse, file_path)
-    
+
     if not parse_result.success:
         raise Exception(f"Parse failed: {parse_result.error}")
-    
+
     # Split
-    vlm_agent = AgentFactory.create_vlm_agent(splitter_model_id, config=config)
+    vlm_agent = AgentFactory.create_vlm_from_spec(splitter_model_id, spl_provider, config)
     splitter = Splitter(agent=vlm_agent)
     
     categories = [
@@ -1785,3 +1785,86 @@ async def execute_split_step(file_path: str, tier: str, step_config: dict, confi
             for chunk in split_result.unknown_chunks or []
         ]
     }
+
+
+from pydantic import BaseModel
+
+class BedrockTokenRequest(BaseModel):
+    bearer_token: str
+    region: str = "ap-southeast-1"
+
+@router.post("/api/config/update-bedrock-token")
+async def update_bedrock_token(body: BedrockTokenRequest) -> JSONResponse:
+    """
+    Update AWS Bedrock token and region in environment variables.
+
+    Args:
+        bearer_token: AWS Bedrock API bearer token
+        region: AWS region (default: ap-southeast-1)
+
+    Returns:
+        Success confirmation
+    """
+    bearer_token = body.bearer_token
+    region = body.region
+    try:
+        # Update environment variables immediately (affects all new requests)
+        os.environ["AWS_BEARER_TOKEN_BEDROCK"] = bearer_token.strip()
+        os.environ["AWS_REGION"] = region
+        os.environ["BEDROCK_REGION"] = region
+
+        # Also try to update .env file if it exists
+        env_path = Path(__file__).parent / ".env"
+        if env_path.exists():
+            try:
+                # Read existing .env content
+                with open(env_path, 'r') as f:
+                    lines = f.readlines()
+
+                # Update or add the token and region lines
+                updated_lines = []
+                token_found = False
+                region_found = False
+                bedrock_region_found = False
+                for line in lines:
+                    if line.startswith("AWS_BEARER_TOKEN_BEDROCK="):
+                        updated_lines.append(f"AWS_BEARER_TOKEN_BEDROCK={bearer_token.strip()}\n")
+                        token_found = True
+                    elif line.startswith("AWS_REGION="):
+                        updated_lines.append(f"AWS_REGION={region}\n")
+                        region_found = True
+                    elif line.startswith("BEDROCK_REGION="):
+                        updated_lines.append(f"BEDROCK_REGION={region}\n")
+                        bedrock_region_found = True
+                    else:
+                        updated_lines.append(line)
+
+                # Add lines if they weren't found
+                if not token_found:
+                    updated_lines.append(f"AWS_BEARER_TOKEN_BEDROCK={bearer_token.strip()}\n")
+                if not region_found:
+                    updated_lines.append(f"AWS_REGION={region}\n")
+                if not bedrock_region_found:
+                    updated_lines.append(f"BEDROCK_REGION={region}\n")
+
+                # Write back to .env
+                with open(env_path, 'w') as f:
+                    f.writelines(updated_lines)
+
+                logger.info("Successfully updated AWS Bedrock credentials in .env file")
+            except Exception as e:
+                logger.warning("Failed to update .env file: %s", e)
+                # Continue anyway - environment variables are updated
+
+        return JSONResponse({
+            "success": True,
+            "message": "AWS Bedrock token updated successfully",
+            "region": region
+        })
+
+    except Exception as e:
+        logger.error("Failed to update Bedrock token: %s", e)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to update AWS credentials: {str(e)}"
+        )

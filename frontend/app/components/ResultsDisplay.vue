@@ -128,9 +128,8 @@ const formatParsed = (text: string | undefined): string => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: white;
+  background: var(--color-cream);
   border-radius: 0.5rem;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   overflow: hidden;
 }
 
@@ -139,14 +138,14 @@ const formatParsed = (text: string | undefined): string => {
   justify-content: space-between;
   align-items: center;
   padding: 1rem;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--color-sand);
 }
 
 .results-header h3 {
   margin: 0;
   font-size: 1rem;
   font-weight: 600;
-  color: #2d3748;
+  color: var(--text-primary);
 }
 
 .copy-button {
@@ -154,8 +153,8 @@ const formatParsed = (text: string | undefined): string => {
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem 1rem;
-  background-color: #4299e1;
-  color: white;
+  background-color: var(--accent-orange);
+  color: var(--color-cream);
   border: none;
   border-radius: 0.375rem;
   font-size: 0.875rem;
@@ -165,7 +164,7 @@ const formatParsed = (text: string | undefined): string => {
 }
 
 .copy-button:hover {
-  background-color: #3182ce;
+  background-color: #e54700;
 }
 
 .copy-button.copied {
@@ -185,7 +184,7 @@ const formatParsed = (text: string | undefined): string => {
   justify-content: center;
   flex: 1;
   padding: 3rem;
-  color: #a0aec0;
+  color: var(--text-tertiary);
 }
 
 .empty-icon,
@@ -203,12 +202,12 @@ const formatParsed = (text: string | undefined): string => {
   margin: 0.5rem 0;
   font-size: 1.125rem;
   font-weight: 500;
-  color: #4a5568;
+  color: var(--text-secondary);
 }
 
 .empty-subtitle {
   font-size: 0.875rem !important;
-  color: #a0aec0 !important;
+  color: var(--text-tertiary) !important;
   font-weight: 400 !important;
 }
 
@@ -232,7 +231,7 @@ const formatParsed = (text: string | undefined): string => {
 
 .error-message {
   margin: 1rem 0;
-  color: #4a5568;
+  color: var(--text-secondary);
   text-align: center;
   max-width: 500px;
 }
@@ -246,8 +245,8 @@ const formatParsed = (text: string | undefined): string => {
 
 .tabs {
   display: flex;
-  border-bottom: 1px solid #e2e8f0;
-  background-color: #f7fafc;
+  border-bottom: 1px solid var(--color-sand);
+  background-color: var(--bg-secondary);
 }
 
 .tab {
@@ -258,20 +257,21 @@ const formatParsed = (text: string | undefined): string => {
   border-bottom: 2px solid transparent;
   font-size: 0.875rem;
   font-weight: 500;
-  color: #718096;
+  color: var(--text-tertiary);
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .tab:hover {
-  color: #4299e1;
-  background-color: #ebf8ff;
+  color: var(--accent-orange);
+  background-color: var(--bg-tertiary);
 }
 
 .tab.active {
-  color: #4299e1;
-  border-bottom-color: #4299e1;
-  background-color: white;
+  color: var(--accent-orange);
+  border-bottom-color: transparent;
+  box-shadow: rgb(255, 79, 0) 0px -4px 0px 0px inset;
+  background-color: var(--color-cream);
 }
 
 .tab-content {
@@ -288,7 +288,7 @@ const formatParsed = (text: string | undefined): string => {
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
   font-size: 0.875rem;
   line-height: 1.6;
-  color: #2d3748;
+  color: var(--text-primary);
   white-space: pre-wrap;
   word-wrap: break-word;
 }
@@ -296,9 +296,9 @@ const formatParsed = (text: string | undefined): string => {
 .build-info {
   margin-bottom: 1.5rem;
   padding: 1rem;
-  background-color: #f7fafc;
+  background-color: var(--bg-secondary);
   border-radius: 0.375rem;
-  border-left: 4px solid #4299e1;
+  border-left: 4px solid var(--accent-orange);
 }
 
 .info-item {
@@ -313,11 +313,11 @@ const formatParsed = (text: string | undefined): string => {
 
 .info-label {
   font-weight: 600;
-  color: #4a5568;
+  color: var(--text-secondary);
   min-width: 80px;
 }
 
 .info-value {
-  color: #2d3748;
+  color: var(--text-primary);
 }
 </style>

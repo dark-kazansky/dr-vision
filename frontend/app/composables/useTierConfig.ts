@@ -145,8 +145,7 @@ export function useTierConfig() {
       const fallback: Record<string, string> = {
         'Rapid': '#FFB399',
         'Normal': '#FF8C5A',
-        'Advance': '#FF6F3C',
-        'Multimodal': '#E55A2B'
+        'Advance': '#FF6F3C'
       }
       return fallback[tier] || '#FF8C5A'
     }
@@ -171,8 +170,7 @@ export function useTierConfig() {
       classifier_llm: {
         'Rapid': 'lightonocr-2-1b',
         'Normal': 'claude-haiku',
-        'Advance': 'claude-sonnet',
-        'Multimodal': 'claude-sonnet'
+        'Advance': 'claude-sonnet'
       },
       schema_generator: {
         'Rapid': 'assistant',
@@ -187,14 +185,12 @@ export function useTierConfig() {
       descriptions: {
         'Rapid': 'Fast processing with good accuracy',
         'Normal': 'Balanced speed and quality',
-        'Advance': 'Highest quality processing',
-        'Multimodal': 'Direct vision processing'
+        'Advance': 'Highest quality processing'
       },
       colors: {
         'Rapid': '#FFB399',
         'Normal': '#FF8C5A',
-        'Advance': '#FF6F3C',
-        'Multimodal': '#E55A2B'
+        'Advance': '#FF6F3C'
       },
       tiers: ['Rapid', 'Normal', 'Advance']
     }

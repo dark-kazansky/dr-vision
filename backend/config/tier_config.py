@@ -37,7 +37,6 @@ class Tier(str, Enum):
     RAPID = "Rapid"
     NORMAL = "Normal"
     ADVANCE = "Advance"
-    MULTIMODAL = "Multimodal"
 
 
 class TierConfig:
@@ -63,12 +62,12 @@ class TierConfig:
     # Priority: Speed and accuracy balance
     
     PARSER_TIER_TO_MODEL: Dict[str, ModelSpec] = {
-        Tier.RAPID: {"model": "lightonocr-2-1b", "provider": "lmstudio"},                   
-        Tier.NORMAL: {"model": "claude-haiku", "provider": "bedrock"},            
-        Tier.ADVANCE: {"model": "claude-sonnet", "provider": "bedrock"},       
-        # Rapid: Local LM Studio LightOnOCR model
-        # Normal: Claude Haiku via AWS Bedrock
-        # Advance: Claude Sonnet via AWS Bedrock
+        Tier.RAPID: {"model": "claude-haiku-4-5-20251001-v1:0", "provider": "bedrock"},
+        Tier.NORMAL: {"model": "claude-sonnet-4-6", "provider": "bedrock"},
+        Tier.ADVANCE: {"model": "claude-opus-4-8", "provider": "bedrock"},
+        # Rapid: Claude Haiku via AWS Bedrock
+        # Normal: Claude Sonnet via AWS Bedrock
+        # Advance: Claude Opus via AWS Bedrock
     }
     
     # =============================================================================
@@ -78,9 +77,9 @@ class TierConfig:
     # Priority: Accuracy and reasoning
     
     EXTRACTOR_TIER_TO_MODEL: Dict[str, ModelSpec] = {
-        Tier.RAPID: {"model": "lightonocr-2-1b", "provider": "lmstudio"}, 
-        Tier.NORMAL: {"model": "claude-haiku", "provider": "bedrock"},     
-        Tier.ADVANCE: {"model": "claude-sonnet", "provider": "bedrock"},
+        Tier.RAPID: {"model": "claude-haiku-4-5-20251001-v1:0", "provider": "bedrock"},
+        Tier.NORMAL: {"model": "claude-sonnet-4-6", "provider": "bedrock"},
+        Tier.ADVANCE: {"model": "claude-opus-4-8", "provider": "bedrock"},
     }
     
     # =============================================================================
@@ -90,10 +89,9 @@ class TierConfig:
     # Priority: Classification accuracy
     
     CLASSIFIER_LLM_TIER_TO_MODEL: Dict[str, ModelSpec] = {
-        Tier.RAPID: {"model": "lightonocr-2-1b", "provider": "lmstudio"},    
-        Tier.NORMAL: {"model": "claude-haiku", "provider": "bedrock"},        
-        Tier.ADVANCE: {"model": "claude-sonnet", "provider": "bedrock"},   
-        Tier.MULTIMODAL: {"model": "claude-sonnet", "provider": "bedrock"}, 
+        Tier.RAPID: {"model": "claude-haiku-4-5-20251001-v1:0", "provider": "bedrock"},
+        Tier.NORMAL: {"model": "claude-sonnet-4-6", "provider": "bedrock"},
+        Tier.ADVANCE: {"model": "claude-opus-4-8", "provider": "bedrock"},
     }
     
     # =============================================================================
@@ -103,9 +101,9 @@ class TierConfig:
     # Priority: Vision and understanding
     
     SPLITTER_TIER_TO_MODEL: Dict[str, ModelSpec] = {
-        Tier.RAPID: {"model": "lightonocr-2-1b", "provider": "lmstudio"},    
-        Tier.NORMAL: {"model": "claude-haiku", "provider": "bedrock"},        
-        Tier.ADVANCE: {"model": "claude-sonnet", "provider": "bedrock"},   
+        Tier.RAPID: {"model": "claude-haiku-4-5-20251001-v1:0", "provider": "bedrock"},
+        Tier.NORMAL: {"model": "claude-sonnet-4-6", "provider": "bedrock"},
+        Tier.ADVANCE: {"model": "claude-opus-4-8", "provider": "bedrock"},
     }
     
     # =============================================================================
@@ -117,14 +115,12 @@ class TierConfig:
         Tier.RAPID: "Fast processing with good accuracy. Uses free/cheaper models.",
         Tier.NORMAL: "Balanced speed and quality. Recommended for most use cases.",
         Tier.ADVANCE: "Highest quality processing. Uses premium models for best results.",
-        Tier.MULTIMODAL: "Direct vision processing without OCR. Best for complex layouts.",
     }
     
     TIER_COLORS: Dict[str, str] = {
         Tier.RAPID: "#FFB399",      # Light orange
         Tier.NORMAL: "#FF8C5A",     # Medium orange
         Tier.ADVANCE: "#FF6F3C",    # Dark orange
-        Tier.MULTIMODAL: "#E55A2B", # Darker orange
     }
     
     # =============================================================================
@@ -176,7 +172,13 @@ class TierConfig:
 
         # Try to validate against settings.yaml
         try:
-            from backend.config.manager import Config
+            try:
+                # When importing inside the monolith (`backend/`).
+                from backend.config.manager import Config  # type: ignore
+            except ImportError:
+                # When the same package is installed as the shared lib
+                # under msbe (no `backend.` prefix on sys.path).
+                from config.manager import Config  # type: ignore
             config = Config.load()
             available_models = config.get_available_models()
 
