@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dr_vision_msbe"
+version = "0.2.0"
+description = "Shared library for the Dr.Vision MSBE microservice backend. Re-exports the monolith's agents/core/functions/config so both backends share a single source of truth."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "pydantic>=2.5",
+  "httpx>=0.27",
+  "pyyaml>=6.0",
+  "requests>=2.31",
+  "python-docx>=1.1",
+  "pypdfium2>=4.26",
+  "Pillow>=10.2",
+]
+
+[project.optional-dependencies]
+google = ["google-generativeai>=0.3"]
+openai = ["openai>=1.0"]
+bedrock = ["boto3>=1.34"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+# Include the mirrored monolith packages so `import core`, `import agents`,
+# `import functions`, `import config` work after `pip install -e msbe/shared`.
+include = [
+  "agents",
+  "agents.*",
+  "core",
+  "core.*",
+  "functions",
+  "functions.*",
+  "config",
+  "config.*",
+  "dr_vision_msbe",
+  "dr_vision_msbe.*",
+]
+
+[tool.setuptools.package-data]
+config = ["settings.yaml"]

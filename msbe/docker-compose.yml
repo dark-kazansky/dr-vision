@@ -1,0 +1,123 @@
+name: mdocai
+
+# M.DocAI MSBE microservice topology.
+# Build context is the msbe/ root so each Dockerfile can COPY the shared lib.
+
+services:
+  gateway:
+    build:
+      context: .
+      dockerfile: gateway/Dockerfile
+    image: mdocai-msbe/gateway:latest
+    environment:
+      - GATEWAY_PORT=${GATEWAY_PORT:-8090}
+      - AUTH_SERVICE_URL=http://auth:8006
+      - ORCHESTRATOR_SERVICE_URL=http://orchestrator:8091
+      - PARSER_SERVICE_URL=http://parser:8001
+      - CLASSIFIER_SERVICE_URL=http://classifier:8002
+      - EXTRACTOR_SERVICE_URL=http://extractor:8003
+      - SPLITTER_SERVICE_URL=http://splitter:8004
+      - SCHEMA_GENERATOR_SERVICE_URL=http://schema-generator:8005
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000,http://localhost:3001}
+    ports:
+      - "${GATEWAY_PORT:-8090}:8090"
+    depends_on:
+      - auth
+      - orchestrator
+
+  auth:
+    build:
+      context: .
+      dockerfile: services/auth/Dockerfile
+    image: mdocai-msbe/auth:latest
+    environment:
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-mdocai-dev-secret-change-in-production}
+      - JWT_ALGORITHM=${JWT_ALGORITHM:-HS256}
+      - JWT_EXPIRATION_MINUTES=${JWT_EXPIRATION_MINUTES:-30}
+      - AUTH_DATA_DIR=/app/data
+    volumes:
+      - auth-data:/app/data
+
+  orchestrator:
+    build:
+      context: .
+      dockerfile: services/orchestrator/Dockerfile
+    image: mdocai-msbe/orchestrator:latest
+    environment:
+      - PARSER_SERVICE_URL=http://parser:8001
+      - CLASSIFIER_SERVICE_URL=http://classifier:8002
+      - EXTRACTOR_SERVICE_URL=http://extractor:8003
+      - SPLITTER_SERVICE_URL=http://splitter:8004
+      - MSBE_DATA_DIR=/app/data
+    volumes:
+      - msbe-data:/app/data
+    depends_on:
+      - parser
+      - classifier
+      - extractor
+      - splitter
+
+  parser:
+    build:
+      context: .
+      dockerfile: services/parser/Dockerfile
+    image: mdocai-msbe/parser:latest
+    environment:
+      - POE_API_KEY=${POE_API_KEY:-}
+      - GOOGLE_STUDIO_API_KEY=${GOOGLE_STUDIO_API_KEY:-}
+
+  classifier:
+    build:
+      context: .
+      dockerfile: services/classifier/Dockerfile
+    image: mdocai-msbe/classifier:latest
+    environment:
+      - POE_API_KEY=${POE_API_KEY:-}
+      - GOOGLE_STUDIO_API_KEY=${GOOGLE_STUDIO_API_KEY:-}
+
+  extractor:
+    build:
+      context: .
+      dockerfile: services/extractor/Dockerfile
+    image: mdocai-msbe/extractor:latest
+    environment:
+      - POE_API_KEY=${POE_API_KEY:-}
+      - GOOGLE_STUDIO_API_KEY=${GOOGLE_STUDIO_API_KEY:-}
+
+  splitter:
+    build:
+      context: .
+      dockerfile: services/splitter/Dockerfile
+    image: mdocai-msbe/splitter:latest
+    environment:
+      - POE_API_KEY=${POE_API_KEY:-}
+      - GOOGLE_STUDIO_API_KEY=${GOOGLE_STUDIO_API_KEY:-}
+
+  schema-generator:
+    build:
+      context: .
+      dockerfile: services/schema-generator/Dockerfile
+    image: mdocai-msbe/schema-generator:latest
+    environment:
+      - POE_API_KEY=${POE_API_KEY:-}
+      - GOOGLE_STUDIO_API_KEY=${GOOGLE_STUDIO_API_KEY:-}
+
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    image: mdocai-msbe/frontend:latest
+    environment:
+      - NUXT_HOST=0.0.0.0
+      - NUXT_PORT=3000
+      - NUXT_PUBLIC_API_BASE_URL=http://localhost:8090
+    ports:
+      - "${FRONTEND_PORT:-3001}:3000"
+    depends_on:
+      - gateway
+
+volumes:
+  msbe-data:
+    driver: local
+  auth-data:
+    driver: local

@@ -72,9 +72,9 @@ const { notifications, removeNotification } = useNotification()
   min-width: 300px;
   max-width: 400px;
   padding: 1rem;
-  background: white;
+  background: var(--color-cream);
   border-radius: 0.5rem;
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  border: 1px solid var(--color-sand);
   pointer-events: auto;
   cursor: pointer;
   transition: all 0.2s;
@@ -82,7 +82,6 @@ const { notifications, removeNotification } = useNotification()
 
 .notification:hover {
   transform: translateY(-2px);
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
 }
 
 .notification-success {
@@ -90,7 +89,7 @@ const { notifications, removeNotification } = useNotification()
 }
 
 .notification-error {
-  border-left: 4px solid #ef4444;
+  border-left: 4px solid #c54444;
 }
 
 .notification-warning {
@@ -98,7 +97,7 @@ const { notifications, removeNotification } = useNotification()
 }
 
 .notification-info {
-  border-left: 4px solid #3b82f6;
+  border-left: 4px solid var(--accent-orange);
 }
 
 .notification-icon {
@@ -113,7 +112,7 @@ const { notifications, removeNotification } = useNotification()
 }
 
 .notification-error .notification-icon {
-  color: #ef4444;
+  color: #c54444;
 }
 
 .notification-warning .notification-icon {
@@ -121,14 +120,14 @@ const { notifications, removeNotification } = useNotification()
 }
 
 .notification-info .notification-icon {
-  color: #3b82f6;
+  color: var(--accent-orange);
 }
 
 .notification-message {
   flex: 1;
   font-size: 0.875rem;
   line-height: 1.5;
-  color: #1f2937;
+  color: var(--text-primary);
 }
 
 .notification-close {
@@ -140,14 +139,14 @@ const { notifications, removeNotification } = useNotification()
   background: transparent;
   border: none;
   border-radius: 0.25rem;
-  color: #6b7280;
+  color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .notification-close:hover {
-  background: #f3f4f6;
-  color: #1f2937;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
 }
 
 /* Transition animations */

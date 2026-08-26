@@ -11,13 +11,13 @@ export default defineNuxtConfig({
   
   runtimeConfig: {
     public: {
-      apiBaseUrl: process.env.API_BASE_URL || 'http://localhost:8082'
+      apiBaseUrl: process.env.API_BASE_URL || 'http://localhost:8090'
     }
   },
   
   app: {
     head: {
-      title: 'Dr.Vision - OCR Web UI',
+      title: 'M.DocAI - OCR Web UI',
       meta: [
         { charset: 'utf-8' },
         { name: 'viewport', content: 'width=device-width, initial-scale=1' },

@@ -210,6 +210,41 @@
 
       <!-- Control Panel -->
       <div class="control-panel">
+        <!-- Workflow management toolbar -->
+        <div class="panel-section workflow-mgmt-section">
+          <div class="section-header">
+            <h3>Workflow</h3>
+            <div class="workflow-mgmt-actions">
+              <button
+                class="workflow-mgmt-btn"
+                @click="handleSaveWorkflow"
+                :disabled="nodes.length === 0 || isProcessing"
+                title="Save current workflow"
+              >
+                <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                </svg>
+                Save
+              </button>
+              <button
+                class="workflow-mgmt-btn"
+                @click="showLoadDialog = true"
+                :disabled="isProcessing"
+                title="Load saved workflow"
+              >
+                <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3" />
+                </svg>
+                Load
+              </button>
+            </div>
+          </div>
+          <div v-if="currentWorkflowName" class="workflow-mgmt-current">
+            <span class="workflow-mgmt-current-label">Editing:</span>
+            <span class="workflow-mgmt-current-name">{{ currentWorkflowName }}</span>
+          </div>
+        </div>
+
         <div class="panel-section add-nodes-section">
           <div class="section-header">
             <h3>Add Nodes</h3>
@@ -856,6 +891,86 @@
         </div>
       </div>
     </div>
+
+    <!-- Save Workflow Dialog -->
+    <div v-if="showSaveDialog" class="results-modal-overlay" @click="showSaveDialog = false">
+      <div class="results-modal save-modal" @click.stop>
+        <div class="modal-header">
+          <h2>Save Workflow</h2>
+          <button class="modal-close" @click="showSaveDialog = false">×</button>
+        </div>
+        <div class="modal-body save-modal-body">
+          <label class="save-modal-label">Name</label>
+          <input
+            v-model="saveDialogName"
+            class="save-modal-input"
+            placeholder="My document workflow"
+            @keydown.enter="confirmSaveWorkflow"
+            ref="saveNameInputRef"
+          />
+          <label class="save-modal-label">Description (optional)</label>
+          <textarea
+            v-model="saveDialogDescription"
+            class="save-modal-textarea"
+            rows="3"
+            placeholder="What this workflow does, when to use it…"
+          ></textarea>
+        </div>
+        <div class="modal-footer">
+          <button class="modal-btn modal-btn-secondary" @click="showSaveDialog = false">Cancel</button>
+          <button
+            class="modal-btn modal-btn-primary"
+            :disabled="!saveDialogName.trim()"
+            @click="confirmSaveWorkflow"
+          >
+            Save
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Load Workflow Dialog -->
+    <div v-if="showLoadDialog" class="results-modal-overlay" @click="showLoadDialog = false">
+      <div class="results-modal load-modal" @click.stop>
+        <div class="modal-header">
+          <h2>Load Workflow</h2>
+          <button class="modal-close" @click="showLoadDialog = false">×</button>
+        </div>
+        <div class="modal-body load-modal-body">
+          <div v-if="savedWorkflows.length === 0" class="load-empty">
+            <p>No saved workflows yet.</p>
+            <p class="load-empty-hint">Build a workflow and click Save to add one.</p>
+          </div>
+          <div
+            v-for="wf in savedWorkflows"
+            :key="wf.id"
+            class="load-row"
+            @click="confirmLoadWorkflow(wf.id)"
+          >
+            <div class="load-row-main">
+              <div class="load-row-name">{{ wf.name }}</div>
+              <div v-if="wf.description" class="load-row-desc">{{ wf.description }}</div>
+              <div class="load-row-meta">
+                {{ wf.nodes.length }} node<template v-if="wf.nodes.length !== 1">s</template>
+                · saved {{ formatRelativeTime(wf.updatedAt) }}
+              </div>
+            </div>
+            <button
+              class="load-row-delete"
+              @click.stop="confirmDeleteWorkflow(wf.id)"
+              title="Delete saved workflow"
+            >
+              <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="modal-btn modal-btn-secondary" @click="showLoadDialog = false">Close</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -872,8 +987,78 @@ const {
   removeNode,
   clearWorkflow,
   updateNodeFiles,
-  executeWorkflow
+  executeWorkflow,
+  loadWorkflow
 } = useJourney()
+
+// Saved workflow store (localStorage-backed for now; backend swap is trivial)
+const workflowStore = useWorkflowStore()
+const showSaveDialog = ref(false)
+const showLoadDialog = ref(false)
+const saveDialogName = ref('')
+const saveDialogDescription = ref('')
+const saveNameInputRef = ref<HTMLInputElement | null>(null)
+const currentWorkflowId = ref<string | null>(null)
+const currentWorkflowName = ref<string>('')
+const savedWorkflows = computed(() => workflowStore.list())
+
+const handleSaveWorkflow = async () => {
+  // Pre-fill the name when re-saving an existing one
+  saveDialogName.value = currentWorkflowName.value || `Workflow ${new Date().toLocaleDateString()}`
+  saveDialogDescription.value = ''
+  showSaveDialog.value = true
+  await nextTick()
+  saveNameInputRef.value?.focus()
+}
+
+const confirmSaveWorkflow = () => {
+  const name = saveDialogName.value.trim()
+  if (!name) return
+  if (currentWorkflowId.value) {
+    // Update existing workflow
+    workflowStore.update(currentWorkflowId.value, {
+      name,
+      description: saveDialogDescription.value.trim() || undefined,
+      nodes: nodes.value,
+    })
+    currentWorkflowName.value = name
+  } else {
+    const wf = workflowStore.save(
+      name,
+      nodes.value,
+      saveDialogDescription.value.trim() || undefined,
+    )
+    currentWorkflowId.value = wf.id
+    currentWorkflowName.value = wf.name
+  }
+  showSaveDialog.value = false
+}
+
+const confirmLoadWorkflow = (id: string) => {
+  const wf = workflowStore.get(id)
+  if (!wf) return
+  loadWorkflow(wf.nodes)
+  currentWorkflowId.value = wf.id
+  currentWorkflowName.value = wf.name
+  showLoadDialog.value = false
+}
+
+const confirmDeleteWorkflow = (id: string) => {
+  if (!confirm('Delete this saved workflow?')) return
+  workflowStore.remove(id)
+  if (currentWorkflowId.value === id) {
+    currentWorkflowId.value = null
+    currentWorkflowName.value = ''
+  }
+}
+
+const formatRelativeTime = (ts: number): string => {
+  const diff = Date.now() - ts
+  if (diff < 60_000) return 'just now'
+  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`
+  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`
+  return `${Math.floor(diff / 86_400_000)}d ago`
+}
 
 // Pass canvas ref to addNode for viewport-aware positioning
 const addNodeInViewport = (type: WorkflowNode['type']) => {
@@ -1042,7 +1227,10 @@ const handleExecuteWorkflow = async () => {
   if (!canExecute.value) return
   
   try {
-    await executeWorkflow()
+    await executeWorkflow({
+      workflowId: currentWorkflowId.value,
+      workflowName: currentWorkflowName.value || 'Ad-hoc workflow',
+    })
     // Show results modal after successful execution
     showResultsModal.value = true
   } catch (error: any) {
@@ -1059,6 +1247,8 @@ const closeResultsModal = () => {
 const handleClearWorkflow = () => {
   if (confirm('Clear all nodes?')) {
     clearWorkflow()
+    currentWorkflowId.value = null
+    currentWorkflowName.value = ''
   }
 }
 
@@ -2141,8 +2331,8 @@ onUnmounted(() => {
   flex: 1;
   display: flex;
   flex-direction: column;
-  background: white;
-  border-right: 1px solid #e5e7eb;
+  background: var(--color-cream);
+  border-right: 1px solid var(--color-sand);
   overflow: hidden;
   position: relative;
 }
@@ -2155,11 +2345,10 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 8px;
-  background: white;
-  border: 1px solid #e2e8f0;
+  background: var(--color-cream);
+  border: 1px solid var(--color-sand);
   border-radius: 12px;
   padding: 8px 12px;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
   z-index: 1000;
   pointer-events: auto;
 }
@@ -2170,18 +2359,18 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: white;
-  border: 1px solid #e2e8f0;
+  background: var(--color-cream);
+  border: 1px solid var(--color-sand);
   border-radius: 8px;
   cursor: pointer;
-  color: #64748b;
+  color: var(--text-secondary);
   transition: all 0.2s;
 }
 
 .zoom-btn:hover {
-  background: #f8fafc;
-  border-color: #cbd5e1;
-  color: #334155;
+  background: var(--bg-tertiary);
+  border-color: var(--color-sand-mid);
+  color: var(--text-primary);
 }
 
 .zoom-btn:active {
@@ -2189,7 +2378,7 @@ onUnmounted(() => {
 }
 
 .zoom-fit-btn {
-  border-left: 1px solid #e2e8f0;
+  border-left: 1px solid var(--color-sand);
   margin-left: 4px;
   padding-left: 4px;
 }
@@ -2197,27 +2386,27 @@ onUnmounted(() => {
 .zoom-level {
   font-size: 0.875rem;
   font-weight: 600;
-  color: #334155;
+  color: var(--text-primary);
   min-width: 48px;
   text-align: center;
 }
 
 .canvas-header {
   padding: 1.5rem 1.5rem 1rem 1.5rem;
-  background: white;
-  border-bottom: 1px solid #e5e7eb;
+  background: var(--color-cream);
+  border-bottom: 1px solid var(--color-sand);
 }
 
 .canvas-title h2 {
   margin: 0 0 0.5rem 0;
   font-size: 1.25rem;
   font-weight: 600;
-  color: #1f2937;
+  color: var(--text-primary);
 }
 
 .canvas-title p {
   margin: 0;
-  color: #6b7280;
+  color: var(--text-secondary);
   font-size: 0.875rem;
 }
 
@@ -2270,7 +2459,7 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   height: 100%;
-  color: #9ca3af;
+  color: var(--text-tertiary);
 }
 
 .canvas-empty svg {
@@ -2282,11 +2471,10 @@ onUnmounted(() => {
   min-width: 200px;
   max-width: 280px;
   width: auto;
-  background: white;
-  border: 2px solid #e2e8f0;
+  background: var(--color-cream);
+  border: 2px solid var(--color-sand);
   border-radius: 16px;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-  transition: box-shadow 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+  transition: border-color 0.2s ease, transform 0.2s ease;
   z-index: 2;
   overflow: hidden;
   will-change: transform;
@@ -2440,7 +2628,7 @@ onUnmounted(() => {
   padding: 2px 6px;
   border: 2px solid #3b82f6;
   border-radius: 4px;
-  background: white;
+  background: var(--color-cream);
   outline: none;
   font-family: inherit;
 }
@@ -2456,7 +2644,7 @@ onUnmounted(() => {
   border: none;
   border-radius: 6px;
   cursor: pointer;
-  color: #64748b;
+  color: var(--text-secondary);
   transition: all 0.2s;
 }
 
@@ -2482,11 +2670,11 @@ onUnmounted(() => {
 
 .config-btn, .config-select {
   padding: 0.5rem 0.75rem;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--color-sand);
   border-radius: 8px;
   font-size: 0.8rem;
-  background: #f8fafc;
-  color: #334155;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
   transition: all 0.2s;
 }
 
@@ -2513,8 +2701,8 @@ onUnmounted(() => {
   align-items: center;
   gap: 0.5rem;
   padding: 0.375rem 0.625rem;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  background: var(--bg-secondary);
+  border: 1px solid var(--color-sand);
   border-radius: 6px;
   text-align: left;
   width: fit-content;
@@ -2524,13 +2712,13 @@ onUnmounted(() => {
 .condition-count {
   font-size: 0.8rem;
   font-weight: 600;
-  color: #334155;
+  color: var(--text-primary);
   white-space: nowrap;
 }
 
 .node-status {
   padding: 0.5rem 0.75rem;
-  border-top: 1px solid #e2e8f0;
+  border-top: 1px solid var(--color-sand);
 }
 
 .status-badge {
@@ -2544,7 +2732,7 @@ onUnmounted(() => {
 
 .status-pending {
   background: #f1f5f9;
-  color: #64748b;
+  color: var(--text-secondary);
 }
 
 .status-processing {
@@ -2583,8 +2771,8 @@ onUnmounted(() => {
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background: #64748b;
-  border: 2px solid white;
+  background: var(--text-secondary);
+  border: 2px solid var(--color-cream);
   transition: all 0.2s;
 }
 
@@ -2638,13 +2826,13 @@ onUnmounted(() => {
   margin-right: 8px;
   font-size: 0.7rem;
   font-weight: 600;
-  color: #64748b;
+  color: var(--text-secondary);
   white-space: nowrap;
   pointer-events: none;
-  background: white;
+  background: var(--color-cream);
   padding: 2px 6px;
   border-radius: 4px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--color-sand);
 }
 
 .node-connector {
@@ -2653,8 +2841,8 @@ onUnmounted(() => {
 
 .control-panel {
   width: 360px;
-  background: white;
-  border-left: 1px solid #e5e7eb;
+  background: var(--color-cream);
+  border-left: 1px solid var(--color-sand);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -2663,7 +2851,7 @@ onUnmounted(() => {
 
 .panel-section {
   padding: 0.75rem;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--color-sand);
   flex-shrink: 0;
 }
 
@@ -2672,14 +2860,14 @@ onUnmounted(() => {
 }
 
 .add-nodes-section {
-  background: white;
+  background: var(--color-cream);
 }
 
 .add-nodes-section h3 {
   margin: 0 0 0.5rem 0;
   font-size: 0.75rem;
   font-weight: 600;
-  color: #1f2937;
+  color: var(--text-primary);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -2697,22 +2885,21 @@ onUnmounted(() => {
   align-items: center;
   gap: 0.25rem;
   padding: 0.5rem;
-  background: white;
-  border: 1px solid #e5e7eb;
+  background: var(--color-cream);
+  border: 1px solid var(--color-sand);
   border-radius: 6px;
   cursor: pointer;
   transition: all 0.2s;
-  color: #374151;
+  color: var(--text-secondary);
   font-size: 0.75rem;
   font-weight: 500;
 }
 
 .node-btn:hover:not(:disabled) {
-  background: #f9fafb;
+  background: var(--bg-secondary);
   border-color: #3b82f6;
   color: #3b82f6;
   transform: translateY(-1px);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .node-btn:disabled {
@@ -2744,9 +2931,9 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: white;
+  background: var(--color-cream);
   color: #ef4444;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--color-sand);
   border-radius: 6px;
   cursor: pointer;
   transition: all 0.2s;
@@ -2782,12 +2969,12 @@ onUnmounted(() => {
   margin: 0 0 0.5rem 0;
   font-size: 0.875rem;
   font-weight: 600;
-  color: #1f2937;
+  color: var(--text-primary);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   flex-shrink: 0;
   padding: 0.375rem 0.75rem 0;
-  background: white;
+  background: var(--color-cream);
   position: sticky;
   top: 0;
   z-index: 1;
@@ -2797,7 +2984,7 @@ onUnmounted(() => {
   margin: 0 0 1rem 0 !important;
   font-size: 0.75rem !important;
   font-weight: 700 !important;
-  color: #111827 !important;
+  color: var(--text-primary) !important;
   letter-spacing: 0.05em !important;
 }
 
@@ -2820,7 +3007,7 @@ onUnmounted(() => {
 .config-label {
   font-size: 0.75rem;
   font-weight: 600;
-  color: #374151;
+  color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -2837,13 +3024,13 @@ onUnmounted(() => {
   align-items: center;
   gap: 0.25rem;
   padding: 0.25rem 0.5rem;
-  background: white;
+  background: var(--color-cream);
   border: 1px solid #d1d5db;
   border-radius: 4px;
   font-size: 0.7rem;
   cursor: pointer;
   transition: all 0.2s;
-  color: #374151;
+  color: var(--text-secondary);
   font-weight: 500;
 }
 
@@ -2873,8 +3060,8 @@ onUnmounted(() => {
 .view-toggle-group {
   display: flex;
   border-radius: 0.25rem;
-  border: 1px solid #e5e7eb;
-  background-color: #f9fafb;
+  border: 1px solid var(--color-sand);
+  background-color: var(--bg-secondary);
   padding: 0.075rem;
   width: fit-content;
 }
@@ -2885,7 +3072,7 @@ onUnmounted(() => {
   justify-content: center;
   padding: 0.3rem;
   background-color: transparent;
-  color: #6b7280;
+  color: var(--text-secondary);
   border: none;
   cursor: pointer;
   transition: all 0.2s;
@@ -2895,14 +3082,13 @@ onUnmounted(() => {
 }
 
 .view-toggle-btn:hover:not(:disabled) {
-  background-color: #e5e7eb;
+  background-color: var(--bg-tertiary);
   color: #4b5563;
 }
 
 .view-toggle-btn.active {
-  background-color: #ffffff;
-  color: #111827;
-  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  background-color: var(--color-cream);
+  color: var(--text-primary);
 }
 
 .view-toggle-btn:disabled {
@@ -2929,7 +3115,7 @@ onUnmounted(() => {
 
 .schema-json-textarea {
   font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
-  background: #f9fafb;
+  background: var(--bg-secondary);
 }
 
 .generate-schema-btn-full {
@@ -2962,8 +3148,8 @@ onUnmounted(() => {
 .generated-schema-preview {
   margin-top: 1rem;
   padding: 0.75rem;
-  background: #f9fafb;
-  border: 1px solid #e5e7eb;
+  background: var(--bg-secondary);
+  border: 1px solid var(--color-sand);
   border-radius: 4px;
 }
 
@@ -2977,13 +3163,13 @@ onUnmounted(() => {
 .preview-label {
   font-size: 0.7rem;
   font-weight: 600;
-  color: #374151;
+  color: var(--text-secondary);
   text-transform: uppercase;
 }
 
 .clear-schema-btn {
   padding: 0.25rem 0.5rem;
-  background: white;
+  background: var(--color-cream);
   border: 1px solid #d1d5db;
   border-radius: 3px;
   font-size: 0.7rem;
@@ -3008,14 +3194,14 @@ onUnmounted(() => {
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem;
-  background: white;
+  background: var(--color-cream);
   border-radius: 3px;
   font-size: 0.7rem;
 }
 
 .field-name-preview {
   font-weight: 600;
-  color: #1f2937;
+  color: var(--text-primary);
   min-width: 60px;
 }
 
@@ -3031,7 +3217,7 @@ onUnmounted(() => {
 
 .field-desc-preview {
   flex: 1;
-  color: #6b7280;
+  color: var(--text-secondary);
   font-size: 0.7rem;
 }
 
@@ -3057,19 +3243,19 @@ onUnmounted(() => {
   justify-content: center;
   gap: 0.5rem;
   padding: 0.5rem;
-  background: white;
+  background: var(--color-cream);
   border: 1px solid #d1d5db;
   border-radius: 4px;
   font-size: 0.75rem;
   cursor: pointer;
   transition: all 0.2s;
-  color: #374151;
+  color: var(--text-secondary);
   font-weight: 500;
   margin-top: 0.5rem;
 }
 
 .apply-json-btn:hover:not(:disabled) {
-  background: #f9fafb;
+  background: var(--bg-secondary);
   border-color: #3b82f6;
   color: #3b82f6;
 }
@@ -3084,7 +3270,7 @@ onUnmounted(() => {
   border: 1px solid #d1d5db;
   border-radius: 4px;
   font-size: 0.875rem;
-  background: white;
+  background: var(--color-cream);
 }
 
 .rules-list,
@@ -3155,7 +3341,7 @@ onUnmounted(() => {
   border: 1px solid #d1d5db;
   border-radius: 4px;
   font-size: 0.75rem;
-  background: white;
+  background: var(--color-cream);
 }
 
 .field-description-input {
@@ -3173,7 +3359,7 @@ onUnmounted(() => {
   flex-shrink: 0;
   background: none;
   border: none;
-  color: #9ca3af;
+  color: var(--text-tertiary);
   cursor: pointer;
   padding: 0.25rem;
   border-radius: 3px;
@@ -3199,20 +3385,20 @@ onUnmounted(() => {
   justify-content: center;
   gap: 0.5rem;
   padding: 0.5rem;
-  background: white;
+  background: var(--color-cream);
   border: 1px solid #d1d5db;
   border-radius: 4px;
   font-size: 0.75rem;
   cursor: pointer;
   transition: all 0.2s;
-  color: #374151;
+  color: var(--text-secondary);
 }
 
 .add-rule-btn:hover:not(:disabled),
 .add-field-btn:hover:not(:disabled),
 .add-category-btn:hover:not(:disabled),
 .add-condition-btn:hover:not(:disabled) {
-  background: #f9fafb;
+  background: var(--bg-secondary);
   border-color: #3b82f6;
   color: #3b82f6;
 }
@@ -3220,7 +3406,7 @@ onUnmounted(() => {
 .no-config {
   padding: 1rem;
   text-align: center;
-  color: #9ca3af;
+  color: var(--text-tertiary);
   font-size: 0.75rem;
   font-style: italic;
 }
@@ -3229,7 +3415,7 @@ onUnmounted(() => {
   margin: 0 0 1rem 0;
   font-size: 0.875rem;
   font-weight: 600;
-  color: #1f2937;
+  color: var(--text-primary);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -3247,7 +3433,7 @@ onUnmounted(() => {
   justify-content: space-between;
   align-items: center;
   padding: 0.5rem 0.75rem;
-  background: #f3f4f6;
+  background: var(--bg-tertiary);
   border-radius: 6px;
   margin-bottom: 0.5rem;
 }
@@ -3255,12 +3441,12 @@ onUnmounted(() => {
 .upload-node-name {
   font-size: 0.75rem;
   font-weight: 600;
-  color: #374151;
+  color: var(--text-secondary);
 }
 
 .upload-node-count {
   font-size: 0.75rem;
-  color: #6b7280;
+  color: var(--text-secondary);
 }
 
 .file-items {
@@ -3274,26 +3460,26 @@ onUnmounted(() => {
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem 0.75rem;
-  background: white;
-  border: 1px solid #e5e7eb;
+  background: var(--color-cream);
+  border: 1px solid var(--color-sand);
   border-radius: 4px;
   font-size: 0.75rem;
   transition: all 0.2s;
 }
 
 .file-item-small:hover {
-  background: #f9fafb;
+  background: var(--bg-secondary);
   border-color: #d1d5db;
 }
 
 .file-icon {
   flex-shrink: 0;
-  color: #6b7280;
+  color: var(--text-secondary);
 }
 
 .file-name {
   flex: 1;
-  color: #374151;
+  color: var(--text-secondary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -3302,7 +3488,7 @@ onUnmounted(() => {
 
 .file-size {
   flex-shrink: 0;
-  color: #9ca3af;
+  color: var(--text-tertiary);
   font-size: 0.7rem;
 }
 
@@ -3310,7 +3496,7 @@ onUnmounted(() => {
   flex-shrink: 0;
   background: none;
   border: none;
-  color: #9ca3af;
+  color: var(--text-tertiary);
   cursor: pointer;
   padding: 0.25rem;
   border-radius: 3px;
@@ -3333,7 +3519,7 @@ onUnmounted(() => {
 .no-files {
   padding: 1rem;
   text-align: center;
-  color: #9ca3af;
+  color: var(--text-tertiary);
   font-size: 0.75rem;
   font-style: italic;
 }
@@ -3345,7 +3531,7 @@ onUnmounted(() => {
 }
 
 .add-condition-section {
-  background: white;
+  background: var(--color-cream);
   padding: 1rem 0.75rem;
   border-top: none;
 }
@@ -3361,18 +3547,18 @@ onUnmounted(() => {
   justify-content: center;
   gap: 0.5rem;
   padding: 0.625rem;
-  background: white;
+  background: var(--color-cream);
   border: 1px solid #d1d5db;
   border-radius: 6px;
   font-size: 0.875rem;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s;
-  color: #374151;
+  color: var(--text-secondary);
 }
 
 .add-condition-section .add-condition-btn:hover:not(:disabled) {
-  background: #f9fafb;
+  background: var(--bg-secondary);
   border-color: #3b82f6;
   color: #3b82f6;
 }
@@ -3384,15 +3570,15 @@ onUnmounted(() => {
 
 .workflow-summary-section {
   margin-top: auto;
-  background: white;
-  border-top: 1px solid #e5e7eb;
+  background: var(--color-cream);
+  border-top: 1px solid var(--color-sand);
 }
 
 .execute-section {
   position: sticky;
   bottom: 0;
-  background: white;
-  border-top: 1px solid #e5e7eb;
+  background: var(--color-cream);
+  border-top: 1px solid var(--color-sand);
   border-bottom: none;
   z-index: 10;
 }
@@ -3408,7 +3594,7 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   padding: 0.75rem;
-  background: white;
+  background: var(--color-cream);
   color: #ff8c5a;
   border: 2px solid #ff8c5a;
   border-radius: 6px;
@@ -3428,7 +3614,7 @@ onUnmounted(() => {
   margin: 0 0 0.5rem 0;
   font-size: 1rem;
   font-weight: 600;
-  color: #1f2937;
+  color: var(--text-primary);
 }
 
 .workflow-summary {
@@ -3444,12 +3630,12 @@ onUnmounted(() => {
 }
 
 .summary-label {
-  color: #6b7280;
+  color: var(--text-secondary);
 }
 
 .summary-value {
   font-weight: 500;
-  color: #1f2937;
+  color: var(--text-primary);
 }
 
 .execute-btn {
@@ -3494,7 +3680,7 @@ onUnmounted(() => {
 
 .result-item {
   padding: 0.75rem;
-  background: #f9fafb;
+  background: var(--bg-secondary);
   border-radius: 6px;
   font-size: 0.875rem;
 }
@@ -3507,7 +3693,7 @@ onUnmounted(() => {
 
 .result-node {
   font-weight: 500;
-  color: #1f2937;
+  color: var(--text-primary);
 }
 
 .result-status {
@@ -3529,7 +3715,7 @@ onUnmounted(() => {
 .result-data pre {
   margin: 0;
   padding: 0.5rem;
-  background: white;
+  background: var(--color-cream);
   border-radius: 4px;
   font-size: 0.75rem;
   overflow-x: auto;
@@ -3556,9 +3742,8 @@ onUnmounted(() => {
 }
 
 .results-modal {
-  background: white;
+  background: var(--color-cream);
   border-radius: 12px;
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
   max-width: 800px;
   width: 100%;
   max-height: 90vh;
@@ -3571,14 +3756,14 @@ onUnmounted(() => {
   justify-content: space-between;
   align-items: center;
   padding: 1.5rem;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--color-sand);
 }
 
 .modal-header h2 {
   margin: 0;
   font-size: 1.25rem;
   font-weight: 600;
-  color: #1f2937;
+  color: var(--text-primary);
 }
 
 .modal-close-btn {
@@ -3586,7 +3771,7 @@ onUnmounted(() => {
   background: none;
   border: none;
   cursor: pointer;
-  color: #6b7280;
+  color: var(--text-secondary);
   transition: all 0.2s;
   border-radius: 6px;
   display: flex;
@@ -3595,8 +3780,8 @@ onUnmounted(() => {
 }
 
 .modal-close-btn:hover {
-  background: #f3f4f6;
-  color: #1f2937;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
 }
 
 .modal-body {
@@ -3608,7 +3793,7 @@ onUnmounted(() => {
 .no-results {
   text-align: center;
   padding: 3rem;
-  color: #9ca3af;
+  color: var(--text-tertiary);
 }
 
 .results-timeline {
@@ -3618,8 +3803,8 @@ onUnmounted(() => {
 }
 
 .result-card {
-  background: #f9fafb;
-  border: 1px solid #e5e7eb;
+  background: var(--bg-secondary);
+  border: 1px solid var(--color-sand);
   border-radius: 8px;
   overflow: hidden;
 }
@@ -3629,8 +3814,8 @@ onUnmounted(() => {
   justify-content: space-between;
   align-items: center;
   padding: 1rem;
-  background: white;
-  border-bottom: 1px solid #e5e7eb;
+  background: var(--color-cream);
+  border-bottom: 1px solid var(--color-sand);
 }
 
 .result-step {
@@ -3654,7 +3839,7 @@ onUnmounted(() => {
 
 .step-name {
   font-weight: 600;
-  color: #1f2937;
+  color: var(--text-primary);
   font-size: 0.95rem;
 }
 
@@ -3716,8 +3901,8 @@ onUnmounted(() => {
 }
 
 .result-data-detail {
-  background: white;
-  border: 1px solid #e5e7eb;
+  background: var(--color-cream);
+  border: 1px solid var(--color-sand);
   border-radius: 6px;
   overflow: hidden;
 }
@@ -3728,7 +3913,7 @@ onUnmounted(() => {
   font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
   font-size: 0.8rem;
   line-height: 1.5;
-  color: #1f2937;
+  color: var(--text-primary);
   overflow-x: auto;
   max-height: 300px;
   overflow-y: auto;
@@ -3737,7 +3922,7 @@ onUnmounted(() => {
 .result-empty {
   text-align: center;
   padding: 2rem;
-  color: #9ca3af;
+  color: var(--text-tertiary);
   font-size: 0.875rem;
 }
 
@@ -3746,7 +3931,7 @@ onUnmounted(() => {
   justify-content: flex-end;
   gap: 0.75rem;
   padding: 1.5rem;
-  border-top: 1px solid #e5e7eb;
+  border-top: 1px solid var(--color-sand);
 }
 
 .modal-btn {
@@ -3760,12 +3945,170 @@ onUnmounted(() => {
 }
 
 .modal-btn-secondary {
-  background: #f3f4f6;
-  color: #374151;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
 }
 
 .modal-btn-secondary:hover {
-  background: #e5e7eb;
+  background: var(--bg-tertiary);
+}
+
+/* ===== Workflow Management (Save / Load) ===== */
+.workflow-mgmt-section {
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 12px;
+  margin-bottom: 12px;
+}
+
+.workflow-mgmt-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.workflow-mgmt-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: var(--color-cream);
+  border: 1px solid var(--color-sand);
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.workflow-mgmt-btn:hover:not(:disabled) {
+  background: #fff4ec;
+  border-color: #ff8c5a;
+  color: #c2410c;
+}
+.workflow-mgmt-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.workflow-mgmt-current {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+  padding: 6px 10px;
+  background: #fff4ec;
+  border-radius: 6px;
+  font-size: 11px;
+}
+.workflow-mgmt-current-label {
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.workflow-mgmt-current-name {
+  color: #c2410c;
+  font-weight: 600;
+  word-break: break-all;
+}
+
+/* Save / Load dialog content */
+.save-modal,
+.load-modal {
+  max-width: 480px;
+}
+
+.save-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px 20px;
+}
+.save-modal-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+  margin-top: 6px;
+}
+.save-modal-input,
+.save-modal-textarea {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--color-sand);
+  border-radius: 6px;
+  font-size: 13px;
+  background: var(--color-cream);
+  color: var(--text-primary);
+  font-family: inherit;
+}
+.save-modal-textarea {
+  resize: vertical;
+  min-height: 60px;
+}
+.save-modal-input:focus,
+.save-modal-textarea:focus {
+  outline: none;
+  border-color: #ff8c5a;
+  box-shadow: 0 0 0 3px rgba(255, 140, 90, 0.15);
+}
+
+.load-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 16px;
+  max-height: 50vh;
+  overflow: auto;
+}
+.load-empty {
+  text-align: center;
+  padding: 32px 12px;
+  color: var(--text-secondary);
+}
+.load-empty-hint {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  margin-top: 6px;
+}
+.load-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--color-sand);
+  border-radius: 8px;
+  background: var(--color-cream);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.load-row:hover {
+  border-color: #ff8c5a;
+  background: #fff4ec;
+}
+.load-row-main { flex: 1; min-width: 0; }
+.load-row-name { font-weight: 600; color: var(--text-primary); }
+.load-row-desc {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+  word-break: break-word;
+}
+.load-row-meta {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  margin-top: 6px;
+  text-transform: lowercase;
+}
+.load-row-delete {
+  border: none;
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+}
+.load-row-delete:hover {
+  color: #b91c1c;
+  background: #fef2f2;
 }
 </style>
 
@@ -3805,20 +4148,20 @@ onUnmounted(() => {
 /* Inactive Node Button - Disabled Style */
 .node-btn-inactive {
   position: relative;
-  background: #f9fafb;
-  border-color: #e5e7eb;
+  background: var(--bg-secondary);
+  border-color: var(--color-sand);
   color: #d1d5db;
   cursor: not-allowed;
   opacity: 0.6;
 }
 
 .node-btn-inactive svg {
-  color: #e5e7eb;
+  color: var(--color-sand);
 }
 
 .node-btn-inactive:hover {
-  background: #f9fafb;
-  border-color: #e5e7eb;
+  background: var(--bg-secondary);
+  border-color: var(--color-sand);
   transform: none;
   box-shadow: none;
 }
@@ -3844,24 +4187,24 @@ onUnmounted(() => {
   border-collapse: separate;
   border-spacing: 0 0.75rem;
   margin: 0;
-  background: white;
+  background: var(--color-cream);
   border: none;
 }
 
 .conditions-table thead th {
-  background: white;
-  border-bottom: 1px solid #e5e7eb;
+  background: var(--color-cream);
+  border-bottom: 1px solid var(--color-sand);
   padding: 0.75rem 0.5rem;
   font-size: 0.875rem;
   font-weight: 600;
-  color: #111827;
+  color: var(--text-primary);
   text-align: left;
 }
 
 .condition-header,
 .value-header {
   font-weight: 600 !important;
-  color: #111827 !important;
+  color: var(--text-primary) !important;
 }
 
 .conditions-table tbody tr {
@@ -3886,14 +4229,14 @@ onUnmounted(() => {
   width: 40px;
   padding: 0.75rem 0.5rem !important;
   font-weight: 600;
-  color: #111827;
+  color: var(--text-primary);
   font-size: 0.875rem;
 }
 
 .order-number {
   display: inline-block;
   font-weight: 600;
-  color: #111827;
+  color: var(--text-primary);
 }
 
 .delete-cell {
@@ -3935,7 +4278,7 @@ onUnmounted(() => {
   height: 20px;
   border: none;
   background: transparent;
-  color: #6b7280;
+  color: var(--text-secondary);
   cursor: pointer;
   font-size: 20px;
   line-height: 1;
@@ -3966,11 +4309,11 @@ onUnmounted(() => {
 .condition-operator-select-table {
   width: 100%;
   padding: 0.5rem 0.75rem;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--color-sand);
   border-radius: 6px;
   font-size: 0.875rem;
-  background: white;
-  color: #111827;
+  background: var(--color-cream);
+  color: var(--text-primary);
   cursor: pointer;
   transition: all 0.2s;
   text-align: left;
@@ -3990,11 +4333,11 @@ onUnmounted(() => {
 .condition-value-input-table {
   width: 100%;
   padding: 0.5rem 0.75rem;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--color-sand);
   border-radius: 6px;
   font-size: 0.875rem;
-  background: white;
-  color: #111827;
+  background: var(--color-cream);
+  color: var(--text-primary);
   transition: all 0.2s;
 }
 
@@ -4025,7 +4368,7 @@ onUnmounted(() => {
 
 .add-condition-section {
   padding: 2rem 0.75rem 1rem;
-  background: white;
+  background: var(--color-cream);
   display: flex;
   justify-content: center;
 }
@@ -4036,8 +4379,8 @@ onUnmounted(() => {
   grid-template-columns: auto 1fr;
   gap: 1rem;
   padding: 1rem;
-  background: #f9fafb;
-  border: 1px solid #e5e7eb;
+  background: var(--bg-secondary);
+  border: 1px solid var(--color-sand);
   border-radius: 8px;
   margin-bottom: 0.75rem;
 }
@@ -4047,7 +4390,7 @@ onUnmounted(() => {
   flex-direction: column;
   gap: 0.5rem;
   padding-right: 0.75rem;
-  border-right: 2px solid #e5e7eb;
+  border-right: 2px solid var(--color-sand);
   min-width: 140px;
 }
 
@@ -4056,8 +4399,8 @@ onUnmounted(() => {
   border: 1px solid #d1d5db;
   border-radius: 6px;
   font-size: 0.875rem;
-  background: white;
-  color: #334155;
+  background: var(--color-cream);
+  color: var(--text-primary);
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s;
@@ -4091,7 +4434,7 @@ onUnmounted(() => {
   border: 1px solid #d1d5db;
   border-radius: 6px;
   font-size: 0.875rem;
-  background: white;
+  background: var(--color-cream);
   width: 100%;
 }
 
@@ -4103,7 +4446,7 @@ onUnmounted(() => {
 
 .between-separator {
   font-size: 0.875rem;
-  color: #64748b;
+  color: var(--text-secondary);
   font-weight: 500;
   flex-shrink: 0;
 }
@@ -4140,8 +4483,8 @@ onUnmounted(() => {
   flex-direction: column;
   gap: 0.5rem;
   padding: 0.75rem;
-  background: #f9fafb;
-  border: 1px solid #e5e7eb;
+  background: var(--bg-secondary);
+  border: 1px solid var(--color-sand);
   border-radius: 6px;
   margin-bottom: 0.5rem;
 }
@@ -4166,7 +4509,7 @@ onUnmounted(() => {
   border: 1px solid #d1d5db;
   border-radius: 4px;
   font-size: 0.875rem;
-  background: white;
+  background: var(--color-cream);
 }
 
 .condition-value-input-half {
@@ -4174,7 +4517,7 @@ onUnmounted(() => {
   border: 1px solid #d1d5db;
   border-radius: 4px;
   font-size: 0.875rem;
-  background: white;
+  background: var(--color-cream);
 }
 
 .condition-field-input,
@@ -4190,7 +4533,7 @@ onUnmounted(() => {
   border: 1px solid #d1d5db;
   border-radius: 4px;
   font-size: 0.875rem;
-  background: white;
+  background: var(--color-cream);
 }
 
 .condition-remove-btn {
@@ -4247,7 +4590,7 @@ onUnmounted(() => {
   border: 1px solid #d1d5db;
   border-radius: 4px;
   font-size: 0.875rem;
-  background: white;
+  background: var(--color-cream);
 }
 
 .add-validation-rule-btn {
@@ -4255,8 +4598,8 @@ onUnmounted(() => {
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem 0.75rem;
-  background: #f3f4f6;
-  color: #374151;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
   border: 1px solid #d1d5db;
   border-radius: 4px;
   font-size: 0.875rem;
@@ -4265,7 +4608,7 @@ onUnmounted(() => {
 }
 
 .add-validation-rule-btn:hover:not(:disabled) {
-  background: #e5e7eb;
+  background: var(--bg-tertiary);
 }
 
 .add-validation-rule-btn:disabled {
@@ -4286,7 +4629,7 @@ onUnmounted(() => {
 .script-file-input:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-  background: #f3f4f6;
+  background: var(--bg-tertiary);
 }
 
 .script-params-textarea {
@@ -4302,19 +4645,19 @@ onUnmounted(() => {
 .script-params-textarea:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-  background: #f3f4f6;
+  background: var(--bg-tertiary);
 }
 
 .config-hint {
   font-size: 0.75rem;
-  color: #6b7280;
+  color: var(--text-secondary);
   margin-top: 0.25rem;
   margin-bottom: 0;
 }
 
 /* Status Badge for Inactive */
 .status-badge.status-inactive {
-  background: #f3f4f6;
-  color: #6b7280;
-  border: 1px dashed #9ca3af;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  border: 1px dashed var(--text-tertiary);
 }

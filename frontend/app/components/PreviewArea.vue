@@ -114,9 +114,8 @@ const emit = defineEmits<Emits>()
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: white;
+  background: var(--color-cream);
   border-radius: 0.5rem;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   overflow: hidden;
 }
 
@@ -126,7 +125,7 @@ const emit = defineEmits<Emits>()
   align-items: center;
   justify-content: center;
   height: 100%;
-  color: #a0aec0;
+  color: var(--text-tertiary);
 }
 
 .empty-icon {
@@ -146,7 +145,7 @@ const emit = defineEmits<Emits>()
   justify-content: space-between;
   align-items: center;
   padding: 1rem;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--color-sand);
   gap: 1rem;
 }
 
@@ -154,7 +153,7 @@ const emit = defineEmits<Emits>()
   margin: 0;
   font-size: 1rem;
   font-weight: 600;
-  color: #2d3748;
+  color: var(--text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -171,7 +170,7 @@ const emit = defineEmits<Emits>()
   align-items: center;
   gap: 0.5rem;
   padding: 0.25rem 0.5rem;
-  background-color: #f7fafc;
+  background-color: var(--bg-secondary);
   border-radius: 0.375rem;
 }
 
@@ -179,18 +178,18 @@ const emit = defineEmits<Emits>()
   width: 2rem;
   height: 2rem;
   padding: 0.25rem;
-  background: white;
-  border: 1px solid #e2e8f0;
+  background: var(--color-cream);
+  border: 1px solid var(--color-sand);
   border-radius: 0.25rem;
-  color: #4a5568;
+  color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .control-button:hover:not(:disabled) {
-  background-color: #ebf8ff;
-  border-color: #4299e1;
-  color: #4299e1;
+  background-color: var(--bg-tertiary);
+  border-color: var(--color-orange);
+  color: var(--accent-orange);
 }
 
 .control-button:disabled {
@@ -207,7 +206,7 @@ const emit = defineEmits<Emits>()
 .page-info {
   font-size: 0.875rem;
   font-weight: 500;
-  color: #4a5568;
+  color: var(--text-secondary);
   min-width: 3rem;
   text-align: center;
 }
@@ -218,7 +217,7 @@ const emit = defineEmits<Emits>()
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: #f7fafc;
+  background-color: var(--bg-secondary);
   padding: 2rem;
 }
 
@@ -234,8 +233,8 @@ const emit = defineEmits<Emits>()
   align-items: center;
   justify-content: center;
   padding: 3rem;
-  background: white;
-  border: 2px dashed #cbd5e0;
+  background: var(--color-cream);
+  border: 2px dashed var(--color-sand);
   border-radius: 0.5rem;
   min-width: 300px;
   min-height: 400px;
@@ -244,7 +243,7 @@ const emit = defineEmits<Emits>()
 .preview-icon {
   width: 5rem;
   height: 5rem;
-  color: #4299e1;
+  color: var(--accent-orange);
   margin-bottom: 1rem;
 }
 
@@ -253,12 +252,12 @@ const emit = defineEmits<Emits>()
   margin: 0.5rem 0;
   font-size: 1.125rem;
   font-weight: 500;
-  color: #2d3748;
+  color: var(--text-primary);
 }
 
 .preview-note {
   font-size: 0.875rem !important;
-  color: #718096 !important;
+  color: var(--text-tertiary) !important;
   font-weight: 400 !important;
 }
 </style>

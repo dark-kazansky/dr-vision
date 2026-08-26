@@ -41,8 +41,14 @@
     <!-- Top Bar -->
     <div class="top-bar">
       <div class="logo logo-clickable">
-        <img src="/assets/logo.png" alt="Dr.Vision" class="logo-icon" @click="handleRefresh" />
-        <span class="logo-text" @click="handleRefresh">Dr.Vision</span>
+        <img src="/assets/logo.png" alt="M.DocAI" class="logo-icon" @click="handleRefresh" />
+        <span v-if="!sidebarCollapsed" class="logo-text" @click="handleRefresh">M<span class="logo-dot">.</span>DocAI</span>
+        <span class="sidebar-collapse-chevron" @click="sidebarCollapsed = !sidebarCollapsed">
+          <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path v-if="!sidebarCollapsed" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+            <path v-else stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+          </svg>
+        </span>
       </div>
       <div class="top-bar-actions">
         <button class="top-bar-btn" @click="handleDeploy">
@@ -63,30 +69,37 @@
           </svg>
           Help
         </button>
+        <NuxtLink to="/settings" class="top-bar-btn">
+          <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+          Settings
+        </NuxtLink>
       </div>
     </div>
 
     <!-- Sidebar -->
-    <div class="sidebar">
+    <div class="sidebar" :class="{ collapsed: sidebarCollapsed }">
       <div class="sidebar-nav">
-        <a href="#" class="nav-item" :class="{ active: activeView === 'parse' }" @click.prevent="activeView = 'parse'">
+        <a href="#" class="nav-item" :class="{ active: activeView === 'parse' }" @click.prevent="activeView = 'parse'" :title="sidebarCollapsed ? 'Parse' : ''">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M4 22h14a2 2 0 0 0 2-2V7l-5-5H6a2 2 0 0 0-2 2v4"></path>
             <path d="M14 2v4a2 2 0 0 0 2 2h4"></path>
             <path d="m5 12-3 3 3 3"></path>
             <path d="m9 18 3-3-3-3"></path>
           </svg>
-          Parse
+          <span class="nav-label">Parse</span>
         </a>
-        <a href="#" class="nav-item" :class="{ active: activeView === 'classify' }" @click.prevent="activeView = 'classify'">
+        <a href="#" class="nav-item" :class="{ active: activeView === 'classify' }" @click.prevent="activeView = 'classify'" :title="sidebarCollapsed ? 'Classify' : ''">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="m15 5 6.3 6.3a2.4 2.4 0 0 1 0 3.4L17 19"></path>
             <path d="M9.586 5.586A2 2 0 0 0 8.172 5H3a1 1 0 0 0-1 1v5.172a2 2 0 0 0 .586 1.414L8.29 18.29a2.426 2.426 0 0 0 3.42 0l3.58-3.58a2.426 2.426 0 0 0 0-3.42z"></path>
             <circle cx="6.5" cy="9.5" r=".5" fill="currentColor"></circle>
           </svg>
-          Classify
+          <span class="nav-label">Classify</span>
         </a>
-        <a href="#" class="nav-item" :class="{ active: activeView === 'extraction' }" @click.prevent="activeView = 'extraction'">
+        <a href="#" class="nav-item" :class="{ active: activeView === 'extraction' }" @click.prevent="activeView = 'extraction'" :title="sidebarCollapsed ? 'Extract' : ''">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M14 2v4a2 2 0 0 0 2 2h4"></path>
             <path d="M4 7V4a2 2 0 0 1 2-2 2 2 0 0 0-2 2"></path>
@@ -94,9 +107,9 @@
             <path d="m5 11-3 3"></path>
             <path d="m5 17-3-3h10"></path>
           </svg>
-          Extract
+          <span class="nav-label">Extract</span>
         </a>
-        <a href="#" class="nav-item" :class="{ active: activeView === 'split' }" @click.prevent="activeView = 'split'">
+        <a href="#" class="nav-item" :class="{ active: activeView === 'split' }" @click.prevent="activeView = 'split'" :title="sidebarCollapsed ? 'Split' : ''">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="6" cy="6" r="3"></circle>
             <path d="M8.12 8.12 12 12"></path>
@@ -104,23 +117,35 @@
             <circle cx="6" cy="18" r="3"></circle>
             <path d="M14.8 14.8 20 20"></path>
           </svg>
-          Split
+          <span class="nav-label">Split</span>
         </a>
-        <a href="#" class="nav-item" :class="{ active: activeView === 'journey' }" @click.prevent="activeView = 'journey'">
+        <a href="#" class="nav-item" :class="{ active: activeView === 'journey' }" @click.prevent="activeView = 'journey'" :title="sidebarCollapsed ? 'Doc Journey' : ''">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M12 12H3"></path>
             <path d="M16 6H3"></path>
             <path d="M12 18H3"></path>
             <path d="m16 12 5 3-5 3v-6Z"></path>
           </svg>
-          Doc Journey
+          <span class="nav-label">Doc Journey</span>
+        </a>
+        <a href="#" class="nav-item" :class="{ active: activeView === 'jobs' }" @click.prevent="activeView = 'jobs'" :title="sidebarCollapsed ? 'Jobs' : ''">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="4" width="18" height="4" rx="1"></rect>
+            <rect x="3" y="10" width="18" height="4" rx="1"></rect>
+            <rect x="3" y="16" width="18" height="4" rx="1"></rect>
+            <line x1="7" x2="7.01" y1="6" y2="6"></line>
+            <line x1="7" x2="7.01" y1="12" y2="12"></line>
+            <line x1="7" x2="7.01" y1="18" y2="18"></line>
+          </svg>
+          <span class="nav-label">Jobs</span>
+          <span v-if="runningJobsCount > 0" class="nav-item-badge">{{ runningJobsCount }}</span>
         </a>
       </div>
 
       <!-- File List -->
       <div class="file-list-section">
         <div class="file-list-header">
-          <span class="file-list-title">Uploaded Files</span>
+          <span class="file-list-title nav-label">Uploaded Files</span>
           <button class="add-more-btn" @click="triggerFileInput">
             <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
@@ -159,7 +184,7 @@
     </div>
 
     <!-- Main Content -->
-    <div class="main-content">
+    <div class="main-content" :class="{ 'sidebar-collapsed': sidebarCollapsed }">
       <!-- Parse View -->
       <div v-if="activeView === 'parse'" class="content-wrapper">
         <!-- Upload/Preview Section -->
@@ -703,6 +728,9 @@
       
       <!-- Journey View -->
       <JourneyWorkflow v-if="activeView === 'journey'" />
+
+      <!-- Jobs View -->
+      <JobsView v-if="activeView === 'jobs'" />
     </div>
   </div>
 </template>
@@ -715,6 +743,7 @@ import ConfigPanel from '~/components/ConfigPanel.vue'
 import ClassifyConfigPanel from '~/components/ClassifyConfigPanel.vue'
 import SplitConfigPanel from '~/components/SplitConfigPanel.vue'
 import JourneyWorkflow from '~/components/JourneyWorkflow.vue'
+import JobsView from '~/components/JobsView.vue'
 import HelpDialog from '~/components/HelpDialog.vue'
 import DeployDialog from '~/components/DeployDialog.vue'
 
@@ -752,6 +781,12 @@ const {
 
 // Local state
 const activeView = ref('parse') // 'parse' or 'extraction'
+const sidebarCollapsed = ref(false)
+
+// Jobs tab badge — running + queued count
+const { stats: jobsStats } = useJobs()
+const runningJobsCount = computed(() => jobsStats.value.running + jobsStats.value.queued)
+
 const selectedFile = ref<any>(null)
 const uploadedFiles = ref<Map<string, File>>(new Map())
 const previewFileUrl = ref<string>('')
@@ -1391,7 +1426,8 @@ const getTabName = (view: string) => {
     'classify': 'Classify',
     'extraction': 'Extract',
     'split': 'Split',
-    'journey': 'Doc Journey'
+    'journey': 'Doc Journey',
+    'jobs': 'Jobs'
   }
   return tabNames[view] || 'Parse'
 }

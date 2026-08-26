@@ -1,22 +1,22 @@
 #!/bin/bash
 
-# Quick start script for Dr.Vision
+# Quick start script for M.DocAI
 # This script starts both backend and frontend servers
 
-echo "🚀 Starting Dr.Vision..."
+echo "🚀 Starting M.DocAI..."
 echo ""
 
 # Check if backend directory exists
 if [ ! -d "backend" ]; then
     echo "❌ Error: backend directory not found"
-    echo "   Please run this script from the Dr.Vision root directory"
+    echo "   Please run this script from the M.DocAI root directory"
     exit 1
 fi
 
 # Check if frontend directory exists
 if [ ! -d "frontend" ]; then
     echo "❌ Error: frontend directory not found"
-    echo "   Please run this script from the Dr.Vision root directory"
+    echo "   Please run this script from the M.DocAI root directory"
     exit 1
 fi
 
@@ -81,7 +81,7 @@ fi
 echo "✅ Frontend started on http://localhost:3000"
 echo ""
 echo "=================================="
-echo "✅ Dr.Vision is ready!"
+echo "✅ M.DocAI is ready!"
 echo "=================================="
 echo ""
 echo "🌐 Open your browser to: http://localhost:3000"

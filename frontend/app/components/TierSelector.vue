@@ -81,7 +81,7 @@ const displayTiers = computed(() => {
   margin-bottom: 0.5rem;
   font-size: 0.875rem;
   font-weight: 500;
-  color: #4a5568;
+  color: var(--text-secondary);
 }
 
 .tier-selector {
@@ -121,19 +121,19 @@ const displayTiers = computed(() => {
 }
 
 .tier-bar.rapid {
-  background: #FFB399;
+  background: rgba(255, 79, 0, 0.3);
 }
 
 .tier-bar.normal {
-  background: #FF8C5A;
+  background: rgba(255, 79, 0, 0.6);
 }
 
 .tier-bar.advance {
-  background: #FF6F3C;
+  background: rgba(255, 79, 0, 1);
 }
 
 .tier-bar.multimodal {
-  background: #E55A2B;
+  background: var(--accent-orange);
 }
 
 .tier-bar:hover:not(:disabled) {
@@ -159,7 +159,7 @@ const displayTiers = computed(() => {
   cursor: pointer;
   transition: all 0.2s;
   font-size: 0.875rem;
-  color: #6b7280;
+  color: var(--text-tertiary);
 }
 
 .tier-label-btn:disabled {
@@ -168,7 +168,7 @@ const displayTiers = computed(() => {
 }
 
 .tier-label-btn.active {
-  color: #111827;
+  color: var(--text-primary);
   font-weight: 600;
 }
 

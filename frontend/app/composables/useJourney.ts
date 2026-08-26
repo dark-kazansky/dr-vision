@@ -35,12 +35,120 @@ export interface WorkflowResult {
 export function useJourney() {
   const config = useRuntimeConfig()
   const apiBaseUrl = config.public.apiBaseUrl as string
-  const { getParserModel } = useTierConfig()
+  const { getParserModel, getExtractorModel } = useTierConfig()
+  const jobs = useJobs()
   
   // State
   const nodes = useState<WorkflowNode[]>('journey-nodes', () => [])
   const isProcessing = useState<boolean>('journey-processing', () => false)
   const workflowResults = useState<WorkflowResult[]>('journey-results', () => [])
+  const currentRunId = useState<string | null>('journey-current-run', () => null)
+
+  /**
+   * Normalize node connections coming from older serialized state where a
+   * connection could be a bare id string. Always store the object form so
+   * downstream code can rely on `connection.targetId`.
+   */
+  const normalizeConnections = (list: WorkflowNode[]): WorkflowNode[] => {
+    for (const node of list) {
+      if (!node.connections) continue
+      node.connections = node.connections.map((c: any) =>
+        typeof c === 'string' ? { targetId: c } : c
+      )
+    }
+    return list
+  }
+
+  /**
+   * Replace the current workflow with a previously saved set of nodes.
+   * Resets transient state (status, results) and clears file objects on
+   * upload nodes since they cannot be persisted.
+   */
+  const loadWorkflow = (savedNodes: WorkflowNode[]) => {
+    const cloned = JSON.parse(JSON.stringify(savedNodes)) as WorkflowNode[]
+    for (const n of cloned) {
+      n.status = n.inactive ? 'inactive' : 'pending'
+      delete n.result
+      if (n.type === 'upload') n.files = []
+    }
+    nodes.value = normalizeConnections(cloned)
+    workflowResults.value = []
+  }
+
+  /**
+   * Send the graph + files to the backend orchestrator and reflect run
+   * state back into the local node statuses for visual feedback.
+   *
+   * Returns when the backend run reaches a terminal state.
+   */
+  const runWorkflowOnBackend = async (
+    files: File[],
+    meta: { workflowId?: string | null; workflowName?: string } | undefined,
+    api: ReturnType<typeof useWorkflowApi>,
+  ): Promise<void> => {
+    isProcessing.value = true
+    workflowResults.value = []
+
+    // Reset node statuses so the canvas reflects the new run.
+    for (const n of nodes.value) {
+      n.status = n.inactive ? 'inactive' : 'pending'
+      delete n.result
+    }
+
+    try {
+      let runResponse: { run: any; result: any }
+      if (meta?.workflowId) {
+        runResponse = await api.runSavedWorkflow(meta.workflowId, files)
+      } else {
+        // Strip File objects from nodes before sending JSON.
+        const cleanedNodes = nodes.value.map((n) => {
+          const { files: _files, result: _result, status: _status, ...rest } = n
+          return rest as WorkflowNode
+        })
+        runResponse = await api.runAdhocWorkflow({
+          nodes: cleanedNodes,
+          files,
+          workflowName: meta?.workflowName,
+        })
+      }
+
+      // Sync final node statuses back onto the canvas.
+      const run = runResponse.run
+      currentRunId.value = run.id
+      for (const remoteNode of run.nodes || []) {
+        const localNode = nodes.value.find((n) => n.id === remoteNode.nodeId)
+        if (!localNode) continue
+        if (remoteNode.status === 'completed') localNode.status = 'completed'
+        else if (remoteNode.status === 'failed') localNode.status = 'error'
+        else if (remoteNode.status === 'skipped') localNode.status = 'inactive'
+        else localNode.status = 'pending'
+      }
+
+      // Mirror per-node results into workflowResults for the existing
+      // results modal, keyed by node id.
+      const perFile = runResponse.result?.files?.[0]?.results || {}
+      for (const node of nodes.value) {
+        if (node.type === 'upload' || node.inactive) continue
+        const data = perFile[node.id]
+        if (data) {
+          node.result = data
+          workflowResults.value.push({
+            nodeId: node.id,
+            nodeLabel: node.label,
+            status: 'success',
+            data,
+          })
+        }
+      }
+
+      if (run.status !== 'completed') {
+        throw new Error(run.error || `Workflow ${run.status}`)
+      }
+    } finally {
+      isProcessing.value = false
+      currentRunId.value = null
+    }
+  }
   
   /**
    * Add a node to the workflow
@@ -165,7 +273,7 @@ export function useJourney() {
   /**
    * Execute the workflow
    */
-  const executeWorkflow = async () => {
+  const executeWorkflow = async (meta?: { workflowId?: string | null; workflowName?: string }) => {
     if (nodes.value.length === 0) {
       throw new Error('No nodes in workflow')
     }
@@ -174,10 +282,33 @@ export function useJourney() {
     if (!uploadNode || !uploadNode.files || uploadNode.files.length === 0) {
       throw new Error('No files uploaded')
     }
-    
+
+    // Prefer the backend orchestrator when reachable. Falls back to the
+    // legacy in-browser executor below if the probe fails.
+    try {
+      const api = useWorkflowApi()
+      const available = await api.checkAvailable()
+      if (available) {
+        return await runWorkflowOnBackend(uploadNode.files, meta, api)
+      }
+    } catch (err) {
+      console.warn('Backend orchestrator unavailable, falling back to in-browser execution:', err)
+    }
+
     isProcessing.value = true
     workflowResults.value = []
-    
+
+    // Create a job record up front so the Jobs tab shows the run immediately.
+    const runRecord = jobs.create({
+      workflowId: meta?.workflowId ?? null,
+      workflowName: meta?.workflowName || 'Ad-hoc workflow',
+      inputFiles: uploadNode.files.map((f) => f.name),
+      nodes: nodes.value.map((n) => ({ id: n.id, label: n.label, type: n.type })),
+    })
+    const runId = runRecord.id
+    currentRunId.value = runId
+    jobs.start(runId)
+
     try {
       // Build execution graph based on connections
       const nodeResults = new Map<string, any>()
@@ -190,6 +321,7 @@ export function useJourney() {
       for (let fileIndex = 0; fileIndex < files.length; fileIndex++) {
         const file = files[fileIndex]
         console.log(`Processing file ${fileIndex + 1}/${files.length}: ${file.name}`)
+        jobs.log(runId, `Processing file ${fileIndex + 1}/${files.length}: ${file.name}`)
         
         // Reset node results for this file
         nodeResults.clear()
@@ -199,6 +331,14 @@ export function useJourney() {
           // Skip upload node (already processed)
           if (node.type === 'upload') {
             nodeResults.set(node.id, { files: [file.name], count: 1 })
+            if (fileIndex === 0) {
+              jobs.updateNode(runId, node.id, {
+                status: 'completed',
+                startedAt: Date.now(),
+                finishedAt: Date.now(),
+                output: { files: [file.name] },
+              })
+            }
             continue
           }
           
@@ -212,12 +352,17 @@ export function useJourney() {
                 status: 'error',
                 error: 'Node is inactive - backend implementation pending'
               })
+              jobs.updateNode(runId, node.id, {
+                status: 'skipped',
+                error: 'Node is inactive - backend implementation pending',
+              })
             }
             continue
           }
           
           if (fileIndex === 0) {
             node.status = 'processing'
+            jobs.updateNode(runId, node.id, { status: 'running', startedAt: Date.now() })
           }
           
           try {
@@ -245,6 +390,11 @@ export function useJourney() {
             if (fileIndex === 0) {
               node.status = 'completed'
               node.result = result
+              jobs.updateNode(runId, node.id, {
+                status: 'completed',
+                finishedAt: Date.now(),
+                output: result,
+              })
             }
             
           } catch (error: any) {
@@ -256,6 +406,12 @@ export function useJourney() {
                 status: 'error',
                 error: error.message
               })
+              jobs.updateNode(runId, node.id, {
+                status: 'failed',
+                finishedAt: Date.now(),
+                error: error.message,
+              })
+              jobs.log(runId, `Node ${node.label} failed: ${error.message}`, 'error', node.id)
             }
             throw error // Stop workflow on error
           }
@@ -281,9 +437,15 @@ export function useJourney() {
           data: concatenatedResult
         })
       }
-      
+
+      jobs.finish(runId, 'completed')
+
+    } catch (err: any) {
+      jobs.finish(runId, 'failed', err?.message || String(err))
+      throw err
     } finally {
       isProcessing.value = false
+      currentRunId.value = null
     }
   }
   
@@ -555,13 +717,8 @@ export function useJourney() {
         throw new Error('No extraction schema defined. Please add schema fields or generate schema in node settings.')
       }
       
-      // Get extractor_model based on tier
-      const extractorTierConfig = {
-        'Rapid': 'gemini-2.5-flash-lite',
-        'Normal': 'gemini-2.5-flash',
-        'Advance': 'gemini-3-pro-preview'
-      }
-      const extractorModel = extractorTierConfig[node.tier as keyof typeof extractorTierConfig] || 'gemini-2.5-flash'
+      // Resolve extractor model from tier config (single source of truth)
+      const extractorModel = getExtractorModel(node.tier)
       
       // Call extract endpoint with text
       const formData = new FormData()
@@ -611,13 +768,8 @@ export function useJourney() {
       throw new Error('No extraction schema defined. Please add schema fields or generate schema in node settings.')
     }
     
-    // Get extractor_model based on tier (for extraction step)
-    const extractorTierConfig = {
-      'Rapid': 'gemini-2.5-flash-lite',
-      'Normal': 'gemini-2.5-flash',
-      'Advance': 'gemini-3-pro-preview'
-    }
-    const extractorModel = extractorTierConfig[node.tier as keyof typeof extractorTierConfig] || 'gemini-2.5-flash'
+    // Get extractor_model based on tier (for extraction step) — uses tier config
+    const extractorModel = getExtractorModel(node.tier)
     formData.append('extractor_model', extractorModel)
     
     console.log('Extract node parameters:', {
@@ -731,11 +883,13 @@ export function useJourney() {
     nodes,
     isProcessing,
     workflowResults,
+    currentRunId,
     addNode,
     removeNode,
     clearWorkflow,
     updateNodeConfig,
     updateNodeFiles,
-    executeWorkflow
+    executeWorkflow,
+    loadWorkflow
   }
 }
