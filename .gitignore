@@ -20,6 +20,8 @@ wheels/
 .installed.cfg
 *.egg
 MANIFEST
+*.pyc
+*.pyo
 
 # Virtual Environment
 .venv/
@@ -33,10 +35,12 @@ env/
 htmlcov/
 .tox/
 .hypothesis/
+.deepeval/
 
 # IDEs
 .vscode/
 .idea/
+.fleet/
 *.swp
 *.swo
 *~
@@ -45,12 +49,25 @@ htmlcov/
 .env
 .env.local
 .env.*.local
-backend/.env
 
-# Uploads and temporary files
-uploads/
+# Frontend (Nuxt)
+frontend/.nuxt/
+frontend/.output/
+frontend/.data/
+frontend/.nitro/
+frontend/.cache/
+frontend/dist/
+frontend/node_modules/
 
 # Data directory - ignore uploaded files and results but keep structure
+data/uploaded/*
+!data/uploaded/.gitkeep
+data/classified/*
+!data/classified/.gitkeep
+data/extracted/*
+!data/extracted/.gitkeep
+
+# Legacy backend data paths
 backend/data/uploaded/*
 !backend/data/uploaded/.gitkeep
 backend/data/classified/*
@@ -63,26 +80,29 @@ backend/data/raw_ocr/*
 !backend/data/raw_ocr/.gitkeep
 backend/data/splited/*
 !backend/data/splited/.gitkeep
+
+# Uploads and temporary files
+uploads/
 backend/uploads/
 *.tmp
 *.log
-.env
+
 # OS
 .DS_Store
 Thumbs.db
 
-# Documentation (temporary/outdated)
-document/
+# Kiro
+.kiro/
+.kirograph/
 
-# Test files
+# Tests
+tests/
+
+# Test files (media artifacts)
 test_*.png
 test_*.jpg
 test_*.pdf
 Screenshot*.png
 
-# Build artifacts
-*.pyc
-*.pyo
-.kiro/*
-tests/*
-__pycache__/*
+# Documentation (temporary/outdated)
+document/
